@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Removed hardcoded apiBaseUrl**: Default configuration no longer includes a hardcoded OpenRouter URL
-- **Improved type safety**: Added `ReasoningDelta` and `ReasoningMessage` types for reasoning models (DeepSeek, Kimi)
+- **Improved type safety**: Added `ReasoningDelta` and `ReasoningMessage` types for reasoning models (DeepSeek, Kimi K2.5)
 - **npm-ready package.json**: Added `exports`, `types`, `sideEffects`, `publishConfig` fields
 
 ### Fixed

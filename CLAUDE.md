@@ -390,7 +390,7 @@ export const myTool: UnifiedTool = {
 
 ### 1.14.0 - NPM-Ready Package
 - **Removed hardcoded apiBaseUrl**: No longer defaults to OpenRouter URL
-- **Improved type safety**: `ReasoningDelta` and `ReasoningMessage` types for reasoning models
+- **Improved type safety**: Added `ReasoningDelta` and `ReasoningMessage` types for reasoning models (DeepSeek, Kimi)
 - **npm-ready package.json**: Added `exports`, `types`, `sideEffects`, `publishConfig` fields
 - **Total Tools**: 101
 
@@ -477,7 +477,7 @@ export const myTool: UnifiedTool = {
 ### 1.12.1 - Dynamic Model Selection & MPC Security
 - **`ai-models` tool**: Agents can list and select AI models dynamically
   - `ai-models --action list` - List all models from provider
-  - `ai-models --action search --filter kimi` - Filter by name
+  - `ai-models --action search --filter kimi` - Filter models by name (e.g., kimi, llama, deepseek)
   - `ai-models --action select --model <id>` - Select model for session
 - **MPC Security Hardening**:
   - Role-based authorization for all MPC operations (`verifyMpcAuthorization`)

@@ -19,19 +19,19 @@
 
 ---
 
-Model Context Protocol server providing **100+ specialized tools** for code analysis, generation, git operations, file management, line/symbol editing, project memory, multi-board kanban with workspaces, recursive tool invocation, session monitoring, and multi-agent coordination.
+A Model Context Protocol (MCP) server providing **100+ specialized tools** for code analysis, generation, git operations, file management, line/symbol editing, project memory, multi-board kanban with workspaces, recursive tool invocation, session monitoring, and multi-agent coordination.
 
 ## Features
 
-- **100+ MCP Tools** - Code review, refactoring, testing, git, files, editing, memory, kanban, session monitoring
-- **Multi-Board Kanban** - Workspaces for cross-session collaboration, role-based permissions, task push to N agents
+- **100+ MCP Tools** - Code review, refactoring, testing, git operations, file management, editing, memory, kanban, session monitoring
+- **Multi-Board Kanban** - Workspaces for cross-session collaboration, role-based permissions, task distribution to N agents
 - **OpenAI SDK** - Official SDK for all OpenAI-compatible APIs (NVIDIA NIM, OpenRouter, Azure, local)
 - **Dynamic Model Selection** - Agents can list and select AI models at runtime (`ai-models` tool)
 - **Hot-Reload Config** - Change AI provider/model at runtime without restart
 - **Multi-Agent Architecture** - Multiple agents connect via HTTP, share context through Redis
 - **Recursive Tool Invocation** - Sub-agents can invoke tools (2-level depth)
 - **Bun + Node.js Support** - Cross-runtime compatibility with automatic detection
-- **Tree-sitter AST** - Language-aware code navigation and symbol editing
+- **Tree-sitter AST** - Language-aware code navigation and symbol editing with support for 19 languages
 - **Project Memory** - Persistent key-value storage per project with TTL and tags
 
 ## Quick Start
@@ -92,7 +92,7 @@ ai-models --action list
 ai-models --action search --filter kimi
 
 # Select a model for the session
-ai-models --action select --model moonshotai/kimi-k2-instruct
+ai-models --action select --model kimi-k2.5
 
 # Test connection
 ai-config --action test
