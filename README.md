@@ -367,6 +367,10 @@ bun run typecheck   # Type checking
 bun test            # Tests
 ```
 
+## Authors
+
+- **Dawid Irzyk** - Lead Developer - [dawid@kemdi.pl](mailto:dawid@kemdi.pl)
+
 ## License
 
 <p>

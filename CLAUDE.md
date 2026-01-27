@@ -901,3 +901,7 @@ export const myTool: UnifiedTool = {
 - Bug fixes and updates
 - Redis context sharing
 - Initial public release
+
+## Authors
+
+- **Dawid Irzyk** - Lead Developer - [dawid@kemdi.pl](mailto:dawid@kemdi.pl)
