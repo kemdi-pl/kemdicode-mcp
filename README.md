@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/KemdiCode-MCP_Server-8B5CF6?style=for-the-badge&labelColor=1a1a2e" alt="KemdiCode MCP Server" />
+  <img src="src/kemdi-code.png" alt="KemdiCode MCP Server" width="400" />
 </p>
 
 <p align="center">
