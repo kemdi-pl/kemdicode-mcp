@@ -278,6 +278,354 @@ src/
 - **Cross-session collaboration**: Workspaces for multi-agent projects
 - **Real-time coordination**: Pub/Sub messaging
 
+## Runtime Abstraction Layer
+
+The `src/runtime/` module provides seamless cross-runtime compatibility:
+
+```typescript
+// src/runtime/index.ts
+export const isBun = typeof Bun !== 'undefined';
+export const isNode = !isBun;
+export const runtime = isBun ? 'bun' : 'node';
+```
+
+### HTTP Server (`runtime/http.ts`)
+```typescript
+// Unified HTTP server interface
+export const httpServer = {
+  serve: (options: ServerOptions) => {
+    return isBun 
+      ? Bun.serve(options)           // Bun native
+      : createNodeServer(options);   // node:http
+  }
+};
+```
+
+### Process Spawning (`runtime/process.ts`)
+```typescript
+// Cross-runtime process execution
+export const spawnProcess = (
+  command: string[],
+  options: SpawnOptions
+): Process => {
+  return isBun
+    ? Bun.spawn(command, options)
+    : spawn(command[0], command.slice(1), options);
+};
+```
+
+This abstraction enables the same codebase to run on both runtimes without modifications.
+
+## File Operations Deep Dive
+
+### Smart File Handling (`file-read.tool.ts`)
+```typescript
+// Automatic encoding detection
+const encoding = detectEncoding(buffer); // utf-8, utf-16, latin1
+const content = iconv.decode(buffer, encoding);
+
+// Large file streaming support
+if (fileSize > 1024 * 1024) {
+  return streamLargeFile(filePath, maxSize);
+}
+```
+
+### Batch Operations (`file-write.tool.ts`)
+```typescript
+// Atomic batch write - all files or none
+const schema = z.object({
+  files: z.array(z.object({
+    path: z.string(),
+    content: z.string(),
+    backup: z.boolean().default(true),
+  })).max(20), // Batch limit: 20 files
+});
+
+// Implementation creates backups before writing
+for (const file of files) {
+  if (file.backup) await createBackup(file.path);
+  await writeFile(file.path, file.content);
+}
+```
+
+### Symbol-Based Editing (`code/`)
+Tree-sitter powered AST manipulation:
+
+```typescript
+// Find symbol position in AST
+const symbolNode = findSymbolInTree(tree, symbolName);
+
+// Insert before/after with proper indentation
+const indent = detectIndentation(sourceFile);
+const insertPosition = symbolNode.startPosition;
+```
+
+## Dependency Injection Patterns
+
+### Symbol Insertion (`insert-before-symbol.tool.ts`)
+```typescript
+// Inject import before class definition
+insert-before-symbol --symbol "UserService" --content "import { Logger } from './logger';"
+
+// Result:
+import { Logger } from './logger';
+class UserService {
+  // existing code
+}
+```
+
+### Method Injection (`insert-after-symbol.tool.ts`)
+```typescript
+// Add dependency after constructor
+insert-after-symbol --symbol "constructor" --content "  private logger = new Logger();"
+
+// Result:
+class UserService {
+  constructor(private db: Database) {}
+  private logger = new Logger();
+}
+```
+
+### Cross-File Renaming (`rename-symbol.tool.ts`)
+```typescript
+// Rename across entire codebase with dry-run
+rename-symbol --symbol "oldService" --newName "newService" --dry-run true
+
+// Finds all references using Tree-sitter
+// Generates preview of changes
+// Applies atomically when confirmed
+```
+
+## Multi-Board Kanban Architecture
+
+### Data Model
+```
+Workspace (cross-session)
+├── Board "Backend Sprint 1"
+│   ├── Task "API Auth" (assigned: agent-1)
+│   ├── Task "DB Migration" (assigned: agent-2)
+│   └── Task "Tests" (assigned: agent-3)
+├── Board "Frontend Bugs"
+│   ├── Task "Fix Login" (assigned: agent-4)
+│   └── Task "CSS Issue" (assigned: agent-5)
+└── Board "Infrastructure"
+    └── Task "Deploy" (assigned: agent-6)
+```
+
+### Redis Schema
+```
+mcp:kanban:workspace:<id>     - Workspace metadata
+mcp:kanban:board:<id>         - Board metadata
+mcp:kanban:task:<id>          - Task data
+mcp:kanban:board:<id>:tasks   - Task list per board
+mcp:kanban:agent:<id>:tasks   - Task assignments per agent
+```
+
+### Task Distribution (`task-push-multi.tool.ts`)
+```typescript
+// Push to N agents with different modes
+interface TaskPushOptions {
+  taskIds: string[];
+  agents: string[];
+  mode: 'assign' | 'clone' | 'notify';
+}
+
+// assign - Move task to agent
+// clone - Create copies for each agent
+// notify - Send notification only
+```
+
+## LLM Agent Orchestration
+
+### Registration with Capabilities
+```typescript
+// Register agents with specific skills
+agent-register --agents '[{
+  "id": "backend-dev",
+  "role": "backend",
+  "capabilities": ["typescript", "postgresql", "api-design"],
+  "maxConcurrent": 3
+}]'
+```
+
+### Message Queue System
+Priority-based message delivery:
+
+```typescript
+// Queue schema
+interface QueuedMessage {
+  id: string;
+  priority: 'critical' | 'high' | 'normal' | 'low';
+  content: string;
+  attachments?: string[];
+  forceContextChange?: boolean;
+  ttl?: number;
+}
+
+// Redis storage
+mcp:queue:<agent-id>:messages - Priority sorted set
+```
+
+### Context Injection
+```typescript
+// Inject directives into running agents
+agent-inject --agentId "backend-dev" --context "Use JWT, not sessions"
+
+// Agent receives via Redis Pub/Sub
+subscribe(`mcp:channel:inject:${agentId}`, (message) => {
+  injectContext(message);
+});
+```
+
+### Hierarchical Monitoring
+```typescript
+// 5 different monitoring views
+monitor --view overview   // Session summary
+monitor --view agents     // Agent status & summaries
+monitor --view tasks      // Task distribution
+monitor --view hierarchy  // Tree: Session → Workspaces → Boards → Tasks → Agents
+monitor --view activity   // Recent actions timeline
+```
+
+### Shared Context Flow
+```
+┌─────────────┐    Redis    ┌─────────────┐
+│  Agent A    │◄──────────►│  Agent B    │
+│  (Backend)  │  Pub/Sub    │  (Frontend) │
+└──────┬──────┘             └──────┬──────┘
+       │                           │
+       └──────────┬────────────────┘
+                  ▼
+           shared-thoughts
+           get-shared-context
+```
+
+## Recursive Tool Invocation
+
+### Safety Controls (`recursive/tool-invoker.ts`)
+```typescript
+const SAFETY_LIMITS = {
+  maxDepth: 2,              // Prevent infinite recursion
+  maxCallsPerMinute: 30,    // Rate limiting
+  timeoutMs: 30000,         // Per-invocation timeout
+};
+
+// Invocation tracking
+const invocationStack: InvocationFrame[] = [];
+
+// Depth check
+if (invocationStack.length >= SAFETY_LIMITS.maxDepth) {
+  throw new Error('Maximum recursion depth exceeded');
+}
+```
+
+### Batch Invocation (`invoke-batch.tool.ts`)
+```typescript
+// Parallel vs Sequential
+invoke-batch --mode parallel --invocations '[
+  {"tool": "file-read", "args": {"path": "@src/a.ts"}},
+  {"tool": "file-read", "args": {"path": "@src/b.ts"}}
+]'
+
+// Parallel: Promise.all() - all at once
+// Sequential: for...of loop - one by one
+```
+
+## Case Study: Distributed Microservices Development
+
+### Architecture
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Main LLM (Orchestrator)               │
+└─────────────┬─────────────────────────────┬─────────────┘
+              │                             │
+    ┌─────────▼─────────┐       ┌───────────▼──────────┐
+    │  API Gateway      │       │  Frontend Agent      │
+    │  (agent-1)        │       │  (agent-2)           │
+    └─────────┬─────────┘       └───────────┬──────────┘
+              │                             │
+    ┌─────────▼─────────┐       ┌───────────▼──────────┐
+    │  Auth Service     │       │  UI Components       │
+    │  (agent-3)        │       │  (agent-4)           │
+    └───────────────────┘       └──────────────────────┘
+```
+
+### Implementation
+
+**Step 1: Setup Infrastructure**
+```bash
+# Create workspace
+workspace-create --name "Microservices Platform"
+
+# Create boards per service
+board-create --name "API Gateway" --workspaceId <ws-id>
+board-create --name "Auth Service" --workspaceId <ws-id>
+board-create --name "Frontend" --workspaceId <ws-id>
+```
+
+**Step 2: Register Specialized Agents**
+```bash
+agent-register --agents '[
+  {"id":"api-gateway","role":"backend","capabilities":["nodejs","express","nginx"]},
+  {"id":"auth-service","role":"backend","capabilities":["typescript","jwt","oauth"]},
+  {"id":"frontend","role":"frontend","capabilities":["react","vite","tailwind"]},
+  {"id":"qa","role":"quality","capabilities":["jest","cypress","k6"]}
+]'
+```
+
+**Step 3: Distribute Tasks**
+```bash
+# Create tasks for each service
+task-create --boardId <gateway-board> --tasks '[
+  {"title":"Setup Express server","priority":"high"},
+  {"title":"Implement rate limiting","priority":"high"}
+]'
+
+task-create --boardId <auth-board> --tasks '[
+  {"title":"JWT authentication","priority":"high"},
+  {"title":"OAuth integration","priority":"medium"}
+]'
+
+# Push to agents
+task-push-multi --taskIds '["task-1","task-2"]' --agents '["api-gateway"]' --mode assign
+task-push-multi --taskIds '["task-3","task-4"]' --agents '["auth-service"]' --mode assign
+```
+
+**Step 4: Monitor & Coordinate**
+```bash
+# Check overall progress
+monitor --view hierarchy
+
+# Inject shared requirement
+queue-message --broadcast true --priority critical \
+  --message "All services must use OpenAPI 3.0 spec"
+
+# Agents share their API designs
+shared-thoughts --action write --scope code \
+  --content "Gateway routes: /api/v1/auth, /api/v1/users"
+```
+
+**Step 5: Integration Testing**
+```bash
+# QA agent runs tests
+queue-message --agentIds '["qa"]' --message "Run integration tests"
+
+# QA agent invokes tools
+invoke-batch --mode sequential --invocations '[
+  {"tool":"run-tests","args":{}},
+  {"tool":"run-lint","args":{}},
+  {"tool":"code-review","args":{"files":"@src/**/*.ts","focus":"security"}}
+]'
+```
+
+### Results
+- **4 agents** working in parallel
+- **3 microservices** developed simultaneously
+- **Shared context** ensures API consistency
+- **Automated QA** pipeline integrated
+- **Real-time coordination** via Redis Pub/Sub
+- **Role-based permissions** for secure collaboration
+
 ## CLI Options
 
 ```bash

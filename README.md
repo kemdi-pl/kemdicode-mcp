@@ -123,6 +123,215 @@ ai-config --action test
 | **System** | 9 | `shell-exec` `process-list` `env-info` `memory-usage` `ai-config` `ai-models` `config` `ping` `help` |
 | **Utility** | 1 | `timeout-test` |
 
+## Key Capabilities
+
+### Cross-Runtime Platform Support
+
+KemdiCode MCP runs on both **Bun** (recommended) and **Node.js** with automatic runtime detection:
+
+```bash
+# Bun (faster, recommended)
+bun install && bun run build:bun && bun run start:bun
+
+# Node.js (alternative)
+npm install && npm run build && npm run start
+```
+
+The runtime abstraction layer (`src/runtime/`) provides unified APIs for:
+- HTTP server (Bun.serve / node:http)
+- Process spawning (Bun.spawn / child_process)
+- Crypto utilities
+- Network operations
+
+### Advanced File Operations
+
+Smart file handling with automatic encoding detection, backups, and batch processing:
+
+```bash
+# Read file with encoding detection
+file-read --path @src/index.ts
+
+# Search across codebase with ripgrep
+file-search --pattern "class.*Controller" --glob "*.ts"
+
+# Batch write multiple files atomically
+file-write --files '[{"path":"@src/utils.ts","content":"export const add = (a,b) => a+b;"}]'
+
+# Compare files with unified diff
+file-diff --file1 @src/old.ts --file2 @src/new.ts
+
+# Directory tree with depth control
+file-tree --path @src --depth 3
+```
+
+### Dependency Injection & Code Modification
+
+Inject dependencies and modify code at symbol level:
+
+```bash
+# Insert import statement before a class definition
+insert-before-symbol --symbol "UserService" --content "import { Logger } from './logger';"
+
+# Add method after existing symbol
+insert-after-symbol --symbol "UserService" --content "  private logger = new Logger();"
+
+# Rename symbol across entire codebase (with dry-run)
+rename-symbol --symbol "oldName" --newName "newName" --dry-run true
+
+# Refactor with AI assistance
+refactor --files "@src/services/*.ts" --goal "Apply dependency injection pattern"
+```
+
+### Multi-Board Kanban System
+
+Advanced task management with workspaces, boards, and role-based access:
+
+```bash
+# Create workspace for cross-session collaboration
+workspace-create --name "Project Alpha" --description "Main development workspace"
+
+# Create multiple boards within workspace
+board-create --name "Backend Sprint 1" --workspaceId <id>
+board-create --name "Frontend Bugs" --workspaceId <id>
+
+# Create tasks with board assignment
+task-create --tasks '[{"title":"API endpoint","boardId":"<board-id>"}]' --priority high
+
+# Push tasks to N agents simultaneously
+task-push-multi --taskIds '["task-1","task-2"]' --agents '["agent-1","agent-2"]' --mode assign
+
+# Check board status
+board-status --boardId <board-id>
+```
+
+**Key Features:**
+- **Workspaces**: Cross-session collaboration containers
+- **Multiple Boards**: Organize work by sprints, teams, or priorities
+- **Role-Based Access**: owner/admin/member/viewer permissions
+- **Batch Operations**: Create/update 1-20 tasks in single call
+- **Task Distribution**: Push to N agents with assign/clone/notify modes
+
+### LLM-Controlled Sub-Agent Orchestration
+
+Main LLM can spawn and control multiple sub-agents for parallel task execution:
+
+```bash
+# Register multiple sub-agents at once
+agent-register --agents '[
+  {"id":"agent-1","role":"backend","capabilities":["typescript","database"]},
+  {"id":"agent-2","role":"frontend","capabilities":["react","css"]}
+]'
+
+# Queue commands to specific agents
+queue-message --agentIds '["agent-1"]' --message "Implement user authentication API" --priority critical
+
+# Broadcast to all agents
+queue-message --broadcast true --message "Code freeze in 1 hour" --priority high
+
+# Monitor all agents
+monitor --view hierarchy
+
+# Inject context into running agents
+agent-inject --agentId agent-1 --context "Use JWT tokens for auth"
+
+# Get shared context from other agents
+get-shared-context --scope all --format summary
+```
+
+**Orchestration Features:**
+- **Batch Registration**: Register 1-20 agents in single call
+- **Message Queues**: Priority-based (critical/high/normal/low) messaging
+- **Broadcast**: Send to all agents simultaneously
+- **Context Injection**: Real-time context updates to running agents
+- **Hierarchical Monitoring**: Session → Workspaces → Boards → Tasks → Agents view
+- **Shared Thoughts**: Collective knowledge base across all agents
+
+### Recursive Tool Invocation
+
+Sub-agents can invoke tools with safety controls (2-level depth limit):
+
+```bash
+# Invoke tool from agent context
+invoke-tool --tool "code-review" --args '{"files":"@src/auth.ts"}'
+
+# Batch invoke multiple tools
+invoke-batch --invocations '[
+  {"tool":"file-read","args":{"path":"@src/index.ts"}},
+  {"tool":"code-review","args":{"files":"@src/index.ts"}}
+]' --mode parallel
+
+# View invocation history
+invocation-log --limit 20
+```
+
+## Case Study: Multi-Agent Software Development
+
+**Scenario**: Building a full-stack application with KemdiCode MCP
+
+### Setup Phase
+```bash
+# 1. Start MCP server and configure AI provider
+ai-config --action set --apiBaseUrl https://api.openai.com/v1 --apiKey sk-xxx
+ai-models --action select --model gpt-4o
+
+# 2. Create workspace for the project
+workspace-create --name "E-Commerce Platform"
+```
+
+### Parallel Development
+```bash
+# 3. Register specialized agents
+agent-register --agents '[
+  {"id":"backend-dev","role":"backend","capabilities":["typescript","postgresql","api-design"]},
+  {"id":"frontend-dev","role":"frontend","capabilities":["react","typescript","tailwind"]},
+  {"id":"qa-agent","role":"quality","capabilities":["testing","jest","cypress"]}
+]'
+
+# 4. Create kanban boards for each team
+board-create --name "Backend API" --workspaceId <ws-id>
+board-create --name "Frontend UI" --workspaceId <ws-id>
+board-create --name "QA & Testing" --workspaceId <ws-id>
+
+# 5. Distribute tasks to agents
+task-push-multi --taskIds '["api-1","api-2","api-3"]' --agents '["backend-dev"]' --mode assign
+task-push-multi --taskIds '["ui-1","ui-2"]' --agents '["frontend-dev"]' --mode assign
+```
+
+### Real-Time Coordination
+```bash
+# 6. Monitor progress
+monitor --view overview
+
+# 7. Inject shared requirements to all agents
+queue-message --broadcast true --message "All APIs must return consistent error format" --priority high
+
+# 8. Backend agent shares context
+shared-thoughts --action write --scope code --content "Using Zod for API validation"
+
+# 9. Frontend agent reads shared context
+get-shared-context --scope code --format detailed
+```
+
+### Quality Assurance
+```bash
+# 10. QA agent runs automated checks
+batch --operations '[
+  {"tool":"run-tests","args":{}},
+  {"tool":"run-lint","args":{}},
+  {"tool":"check-types","args":{}}
+]'
+
+# 11. Code review across all files
+code-review --files "@src/**/*.ts" --focus security
+```
+
+**Results**: 
+- 3 agents working in parallel on different components
+- Shared context ensures consistency across codebase
+- Real-time monitoring and coordination via Redis
+- Automatic quality checks integrated into workflow
+- Task distribution based on agent capabilities
+
 ## CLI Options
 
 ```bash
