@@ -1,0 +1,99 @@
+/**
+ * KemdiCode MCP Server
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/**
+ * Session Switch Tool
+ *
+ * Switches to a different session or updates current session model.
+ */
+
+import { z } from 'zod';
+import { UnifiedTool } from '../registry.js';
+import { getSessionManager } from '../../session/manager.js';
+import { setCurrentSession, getCurrentSessionId } from '../../context/integration.js';
+
+const schema = z.object({
+  sessionId: z.string().describe('Session ID to switch to'),
+  updateModel: z.string().optional().describe('Update model for this session'),
+  updateFallback: z.string().optional().describe('Update fallback model'),
+});
+
+export const sessionSwitchTool: UnifiedTool<typeof schema> = {
+  name: 'session-switch',
+  description:
+    'Switch to a different session or update the model for current session. Use to change AI model context.',
+  zodSchema: schema,
+  skipContextShare: true,
+
+  execute: async (args) => {
+    const { sessionId, updateModel, updateFallback } = args;
+    const manager = getSessionManager();
+
+    // Check if session exists
+    let session = await manager.getSession(sessionId);
+
+    if (!session) {
+      return `❌ Session not found: ${sessionId}\n\nUse \`session-list\` to see available sessions or \`session-create\` to create a new one.`;
+    }
+
+    const previousId = getCurrentSessionId();
+
+    // Update session if model changes requested
+    if (updateModel || updateFallback) {
+      const updates: { model?: string; fallbackModel?: string } = {};
+      if (updateModel) updates.model = updateModel;
+      if (updateFallback) updates.fallbackModel = updateFallback;
+
+      const updated = await manager.updateSession(sessionId, updates);
+      if (updated) {
+        session = updated;
+      }
+    }
+
+    // Set as current session
+    setCurrentSession(sessionId);
+
+    const lines: string[] = [
+      '╔══════════════════════════════════════════════════════════════════╗',
+      '║ 🔄 SESSION SWITCHED                                             ║',
+      '╠══════════════════════════════════════════════════════════════════╣',
+    ];
+
+    if (previousId && previousId !== sessionId) {
+      lines.push(`║ Previous:    ${previousId.padEnd(54)} ║`);
+    }
+
+    lines.push(
+      `║ Current:     ${sessionId.padEnd(54)} ║`,
+      `║ 🤖 Model:    ${(session.model || 'Not set').padEnd(54)} ║`
+    );
+
+    if (session.fallbackModel) {
+      lines.push(`║ 🔄 Fallback: ${session.fallbackModel.padEnd(54)} ║`);
+    }
+
+    lines.push(
+      `║ 📁 CWD:      ${session.cwd.slice(-54).padStart(54)} ║`,
+      '╠──────────────────────────────────────────────────────────────────╣',
+      '║ All subsequent tool calls will use this session context.'.padEnd(67) + '║',
+      '╚══════════════════════════════════════════════════════════════════╝'
+    );
+
+    return lines.join('\n');
+  },
+};

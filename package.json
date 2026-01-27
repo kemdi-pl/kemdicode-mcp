@@ -1,0 +1,125 @@
+{
+  "name": "kemdicode-mcp",
+  "version": "1.14.0",
+  "description": "Model Context Protocol (MCP) server with 100+ tools for code analysis, AI agents, git operations, multi-agent coordination, and kanban task management",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "kemdicode-mcp": "dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./ai": {
+      "types": "./dist/ai/index.d.ts",
+      "import": "./dist/ai/index.js"
+    },
+    "./tools": {
+      "types": "./dist/tools/index.d.ts",
+      "import": "./dist/tools/index.js"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/config/index.js"
+    },
+    "./version": {
+      "types": "./dist/version.d.ts",
+      "import": "./dist/version.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:bun": "bun build src/index.ts --outdir dist --target bun --sourcemap=external",
+    "start": "node dist/index.js",
+    "start:bun": "bun dist/index.js",
+    "dev": "tsc -w",
+    "dev:bun": "bun --hot src/index.ts",
+    "test": "vitest run",
+    "test:bun": "bun test",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:unit": "vitest run --dir __tests__/unit",
+    "test:ui": "vitest --ui",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
+    "prepare": "npm run format && npm run build",
+    "prepublishOnly": "npm run typecheck && npm run lint",
+    "add-license": "bun scripts/add-license-headers.ts"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "modelcontextprotocol",
+    "ai",
+    "llm",
+    "claude",
+    "openai",
+    "agent",
+    "multi-agent",
+    "code-analysis",
+    "code-review",
+    "git",
+    "kanban",
+    "cli",
+    "tree-sitter",
+    "ast",
+    "redis",
+    "typescript"
+  ],
+  "author": "Kemdi Sp. z o.o. <dawid@kemdi.pl> (Dawid Irzyk)",
+  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kemdi-inc/kemdicode-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kemdi-inc/kemdicode-mcp/issues"
+  },
+  "homepage": "https://github.com/kemdi-inc/kemdicode-mcp#readme",
+  "engines": {
+    "node": ">=18.0.0",
+    "bun": ">=1.0.0"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.1",
+    "@openai/agents": "^0.4.3",
+    "@vscode/vscode-languagedetection": "^1.0.23",
+    "commander": "^14.0.2",
+    "ioredis": "^5.9.2",
+    "openai": "^6.16.0",
+    "shamir-secret-sharing": "^0.0.4",
+    "tree-sitter-wasms": "^0.1.13",
+    "uuid": "^13.0.0",
+    "web-tree-sitter": "^0.26.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@types/node": "^25.0.10",
+    "@types/uuid": "^11.0.0",
+    "@vitest/coverage-v8": "^4.0.18",
+    "eslint": "^9.39.2",
+    "ioredis-mock": "^8.13.1",
+    "prettier": "^3.8.1",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.54.0",
+    "vitest": "^4.0.18"
+  }
+}
