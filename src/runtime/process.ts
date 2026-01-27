@@ -24,6 +24,7 @@
  * @module runtime/process
  */
 
+import { spawnSync, execSync as nodeExecSync, spawn as nodeSpawn } from 'child_process';
 import { isBun } from './index.js';
 import type {
   SpawnOptions,
@@ -90,7 +91,6 @@ export function execSync(
     };
   } else {
     // Node.js implementation
-    const { spawnSync } = require('child_process');
     const result = spawnSync(command, args, {
       cwd: options?.cwd,
       env: options?.env,
@@ -128,14 +128,13 @@ export function shellSync(command: string, options?: SpawnOptions): string {
     }
     return result.stdout?.toString() || '';
   } else {
-    const { execSync: nodeExecSync } = require('child_process');
     return nodeExecSync(command, {
       cwd: options?.cwd,
       env: options?.env,
       maxBuffer: options?.maxBuffer || 10 * 1024 * 1024,
       timeout: options?.timeout,
       encoding: 'utf-8',
-    });
+    }) as string;
   }
 }
 
@@ -220,7 +219,6 @@ export function spawn(
     };
   } else {
     // Node.js implementation
-    const { spawn: nodeSpawn } = require('child_process');
     const proc = nodeSpawn(command, args, {
       cwd: options?.cwd,
       env: options?.env,
@@ -272,7 +270,7 @@ export function spawn(
 
     return {
       pid: proc.pid,
-      kill: (signal = 'SIGTERM') => {
+      kill: (signal: NodeJS.Signals = 'SIGTERM') => {
         try {
           proc.kill(signal);
           return true;

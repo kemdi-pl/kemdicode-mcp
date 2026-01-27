@@ -34,7 +34,6 @@ import {
   CreateBoardInput,
   BoardVisibility,
   BoardEvent,
-  BoardEventType,
   KANBAN_KEYS,
   DEFAULT_TASK_TTL,
 } from './types.js';

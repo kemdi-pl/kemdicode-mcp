@@ -25,7 +25,12 @@
  * @module runtime/crypto
  */
 
-import { randomUUID as nodeRandomUUID, randomBytes as nodeRandomBytes, createHash } from 'crypto';
+import {
+  randomUUID as nodeRandomUUID,
+  randomBytes as nodeRandomBytes,
+  createHash,
+  timingSafeEqual as nodeTimingSafeEqual,
+} from 'crypto';
 import { isBun } from './index.js';
 
 /**
@@ -226,8 +231,6 @@ export function generateContextId(): string {
 export function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
 
-  // Use Node.js crypto.timingSafeEqual for constant-time comparison
-  const { timingSafeEqual: nodeTimingSafeEqual } = require('crypto');
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
 

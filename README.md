@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="src/kemdi-code.png" alt="KemdiCode MCP Server" width="400" />
-</p>
+# KemdiCode MCP Server
 
 <p align="center">
   <a href="https://git.kemdi.pl/Kemdi/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.14.0-blue?style=flat-square" alt="Version" /></a>

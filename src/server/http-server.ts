@@ -16,7 +16,7 @@
  * @module server/http-server
  */
 
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer, type ServerResponse } from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { Logger, LogLevel } from '../utils/logger.js';
 import { config } from '../config/index.js';
@@ -25,7 +25,6 @@ import {
   sendSSEEvent,
   getProgressState,
   setProgressSSEResponse,
-  deleteProgressState,
   SSEEventType,
 } from './progress.js';
 import {

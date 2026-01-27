@@ -51,16 +51,7 @@ import { Logger } from './utils/logger.js';
 import { config } from './config/index.js';
 import { initContext, initAgentMonitor, getSessionId } from './context/index.js';
 import { initAIClient } from './ai/index.js';
-import {
-  VERSION,
-  type ServerConfig,
-  getSessionConfig,
-  setSessionConfig,
-  deleteSessionConfig,
-  getAllSessionConfigs,
-  startHttpServer,
-  stopHttpServer,
-} from './server/index.js';
+import { VERSION, type ServerConfig, startHttpServer, stopHttpServer } from './server/index.js';
 
 // Re-export for backwards compatibility
 export {

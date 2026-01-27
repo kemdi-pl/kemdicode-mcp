@@ -5,14 +5,14 @@
  * @license GPL-3.0
  */
 
-import { complete, getClientConfig, type CompletionResponse } from './client.js';
+import { complete, getClientConfig } from './client.js';
 import {
   buildAgentMessages,
   getAgentTemperature,
   getAgentMaxTokens,
   type AgentType,
 } from './agents.js';
-import { loadFileContexts, formatFileContextForPrompt, parseFiles } from './file-context.js';
+import { loadFileContexts, formatFileContextForPrompt } from './file-context.js';
 
 export interface ExecuteAIOptions {
   /** The prompt/question for the AI */

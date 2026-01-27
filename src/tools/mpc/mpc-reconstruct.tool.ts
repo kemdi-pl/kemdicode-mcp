@@ -22,6 +22,7 @@
  * Reconstruct a secret from collected shares.
  */
 
+import { createHash } from 'crypto';
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getMpcStore, reconstructSecret, verifyMpcAuthorization } from '../../mpc/index.js';
@@ -115,11 +116,7 @@ export const mpcReconstructTool: UnifiedTool<typeof schema> = {
       // SECURITY: Never output plaintext secrets - return structured result instead
       // The secret is available programmatically but NOT shown in logs/output
       const secretLength = result.secret!.length;
-      const secretHash = require('crypto')
-        .createHash('sha256')
-        .update(result.secret!)
-        .digest('hex')
-        .substring(0, 16);
+      const secretHash = createHash('sha256').update(result.secret!).digest('hex').substring(0, 16);
 
       return JSON.stringify({
         success: true,

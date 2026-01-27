@@ -28,7 +28,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
-import { shareBoard, getBoard, hasPermission } from '../../kanban/index.js';
+import { shareBoard, hasPermission } from '../../kanban/index.js';
 
 const schema = z.object({
   boardId: z.string().min(1).describe('Board ID to share'),

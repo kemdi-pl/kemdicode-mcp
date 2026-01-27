@@ -42,7 +42,7 @@ export const sessionDeleteTool: UnifiedTool<typeof schema> = {
   skipContextShare: true,
 
   execute: async (args) => {
-    const { sessionId, clearContext, force } = args;
+    const { sessionId, clearContext } = args;
     const manager = getSessionManager();
 
     // Check if session exists

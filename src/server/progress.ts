@@ -18,7 +18,6 @@
 
 import type { ServerResponse } from 'node:http';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { Logger } from '../utils/logger.js';
 import { PROTOCOL } from '../constants.js';
 import { SSEEventType, type ProgressState, type ProgressData } from './types.js';
 

@@ -30,7 +30,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getAgentMonitor } from '../../context/agent-monitor.js';
-import type { SessionOverview, AgentOverview, BoardOverview } from '../../context/types.js';
+import type { SessionOverview } from '../../context/types.js';
 
 const schema = z.object({
   sessionId: z.string().describe('Session ID to monitor'),

@@ -24,6 +24,7 @@
  * @module runtime/net
  */
 
+import { createConnection } from 'net';
 import { isBun } from './index.js';
 import type { SocketCheckOptions } from './types.js';
 
@@ -77,8 +78,6 @@ export async function isPortOpen(options: SocketCheckOptions): Promise<boolean> 
     });
   } else {
     // Node.js implementation
-    const { createConnection } = require('net');
-
     return new Promise((resolve) => {
       const socket = createConnection({ port, host });
 

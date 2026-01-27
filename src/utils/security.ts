@@ -133,7 +133,7 @@ export function validateUrl(url: string): { valid: boolean; error?: string } {
     }
 
     return { valid: true };
-  } catch (error) {
+  } catch {
     return { valid: false, error: 'Invalid URL format' };
   }
 }
@@ -210,7 +210,6 @@ export function signData(data: string, secret?: string): string {
  * Verify data signature
  */
 export function verifySignature(data: string, signature: string, secret?: string): boolean {
-  const expected = signData(data, secret);
   // Timing-safe comparison
   try {
     return createHmac('sha256', secret || '')
