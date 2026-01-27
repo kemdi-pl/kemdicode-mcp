@@ -120,7 +120,7 @@ ai-config --action test
 | **MPC Security** | 4 | `mpc-split` `mpc-distribute` `mpc-reconstruct` `mpc-status` |
 | **RL Learning** | 2 | `rl-reward-stats` `rl-dopamine-log` |
 | **Loci/Graph** | 4 | `graph-query` `graph-find-path` `loci-recall` `sequence-recommend` |
-| **System** | 9 | `shell-exec` `process-list` `env-info` `memory-usage` `ai-config` `ai-models` `config` `ping` `Help` |
+| **System** | 9 | `shell-exec` `process-list` `env-info` `memory-usage` `ai-config` `ai-models` `config` `ping` `help` |
 | **Utility** | 1 | `timeout-test` |
 
 ## CLI Options
