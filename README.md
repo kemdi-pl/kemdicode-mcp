@@ -34,6 +34,17 @@ A Model Context Protocol (MCP) server providing **100+ specialized tools** for c
 - **Tree-sitter AST** - Language-aware code navigation and symbol editing with support for 19 languages
 - **Project Memory** - Persistent key-value storage per project with TTL and tags
 
+## Tested IDEs & Editors
+
+KemdiCode MCP is tested and verified to work with:
+
+| IDE/Editor | Status | Configuration |
+|------------|--------|---------------|
+| **Claude Code** | ✅ Fully Supported | `claude mcp add` or `~/.claude.json` |
+| **Cursor** | ✅ Fully Supported | Settings > Features > MCP |
+| **KiroCode** | ✅ Fully Supported | `~/.kirocode/mcp.json` |
+| **RooCode** | ✅ Fully Supported | VS Code extension settings |
+
 ## Quick Start
 
 ### Requirements
@@ -72,6 +83,62 @@ Or add to `~/.claude.json`:
     "kemdicode-mcp": {
       "command": "bun",
       "args": ["/path/to/kemdicode-mcp/dist/index.js"]
+    }
+  }
+}
+```
+
+#### Cursor
+
+Add to Cursor MCP settings (Settings > Features > MCP):
+
+```json
+{
+  "mcpServers": {
+    "kemdicode-mcp": {
+      "command": "bun",
+      "args": [
+        "/path/to/kemdicode-mcp/dist/index.js",
+        "-m", "kimi-k2.5"
+      ]
+    }
+  }
+}
+```
+
+#### KiroCode
+
+Add to `~/.kirocode/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "kemdicode-mcp": {
+      "command": "bun",
+      "args": [
+        "/path/to/kemdicode-mcp/dist/index.js",
+        "-m", "kimi-k2.5",
+        "--redis-host", "127.0.0.1"
+      ]
+    }
+  }
+}
+```
+
+#### RooCode
+
+Add to VS Code settings (RooCode extension settings):
+
+```json
+{
+  "mcpServers": {
+    "kemdicode-mcp": {
+      "command": "bun",
+      "args": [
+        "/path/to/kemdicode-mcp/dist/index.js",
+        "-m", "kimi-k2.5",
+        "--redis-host", "127.0.0.1"
+      ]
     }
   }
 }
