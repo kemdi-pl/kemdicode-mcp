@@ -30,6 +30,7 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
+import { createRequire } from 'module';
 import { Logger } from '../utils/logger.js';
 import {
   TreeSitterLanguage,
@@ -44,8 +45,59 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+/**
+ * Resolve path to WASM grammars from tree-sitter-wasms package.
+ * Works both in development and when installed as npm package.
+ */
+function resolveWasmDir(): string {
+  try {
+    // Try to resolve the package using require (works when installed as dependency)
+    const require = createRequire(import.meta.url);
+    const packageJsonPath = require.resolve('tree-sitter-wasms/package.json');
+    const wasmPath = resolve(dirname(packageJsonPath), 'out');
+
+    if (existsSync(wasmPath)) {
+      Logger.debug(`tree-sitter: resolved WASM dir via require: ${wasmPath}`);
+      return wasmPath;
+    }
+  } catch {
+    // Package not found via require, try relative paths
+  }
+
+  // Development fallback: try relative to this file
+  const devPath = resolve(__dirname, '../../node_modules/tree-sitter-wasms/out');
+  if (existsSync(devPath)) {
+    Logger.debug(`tree-sitter: resolved WASM dir via relative path: ${devPath}`);
+    return devPath;
+  }
+
+  // Final fallback: try from process.cwd()
+  const cwdPath = resolve(process.cwd(), 'node_modules/tree-sitter-wasms/out');
+  if (existsSync(cwdPath)) {
+    Logger.debug(`tree-sitter: resolved WASM dir via cwd: ${cwdPath}`);
+    return cwdPath;
+  }
+
+  // Monorepo fallback: try walking up from __dirname looking for node_modules
+  let currentDir = __dirname;
+  for (let i = 0; i < 5; i++) {
+    const monorepoPath = resolve(currentDir, 'node_modules/tree-sitter-wasms/out');
+    if (existsSync(monorepoPath)) {
+      Logger.debug(`tree-sitter: resolved WASM dir via monorepo walk: ${monorepoPath}`);
+      return monorepoPath;
+    }
+    currentDir = resolve(currentDir, '..');
+  }
+
+  // Return default path even if not found - error will be thrown when loading
+  Logger.warn(
+    `tree-sitter: could not resolve WASM dir, using default. Install tree-sitter-wasms package.`
+  );
+  return devPath;
+}
+
 /** Path to WASM grammars from tree-sitter-wasms package */
-const WASM_DIR = resolve(__dirname, '../../node_modules/tree-sitter-wasms/out');
+const WASM_DIR = resolveWasmDir();
 
 /** Loaded language instances */
 const loadedLanguages = new Map<TreeSitterLanguage, Language>();
