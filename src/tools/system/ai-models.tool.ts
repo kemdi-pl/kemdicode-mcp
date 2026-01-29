@@ -21,6 +21,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { config } from '../../config/index.js';
 import { initAIClient } from '../../ai/index.js';
+import { validateUrl } from '../../utils/security.js';
 
 /**
  * Model info returned from API
@@ -70,17 +71,43 @@ async function fetchModels(): Promise<ModelInfo[]> {
     throw new Error('API base URL not configured');
   }
 
+  // SSRF guard: validate URL before calling fetch
+  const urlCheck = validateUrl(serverConfig.apiBaseUrl);
+  if (!urlCheck.valid) {
+    throw new Error(`Invalid API base URL: ${urlCheck.error || 'blocked'}`);
+  }
+
   if (!serverConfig.apiKey) {
     throw new Error('API key not configured');
   }
 
-  const response = await fetch(`${serverConfig.apiBaseUrl}/models`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${serverConfig.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-  });
+  const controller = new AbortController();
+  const timeoutMs = config.get('timeouts').safeExec;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  // Avoid double slashes
+  const base = serverConfig.apiBaseUrl.replace(/\/+$/, '');
+  const modelsUrl = `${base}/models`;
+
+  let response: Response;
+  try {
+    response = await fetch(modelsUrl, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${serverConfig.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+    });
+  } catch (error) {
+    // Normalize abort vs network errors
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error(`Request timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!response.ok) {
     throw new Error(`API error: ${response.status} ${response.statusText}`);

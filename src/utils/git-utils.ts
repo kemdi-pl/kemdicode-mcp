@@ -31,7 +31,7 @@
  * @module utils/git-utils
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { gitCache } from './cache.js';
 import { config } from '../config/index.js';
 
@@ -67,15 +67,14 @@ export function execGit(args: string[], options: GitExecOptions = {}): string {
     encoding: BufferEncoding;
     maxBuffer: number;
   } = {
+    cwd: options.cwd,
     encoding: options.encoding ?? 'utf-8',
     maxBuffer: options.maxBuffer ?? config.get('limits').maxBuffer,
   };
 
-  if (options.cwd) {
-    execOptions.cwd = options.cwd;
-  }
-
-  return execSync(`git ${args.join(' ')}`, execOptions);
+  // IMPORTANT: never execute through a shell. Passing args as an array prevents
+  // command injection via crafted arguments.
+  return execFileSync('git', args, execOptions);
 }
 
 /**
