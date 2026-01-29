@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="kemdi-code-mcp.png" alt="kemdiCode MCP" width="400" />
+  <img src="kemdi-code-mcp-logo.png" alt="kemdiCode MCP" width="400" />
 </p>
 
 <p align="center">
