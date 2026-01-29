@@ -23,6 +23,7 @@ import { UnifiedTool } from '../registry.js';
 import { executeAI, parseFiles, type AgentType } from '../../ai/index.js';
 import { getEnhancedContextString } from '../../utils/projectContext.enhanced.js';
 import { Logger } from '../../utils/logger.js';
+import { validatePath } from '../../utils/validation.js';
 
 const FOCUS_MAP: Record<string, string> = {
   security: 'SECURITY: SQL injection, XSS, CSRF, auth bypass, hardcoded secrets',
@@ -215,6 +216,15 @@ Begin analysis:`;
       const filePath = path.isAbsolute(edit.file)
         ? edit.file
         : path.resolve(process.cwd(), edit.file);
+
+      // Validate path to prevent path traversal from AI-generated edits
+      try {
+        await validatePath(filePath, { allowSymlinks: false, operation: 'write', requireWithinProject: false });
+      } catch {
+        Logger.warn(`auto-fix: Skipping unsafe path: ${filePath}`);
+        continue;
+      }
+
       const existing = editsByFile.get(filePath) || [];
       existing.push({ ...edit, file: filePath });
       editsByFile.set(filePath, existing);

@@ -27,6 +27,14 @@ import type { MpcShare, MpcSecretMetadata, MpcSecretStatus } from './types.js';
 import { MPC_KEYS } from './types.js';
 import { getKeyManager, type EncryptedData } from './crypto.js';
 
+function safeJsonParse<T>(value: string | undefined, fallback: T): T {
+  try {
+    return JSON.parse(value || '') ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 /**
  * MPC Redis Store configuration
  */
@@ -91,14 +99,14 @@ export class MpcRedisStore extends RedisBackedService {
       return {
         id: data.id,
         sessionId: data.sessionId,
-        totalShares: parseInt(data.totalShares, 10),
-        threshold: parseInt(data.threshold, 10),
-        holders: JSON.parse(data.holders || '[]'),
+        totalShares: parseInt(data.totalShares, 10) || 0,
+        threshold: parseInt(data.threshold, 10) || 0,
+        holders: safeJsonParse(data.holders, []),
         creatorAgentId: data.creatorAgentId,
-        createdAt: parseInt(data.createdAt, 10),
-        ttl: data.ttl ? parseInt(data.ttl, 10) : undefined,
+        createdAt: parseInt(data.createdAt, 10) || 0,
+        ttl: data.ttl ? (parseInt(data.ttl, 10) || undefined) : undefined,
         label: data.label || undefined,
-        tags: JSON.parse(data.tags || '[]'),
+        tags: safeJsonParse(data.tags, []),
         secretType: data.secretType as MpcSecretMetadata['secretType'],
         verificationHash: data.verificationHash || undefined,
       };
@@ -211,12 +219,12 @@ export class MpcRedisStore extends RedisBackedService {
 
       return {
         id: data.id,
-        index: parseInt(data.index, 10),
+        index: parseInt(data.index, 10) || 0,
         data: shareData,
         agentId: data.agentId,
         secretId: data.secretId,
         sessionId: data.sessionId,
-        createdAt: parseInt(data.createdAt, 10),
+        createdAt: parseInt(data.createdAt, 10) || 0,
         encrypted: isEncrypted,
       };
     } catch (error) {

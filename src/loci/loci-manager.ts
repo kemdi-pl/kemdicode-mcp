@@ -462,16 +462,24 @@ export class LociManager extends RedisBackedService {
       name: data.name,
       description: data.description,
       category: data.category as LociCategory,
-      associations: JSON.parse(data.associations || '[]'),
-      nodeIds: JSON.parse(data.nodeIds || '[]'),
+      associations: this.safeJsonParse(data.associations, []),
+      nodeIds: this.safeJsonParse(data.nodeIds, []),
       parentLociId: data.parentLociId || undefined,
-      childLociIds: JSON.parse(data.childLociIds || '[]'),
-      order: parseInt(data.order, 10),
+      childLociIds: this.safeJsonParse(data.childLociIds, []),
+      order: parseInt(data.order, 10) || 0,
       sessionId: data.sessionId,
-      createdAt: parseInt(data.createdAt, 10),
+      createdAt: parseInt(data.createdAt, 10) || 0,
       icon: data.icon || undefined,
       color: data.color || undefined,
     };
+  }
+
+  private safeJsonParse<T>(value: string | undefined, fallback: T): T {
+    try {
+      return JSON.parse(value || '') ?? fallback;
+    } catch {
+      return fallback;
+    }
   }
 
 }

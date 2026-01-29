@@ -656,6 +656,7 @@ interface RateLimitState {
   requests: number[];
 }
 
+const MAX_RATE_LIMIT_KEYS = 1000;
 const rateLimitStates: Map<string, RateLimitState> = new Map();
 
 /**
@@ -688,6 +689,16 @@ export function checkRateLimit(
   // Record this request
   state.requests.push(now);
   rateLimitStates.set(key, state);
+
+  // Evict stale entries if map grows too large
+  if (rateLimitStates.size > MAX_RATE_LIMIT_KEYS) {
+    for (const [k, v] of rateLimitStates) {
+      if (v.requests.length === 0 || now - v.requests[v.requests.length - 1] > config.windowMs) {
+        rateLimitStates.delete(k);
+      }
+      if (rateLimitStates.size <= MAX_RATE_LIMIT_KEYS) break;
+    }
+  }
 
   return true;
 }

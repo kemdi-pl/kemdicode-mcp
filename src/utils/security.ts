@@ -27,6 +27,7 @@ const IV_LENGTH = 16;
 export class SecureStorage {
   private masterKey: Buffer;
   private secrets: Map<string, { encrypted: string; iv: string; tag: string }> = new Map();
+  private static readonly MAX_SECRETS = 500;
 
   constructor(password: string, salt?: string) {
     const actualSalt = salt || process.env.SECURE_STORAGE_SALT || 'kemdicode-mcp-salt';
@@ -37,6 +38,12 @@ export class SecureStorage {
    * Encrypt and store a secret
    */
   set(key: string, value: string): void {
+    // Evict oldest entry if at capacity
+    if (this.secrets.size >= SecureStorage.MAX_SECRETS && !this.secrets.has(key)) {
+      const firstKey = this.secrets.keys().next().value;
+      if (firstKey !== undefined) this.secrets.delete(firstKey);
+    }
+
     const iv = randomBytes(IV_LENGTH);
     const cipher = createCipheriv(ALGORITHM, this.masterKey, iv);
     let encrypted = cipher.update(value, 'utf8', 'hex');
@@ -264,6 +271,7 @@ export class RateLimiter {
   private requests: Map<string, number[]> = new Map();
   private maxRequests: number;
   private windowMs: number;
+  private static readonly MAX_KEYS = 1000;
 
   constructor(maxRequests = 100, windowMs = 60000) {
     this.maxRequests = maxRequests;
@@ -286,6 +294,18 @@ export class RateLimiter {
 
     validTimestamps.push(now);
     this.requests.set(key, validTimestamps);
+
+    // Evict stale keys if map grows too large
+    if (this.requests.size > RateLimiter.MAX_KEYS) {
+      for (const [k, v] of this.requests) {
+        const valid = v.filter((t) => now - t < this.windowMs);
+        if (valid.length === 0) {
+          this.requests.delete(k);
+        }
+        if (this.requests.size <= RateLimiter.MAX_KEYS) break;
+      }
+    }
+
     return true;
   }
 

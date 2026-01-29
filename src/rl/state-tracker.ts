@@ -301,18 +301,18 @@ export class StateTracker extends RedisBackedService {
   private parseState(data: Record<string, string>): AgentState {
     return {
       agentId: data.agentId,
-      timestamp: parseInt(data.timestamp, 10),
-      taskProgress: parseFloat(data.taskProgress),
-      toolSuccessRate: parseFloat(data.toolSuccessRate),
-      peerInteractions: parseInt(data.peerInteractions, 10),
-      errorCount: parseInt(data.errorCount, 10),
-      consecutiveErrors: parseInt(data.consecutiveErrors, 10),
-      stateAge: parseInt(data.stateAge, 10),
+      timestamp: parseInt(data.timestamp, 10) || 0,
+      taskProgress: parseFloat(data.taskProgress) || 0,
+      toolSuccessRate: parseFloat(data.toolSuccessRate) || 0,
+      peerInteractions: parseInt(data.peerInteractions, 10) || 0,
+      errorCount: parseInt(data.errorCount, 10) || 0,
+      consecutiveErrors: parseInt(data.consecutiveErrors, 10) || 0,
+      stateAge: parseInt(data.stateAge, 10) || 0,
       currentTool: data.currentTool || undefined,
       currentTask: data.currentTask || undefined,
       sessionId: data.sessionId,
-      totalToolCalls: parseInt(data.totalToolCalls, 10),
-      successfulToolCalls: parseInt(data.successfulToolCalls, 10),
+      totalToolCalls: parseInt(data.totalToolCalls, 10) || 0,
+      successfulToolCalls: parseInt(data.successfulToolCalls, 10) || 0,
     };
   }
 

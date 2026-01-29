@@ -46,6 +46,20 @@ import {
 
 const getRedis = getSharedRedis;
 
+function safeParseJsonArray(value: string | undefined): string[] {
+  try {
+    const parsed = JSON.parse(value || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function safeParseInt(value: string | undefined, fallback?: number): number {
+  const parsed = parseInt(value || '', 10);
+  return isNaN(parsed) ? (fallback ?? 0) : parsed;
+}
+
 /**
  * Create a new task on the Kanban board
  *
@@ -172,16 +186,16 @@ export async function getTask(taskId: string): Promise<KanbanTask | null> {
     priority: data.priority as TaskPriority,
     assignee: data.assignee || undefined,
     createdBy: data.createdBy,
-    blockedBy: JSON.parse(data.blockedBy || '[]'),
-    blocks: JSON.parse(data.blocks || '[]'),
-    relatedFiles: JSON.parse(data.relatedFiles || '[]'),
-    labels: JSON.parse(data.labels || '[]'),
-    createdAt: parseInt(data.createdAt),
-    updatedAt: parseInt(data.updatedAt),
-    startedAt: data.startedAt ? parseInt(data.startedAt) : undefined,
-    completedAt: data.completedAt ? parseInt(data.completedAt) : undefined,
-    estimatedMinutes: data.estimatedMinutes ? parseInt(data.estimatedMinutes) : undefined,
-    actualMinutes: data.actualMinutes ? parseInt(data.actualMinutes) : undefined,
+    blockedBy: safeParseJsonArray(data.blockedBy),
+    blocks: safeParseJsonArray(data.blocks),
+    relatedFiles: safeParseJsonArray(data.relatedFiles),
+    labels: safeParseJsonArray(data.labels),
+    createdAt: safeParseInt(data.createdAt, 0),
+    updatedAt: safeParseInt(data.updatedAt, 0),
+    startedAt: data.startedAt ? safeParseInt(data.startedAt) : undefined,
+    completedAt: data.completedAt ? safeParseInt(data.completedAt) : undefined,
+    estimatedMinutes: data.estimatedMinutes ? safeParseInt(data.estimatedMinutes) : undefined,
+    actualMinutes: data.actualMinutes ? safeParseInt(data.actualMinutes) : undefined,
   };
 }
 
@@ -682,7 +696,9 @@ export async function getBoardSummary(sessionId: string): Promise<BoardSummary> 
 
   // Get recent events
   const eventData = await client.lrange(KANBAN_KEYS.events(sessionId), 0, 9);
-  const recentActivity = eventData.map((e) => JSON.parse(e) as TaskEvent);
+  const recentActivity = eventData
+    .map((e) => { try { return JSON.parse(e) as TaskEvent; } catch { return null; } })
+    .filter((e): e is TaskEvent => e !== null);
 
   return {
     sessionId,

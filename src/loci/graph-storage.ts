@@ -480,14 +480,14 @@ export class GraphStorage extends RedisBackedService {
       id: data.id,
       type: data.type as GraphNodeType,
       label: data.label,
-      weight: parseFloat(data.weight),
+      weight: parseFloat(data.weight) || 0,
       sessionId: data.sessionId,
-      createdAt: parseInt(data.createdAt, 10),
-      lastAccessedAt: parseInt(data.lastAccessedAt, 10),
-      accessCount: parseInt(data.accessCount, 10),
-      data: JSON.parse(data.data || '{}'),
-      tags: JSON.parse(data.tags || '[]'),
-      embedding: data.embedding ? JSON.parse(data.embedding) : undefined,
+      createdAt: parseInt(data.createdAt, 10) || 0,
+      lastAccessedAt: parseInt(data.lastAccessedAt, 10) || 0,
+      accessCount: parseInt(data.accessCount, 10) || 0,
+      data: this.safeJsonParse(data.data, {}),
+      tags: this.safeJsonParse(data.tags, []),
+      embedding: data.embedding ? this.safeJsonParse(data.embedding, undefined) : undefined,
     };
   }
 
@@ -517,12 +517,20 @@ export class GraphStorage extends RedisBackedService {
       from: data.from,
       to: data.to,
       type: data.type as GraphEdgeType,
-      weight: parseFloat(data.weight),
+      weight: parseFloat(data.weight) || 0,
       sessionId: data.sessionId,
-      createdAt: parseInt(data.createdAt, 10),
-      traversalCount: parseInt(data.traversalCount, 10),
-      metadata: data.metadata ? JSON.parse(data.metadata) : undefined,
+      createdAt: parseInt(data.createdAt, 10) || 0,
+      traversalCount: parseInt(data.traversalCount, 10) || 0,
+      metadata: data.metadata ? this.safeJsonParse(data.metadata, undefined) : undefined,
     };
+  }
+
+  private safeJsonParse<T>(value: string | undefined, fallback: T): T {
+    try {
+      return JSON.parse(value || '') ?? fallback;
+    } catch {
+      return fallback;
+    }
   }
 
 }

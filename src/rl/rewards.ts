@@ -163,10 +163,10 @@ export class RewardTracker extends RedisBackedService {
       // Get current stats
       const stats = await this.redis.hgetall(key);
 
-      const count = parseInt(stats.count || '0', 10) + 1;
-      const total = parseFloat(stats.total || '0') + reward.shapedReward;
-      const max = Math.max(parseFloat(stats.max || '-Infinity'), reward.shapedReward);
-      const min = Math.min(parseFloat(stats.min || 'Infinity'), reward.shapedReward);
+      const count = (parseInt(stats.count || '0', 10) || 0) + 1;
+      const total = (parseFloat(stats.total || '0') || 0) + reward.shapedReward;
+      const max = Math.max(parseFloat(stats.max || '0') || -Infinity, reward.shapedReward);
+      const min = Math.min(parseFloat(stats.min || '0') || Infinity, reward.shapedReward);
 
       await this.redis.hset(key, {
         count: count.toString(),
@@ -234,10 +234,10 @@ export class RewardTracker extends RedisBackedService {
         return null;
       }
 
-      const count = parseInt(stats.count || '0', 10);
-      const total = parseFloat(stats.total || '0');
-      const max = parseFloat(stats.max || '0');
-      const min = parseFloat(stats.min || '0');
+      const count = parseInt(stats.count || '0', 10) || 0;
+      const total = parseFloat(stats.total || '0') || 0;
+      const max = parseFloat(stats.max || '0') || 0;
+      const min = parseFloat(stats.min || '0') || 0;
 
       // Parse tool stats
       const rewardsByTool: Record<string, { count: number; total: number; average: number }> = {};

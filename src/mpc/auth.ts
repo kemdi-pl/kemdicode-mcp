@@ -35,6 +35,7 @@ import { createHmac } from 'crypto';
  */
 const authAttempts = new Map<string, { count: number; resetAt: number }>();
 const MAX_AUTH_ATTEMPTS = 10;
+const MAX_AUTH_KEYS = 1000;
 const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
 
 /**
@@ -75,6 +76,14 @@ function checkRateLimit(agentId: string): { allowed: boolean; retryAfterMs?: num
 
     record.count++;
     return { allowed: true };
+  }
+
+  // Evict expired entries if map grows too large
+  if (authAttempts.size > MAX_AUTH_KEYS) {
+    for (const [k, v] of authAttempts) {
+      if (now > v.resetAt) authAttempts.delete(k);
+      if (authAttempts.size <= MAX_AUTH_KEYS) break;
+    }
   }
 
   authAttempts.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
