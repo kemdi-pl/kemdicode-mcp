@@ -402,13 +402,11 @@ export const fileTreeTool: UnifiedTool<typeof schema> = {
   skipContextShare: true, // Tree output may be large
 
   execute: async (args): Promise<string> => {
-    // args is now properly typed as FileTreeArgs via the generic
-    const treeArgs = args;
-    
-    // Handle -1 as "use default" for maxEntries
-    if (treeArgs.maxEntries === -1) {
-      treeArgs.maxEntries = MAX_ENTRIES;
-    }
+    // Do not mutate validated args (tools may reuse args object in callers/tests)
+    const treeArgs = {
+      ...args,
+      maxEntries: args.maxEntries === -1 ? MAX_ENTRIES : args.maxEntries,
+    };
     
     const result: TreeResult = {
       success: false,
