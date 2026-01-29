@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/kemdicode-mcp"><img src="https://img.shields.io/badge/npm-kemdicode--mcp-CB3837?style=flat-square&logo=npm&logoColor=white" alt="npm" /></a>
-  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.15.3-blue?style=flat-square" alt="Version" /></a>
+  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.15.4-blue?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License" /></a>
 </p>
 
@@ -53,10 +53,10 @@
 | Capability | Description |
 |:-----------|:------------|
 | **100+ MCP Tools** | Code review, refactoring, testing, git, file management, AST editing, memory, kanban |
-| **7 LLM Providers** | Native SDKs for OpenAI, Anthropic, Gemini + OpenAI-compatible for Groq, DeepSeek, Ollama, OpenRouter |
+| **7 LLM Providers** | Native SDKs for OpenAI (GPT-5), Anthropic (Claude 4.5), Gemini (Gemini 3) + OpenAI-compatible for Groq, DeepSeek, Ollama, OpenRouter |
 | **Multi-Agent** | Agents connect via HTTP, share context through Redis Pub/Sub, coordinate via kanban boards |
 | **Parallel Multi-Model** | Send one prompt to N models simultaneously; CEO-and-Board consensus pattern |
-| **Thinking Tokens** | Unified syntax across providers: `o:o3:high` &bull; `a:claude-sonnet-4-20250514:4k` &bull; `g:gemini-2.5-flash:8k` |
+| **Thinking Tokens** | Unified syntax across providers: `o:gpt-5:high` &bull; `a:claude-sonnet-4-5:4k` &bull; `g:gemini-3-pro:8k` |
 | **Tree-sitter AST** | Language-aware navigation and symbol editing for 19 languages |
 | **Project Memory** | Persistent per-project key-value store with TTL and tags |
 | **Hot Reload** | Change provider, model, or config at runtime without restart |
@@ -136,7 +136,7 @@ Settings &rarr; Features &rarr; MCP:
   "mcpServers": {
     "kemdicode-mcp": {
       "command": "bun",
-      "args": ["/path/to/kemdicode-mcp/dist/index.js", "-m", "gpt-4o"]
+      "args": ["/path/to/kemdicode-mcp/dist/index.js", "-m", "gpt-5"]
     }
   }
 }
@@ -156,7 +156,7 @@ Add to `~/.kirocode/mcp.json`:
       "command": "bun",
       "args": [
         "/path/to/kemdicode-mcp/dist/index.js",
-        "-m", "gpt-4o",
+        "-m", "claude-sonnet-4-5",
         "--redis-host", "127.0.0.1"
       ]
     }
@@ -178,7 +178,7 @@ Add to VS Code settings (RooCode extension):
       "command": "bun",
       "args": [
         "/path/to/kemdicode-mcp/dist/index.js",
-        "-m", "gpt-4o",
+        "-m", "claude-sonnet-4-5",
         "--redis-host", "127.0.0.1"
       ]
     }
@@ -209,13 +209,18 @@ export OPENROUTER_API_KEY=sk-or-...     # OpenRouter
 Use `provider:model` (or the short alias) anywhere a model is accepted:
 
 ```
-openai:gpt-4o              o:gpt-4o
-anthropic:claude-sonnet-4-20250514    a:claude-sonnet-4-20250514
-gemini:gemini-2.5-pro      g:gemini-2.5-pro
-groq:llama-3.1-70b         q:llama-3.1-70b
-deepseek:deepseek-chat     d:deepseek-chat
-ollama:llama3              l:llama3
-openrouter:gpt-4o          r:gpt-4o
+openai:gpt-5               o:gpt-5              # Latest flagship model
+openai:gpt-5.1-codex       o:gpt-5.1-codex      # Best for coding
+openai:o3                  o:o3                 # Reasoning model
+anthropic:claude-sonnet-4-5-20250929  a:claude-sonnet-4-5  # Best balance
+anthropic:claude-opus-4-5-20251101    a:claude-opus-4-5    # Maximum intelligence
+gemini:gemini-3-pro-preview           g:gemini-3-pro       # Most intelligent
+gemini:gemini-3-flash-preview         g:gemini-3-flash     # Best price/performance
+gemini:gemini-2.5-flash    g:gemini-2.5-flash   # Fast with thinking
+groq:llama-3.3-70b         q:llama-3.3-70b      # Fast inference
+deepseek:deepseek-chat     d:deepseek-chat      # Cost effective
+ollama:llama3.3            l:llama3.3           # Local deployment
+openrouter:gpt-5           r:gpt-5              # Aggregator access
 ```
 
 ### Thinking / Reasoning Tokens
@@ -224,9 +229,24 @@ Append a third segment to enable extended thinking:
 
 | Provider | Syntax | Effect |
 |:---------|:-------|:-------|
-| OpenAI (o-series) | `o:o3:high` | Sets `reasoning_effort` to low / medium / high |
-| Anthropic | `a:claude-sonnet-4-20250514:4k` | Allocates 4 096 thinking tokens |
-| Gemini | `g:gemini-2.5-flash:8k` | Allocates 8 192 thinking tokens |
+| OpenAI (reasoning) | `o:gpt-5:high` | Sets `reasoning_effort` to low / medium / high |
+| Anthropic | `a:claude-sonnet-4-5:4k` | Allocates 4 096 extended thinking tokens |
+| Gemini | `g:gemini-3-pro:8k` | Allocates 8 192 thinking tokens |
+| OpenAI Codex | `o:gpt-5.1-codex:high` | Maximum compute for coding tasks |
+
+### Recommended Models (2025)
+
+| Use Case | Recommended Model | Syntax | Why |
+|:---------|:------------------|:-------|:----|
+| **General coding** | Claude Sonnet 4.5 | `a:claude-sonnet-4-5` | Best balance of intelligence, speed, and cost |
+| **Complex architecture** | Claude Opus 4.5 | `a:claude-opus-4-5:4k` | Maximum intelligence for complex reasoning |
+| **Fast iterations** | GPT-5 | `o:gpt-5` | Fastest flagship model for rapid development |
+| **Agentic coding** | GPT-5.1 Codex | `o:gpt-5.1-codex` | Optimized for long-horizon coding tasks |
+| **Reasoning tasks** | GPT-5 (high) | `o:gpt-5:high` | Extended thinking for complex problems |
+| **Multimodal** | Gemini 3 Pro | `g:gemini-3-pro` | Best for image/video understanding |
+| **Cost-effective** | Gemini 3 Flash | `g:gemini-3-flash` | Best price-performance ratio |
+| **Local/offline** | Llama 3.3 (Ollama) | `l:llama3.3` | Private, no API costs |
+| **High throughput** | Groq Llama 3.3 | `q:llama-3.3-70b` | Fastest inference speeds |
 
 ### Runtime Configuration
 
@@ -235,7 +255,10 @@ Append a third segment to enable extended thinking:
 ai-models --action list
 
 # Switch model at runtime
-ai-models --action select --model gpt-4o
+ai-models --action select --model gpt-5
+
+# Use specific model with thinking tokens
+ai-models --action select --model claude-opus-4-5:4k
 
 # Set custom API endpoint (e.g. NVIDIA NIM)
 ai-config --action set --apiBaseUrl https://integrate.api.nvidia.com/v1
@@ -357,13 +380,23 @@ Send one prompt to N models in parallel, then let a CEO model synthesize:
 ```bash
 # Compare responses
 multi-prompt --prompt "Explain monads in simple terms" \
-  --models '["o:gpt-4o", "a:claude-sonnet-4-20250514", "g:gemini-2.5-pro"]'
+  --models '["o:gpt-5", "a:claude-sonnet-4-5", "g:gemini-3-pro"]'
+
+# Compare reasoning capabilities
+multi-prompt --prompt "Design a distributed caching strategy" \
+  --models '["o:gpt-5:high", "a:claude-opus-4-5:4k", "g:gemini-3-pro:8k"]'
 
 # CEO-and-Board consensus
 consensus-prompt \
   --prompt "Redis vs PostgreSQL for sessions?" \
-  --boardModels '["o:gpt-4o", "a:claude-sonnet-4-20250514", "g:gemini-2.5-pro"]' \
-  --ceoModel "a:claude-sonnet-4-20250514:4k"
+  --boardModels '["o:gpt-5", "a:claude-sonnet-4-5", "g:gemini-3-pro"]' \
+  --ceoModel "a:claude-opus-4-5:4k"
+
+# Coding task with specialized models
+consensus-prompt \
+  --prompt "Refactor this microservice architecture" \
+  --boardModels '["o:gpt-5.1-codex", "a:claude-sonnet-4-5", "o:gpt-5:high"]' \
+  --ceoModel "a:claude-opus-4-5:4k"
 ```
 
 All board models run via `Promise.allSettled()` &mdash; individual failures never block the others.
