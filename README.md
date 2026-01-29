@@ -1,4 +1,6 @@
-# KemdiCode MCP Server
+<p align="center">
+  <img src="kemdi-code-mcp.png" alt="kemdiCode MCP" width="400" />
+</p>
 
 <p align="center">
   <a href="https://git.kemdi.pl/Kemdi/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.15.0-blue?style=flat-square" alt="Version" /></a>
@@ -36,7 +38,7 @@ A Model Context Protocol (MCP) server providing **100+ specialized tools** for c
 
 ## Tested IDEs & Editors
 
-KemdiCode MCP is tested and verified to work with:
+kemdiCode MCP is tested and verified to work with:
 
 | IDE/Editor | Status | Configuration |
 |------------|--------|---------------|
@@ -167,7 +169,7 @@ ai-config --action test
 
 #### Multi-Provider Setup
 
-KemdiCode supports **7 LLM providers** natively. Set API keys via environment variables:
+kemdiCode MCP supports **7 LLM providers** natively. Set API keys via environment variables:
 
 ```bash
 export OPENAI_API_KEY=sk-...
@@ -232,7 +234,7 @@ g:gemini-2.5-flash:8k       # Gemini thinking budget (0-24k tokens)
 
 ### Cross-Runtime Platform Support
 
-KemdiCode MCP runs on both **Bun** (recommended) and **Node.js** with automatic runtime detection:
+kemdiCode MCP runs on both **Bun** (recommended) and **Node.js** with automatic runtime detection:
 
 ```bash
 # Bun (faster, recommended)
@@ -399,7 +401,7 @@ invocation-log --limit 20
 
 ## Case Study: Multi-Agent Software Development
 
-**Scenario**: Building a full-stack application with KemdiCode MCP
+**Scenario**: Building a full-stack application with kemdiCode MCP
 
 ### Setup Phase
 ```bash
