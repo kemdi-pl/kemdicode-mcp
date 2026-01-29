@@ -29,7 +29,7 @@
  */
 
 import { z } from 'zod';
-import { UnifiedTool, executeTool } from './registry.js';
+import { UnifiedTool, executeTool, type ToolArguments } from './registry.js';
 import { Logger } from '../utils/logger.js';
 
 const operationSchema = z.object({
@@ -82,7 +82,7 @@ export const batchTool: UnifiedTool<typeof schema> = {
 
       try {
         // Execute tool via central execution path (validation + logging + RL + context share)
-        const result = await executeTool(op.tool, op.args, (output) => {
+        const result = await executeTool(op.tool, op.args as ToolArguments, (output) => {
           onProgress?.(`[${opId}] ${output.slice(0, 100)}`);
         });
 

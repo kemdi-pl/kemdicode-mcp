@@ -46,12 +46,29 @@ import {
 const contextStack = new Map<string, InvocationContext>();
 
 const getRedis = getSharedRedis;
+
+/**
+ * Try to get Redis client, returning null if unavailable.
+ */
+async function tryGetRedis() {
+  try {
+    return await getRedis();
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Read and normalize rate limit entry from Redis.
  * Resets the window if expired.
+ * Returns default entry if Redis is unavailable.
  */
 async function getRateLimitEntry(agentId: string): Promise<RateLimitEntry> {
-  const client = await getRedis();
+  const client = await tryGetRedis();
+  if (!client) {
+    return { count: 0, windowStart: Date.now() };
+  }
+
   const rateLimitKey = RECURSIVE_KEYS.rateLimit(agentId);
   const data = await client.get(rateLimitKey);
 
@@ -182,14 +199,22 @@ export async function invokeTool(
     Logger.warn(`invoke-tool: ${request.toolName} requires approval, proceeding anyway`);
   }
 
-  const client = await getRedis();
+  const client = await tryGetRedis();
+  let redisAvailable = !!client;
 
   try {
-    // Update rate limit
-    const rateEntry = await getRateLimitEntry(request.agentId);
-    rateEntry.count++;
-    const rateLimitKey = RECURSIVE_KEYS.rateLimit(request.agentId);
-    await client.setex(rateLimitKey, 120, JSON.stringify(rateEntry));
+    // Update rate limit (skip if Redis unavailable)
+    if (client) {
+      try {
+        const rateEntry = await getRateLimitEntry(request.agentId);
+        rateEntry.count++;
+        const rateLimitKey = RECURSIVE_KEYS.rateLimit(request.agentId);
+        await client.setex(rateLimitKey, 120, JSON.stringify(rateEntry));
+      } catch {
+        redisAvailable = false;
+        Logger.warn('invoke-tool: Redis rate limit update failed, continuing without persistence');
+      }
+    }
 
     // Set up context
     const parentContext = contextStack.get(request.agentId);
@@ -202,17 +227,23 @@ export async function invokeTool(
 
     contextStack.set(request.agentId, context);
 
-    // Store invocation data
-    await client.setex(
-      RECURSIVE_KEYS.invocation(invocationId),
-      INVOCATION_TTL,
-      JSON.stringify({
-        ...request,
-        invocationId,
-        depth: context.currentDepth,
-        startTime,
-      })
-    );
+    // Store invocation data (skip if Redis unavailable)
+    if (client && redisAvailable) {
+      try {
+        await client.setex(
+          RECURSIVE_KEYS.invocation(invocationId),
+          INVOCATION_TTL,
+          JSON.stringify({
+            ...request,
+            invocationId,
+            depth: context.currentDepth,
+            startTime,
+          })
+        );
+      } catch {
+        Logger.warn('invoke-tool: Redis invocation storage failed, continuing without persistence');
+      }
+    }
 
     // Get and execute tool
     const tool = getToolByName(request.toolName);
@@ -224,7 +255,7 @@ export async function invokeTool(
 
     const duration = Date.now() - startTime;
 
-    // Log invocation
+    // Log invocation (best-effort)
     await logInvocation(request.agentId, {
       invocationId,
       toolName: request.toolName,
@@ -254,27 +285,37 @@ export async function invokeTool(
       parsedResult = result;
     }
 
-    return {
+    const invocationResult: ToolInvocationResult = {
       invocationId,
       success: true,
       result: parsedResult,
       duration,
       depth: context.currentDepth,
     };
+
+    if (!redisAvailable) {
+      invocationResult.warning = 'Redis unavailable - rate limiting and logging degraded';
+    }
+
+    return invocationResult;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const duration = Date.now() - startTime;
 
-    // Log failed invocation
-    await logInvocation(request.agentId, {
-      invocationId,
-      toolName: request.toolName,
-      success: false,
-      error: errorMessage,
-      duration,
-      depth: safety.currentDepth || 0,
-      timestamp: startTime,
-    });
+    // Log failed invocation (best-effort, do not throw)
+    try {
+      await logInvocation(request.agentId, {
+        invocationId,
+        toolName: request.toolName,
+        success: false,
+        error: errorMessage,
+        duration,
+        depth: safety.currentDepth || 0,
+        timestamp: startTime,
+      });
+    } catch {
+      Logger.warn('invoke-tool: Failed to log invocation error to Redis');
+    }
 
     // Restore context
     const parentContext = contextStack.get(request.agentId);
@@ -336,7 +377,12 @@ async function logInvocation(
     timestamp: number;
   }
 ): Promise<void> {
-  const client = await getRedis();
+  const client = await tryGetRedis();
+  if (!client) {
+    Logger.debug('invoke-tool: Redis unavailable, skipping invocation log');
+    return;
+  }
+
   const logKey = RECURSIVE_KEYS.log(agentId);
 
   await client.lpush(logKey, JSON.stringify(entry));
@@ -361,7 +407,12 @@ export async function getInvocationLog(
     timestamp: number;
   }>
 > {
-  const client = await getRedis();
+  const client = await tryGetRedis();
+  if (!client) {
+    Logger.debug('invoke-tool: Redis unavailable, returning empty invocation log');
+    return [];
+  }
+
   const logKey = RECURSIVE_KEYS.log(agentId);
 
   const entries = await client.lrange(logKey, 0, limit - 1);

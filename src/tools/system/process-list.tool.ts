@@ -113,8 +113,8 @@ function getProcessList(all: boolean, filter?: string): ProcessInfo[] {
       let processes = parseTasklistOutput(output);
 
       if (filter) {
-        const pattern = new RegExp(filter, 'i');
-        processes = processes.filter((p) => pattern.test(p.command));
+        const lowerFilter = filter.toLowerCase();
+        processes = processes.filter((p) => p.command.toLowerCase().includes(lowerFilter));
       }
 
       return processes;
@@ -130,8 +130,8 @@ function getProcessList(all: boolean, filter?: string): ProcessInfo[] {
       let processes = parsePsOutput(output);
 
       if (filter) {
-        const pattern = new RegExp(filter, 'i');
-        processes = processes.filter((p) => pattern.test(p.command));
+        const lowerFilter = filter.toLowerCase();
+        processes = processes.filter((p) => p.command.toLowerCase().includes(lowerFilter));
       }
 
       return processes;

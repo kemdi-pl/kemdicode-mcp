@@ -42,6 +42,7 @@ export interface ToolInvocationResult {
   success: boolean;
   result?: unknown;
   error?: string;
+  warning?: string;
   duration: number;
   depth: number;
 }

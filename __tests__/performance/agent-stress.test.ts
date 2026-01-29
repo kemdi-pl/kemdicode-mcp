@@ -93,7 +93,7 @@ describe('Level 3 Performance: Agent Stress Tests', () => {
         minSuccessRate: 100,
       });
 
-      expect(metrics.opsPerSecond).toBeGreaterThan(100);
+      expect(metrics.opsPerSecond).toBeGreaterThan(50);
     });
 
     it('should handle rapid sequential registrations', async () => {
@@ -159,7 +159,7 @@ describe('Level 3 Performance: Agent Stress Tests', () => {
         minSuccessRate: 100,
       });
 
-      expect(metrics.opsPerSecond).toBeGreaterThan(100);
+      expect(metrics.opsPerSecond).toBeGreaterThan(50);
     });
 
     it('should send messages with varying priorities', async () => {

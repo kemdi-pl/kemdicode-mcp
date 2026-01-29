@@ -86,6 +86,10 @@ const schema = z.object({
     .enum(['all', 'os', 'runtime', 'languages', 'tools', 'env'])
     .default('all')
     .describe('Category to show'),
+  allowSensitive: z
+    .boolean()
+    .default(false)
+    .describe('Show sensitive info (hostname, username, home directory). Redacted by default.'),
 });
 
 /**
@@ -178,7 +182,12 @@ function collectEnvInfo(): EnvInfo {
 /**
  * Format environment info for display
  */
-function formatEnvInfo(info: EnvInfo, category: string, detailed: boolean): string {
+function formatEnvInfo(
+  info: EnvInfo,
+  category: string,
+  detailed: boolean,
+  allowSensitive: boolean
+): string {
   const lines: string[] = [];
   const showAll = category === 'all';
 
@@ -191,8 +200,8 @@ function formatEnvInfo(info: EnvInfo, category: string, detailed: boolean): stri
     lines.push(`- Platform: ${info.os.platform}`);
     lines.push(`- Release: ${info.os.release}`);
     lines.push(`- Architecture: ${info.os.arch}`);
-    lines.push(`- Hostname: ${info.os.hostname}`);
-    lines.push(`- User: ${info.os.user}`);
+    lines.push(`- Hostname: ${allowSensitive ? info.os.hostname : '<redacted>'}`);
+    lines.push(`- User: ${allowSensitive ? info.os.user : '<redacted>'}`);
     lines.push('');
 
     lines.push('## Hardware');
@@ -251,9 +260,9 @@ function formatEnvInfo(info: EnvInfo, category: string, detailed: boolean): stri
     lines.push('## Environment');
     lines.push(`- Shell: ${info.env.shell}`);
     lines.push(`- CWD: ${info.env.cwd}`);
-    lines.push(`- Home: ${info.env.home}`);
+    lines.push(`- Home: ${allowSensitive ? info.env.home : '<redacted>'}`);
 
-    if (detailed) {
+    if (detailed && allowSensitive) {
       lines.push('');
       lines.push('### PATH');
       for (const p of info.env.path.slice(0, 15)) {
@@ -276,8 +285,9 @@ export const envInfoTool: UnifiedTool = {
   execute: async (args) => {
     const detailed = Boolean(args.detailed);
     const category = (args.category as string) || 'all';
+    const allowSensitive = Boolean(args.allowSensitive);
 
     const info = collectEnvInfo();
-    return formatEnvInfo(info, category, detailed);
+    return formatEnvInfo(info, category, detailed, allowSensitive);
   },
 };

@@ -205,11 +205,24 @@ export function sanitizePathComponent(name: string): {
 }
 
 /**
+ * Resolve the HMAC secret from explicit parameter, env var, or secure storage.
+ * Throws if no secret is available.
+ */
+function resolveHmacSecret(explicit?: string): string {
+  const secret = explicit || process.env.HMAC_SECRET || getSecureStorage().get('hmac_secret');
+  if (!secret) {
+    throw new Error(
+      'No HMAC secret available. Set HMAC_SECRET env var or provide secret parameter.'
+    );
+  }
+  return secret;
+}
+
+/**
  * Sign data with HMAC for integrity verification
  */
 export function signData(data: string, secret?: string): string {
-  const hmacSecret =
-    secret || process.env.HMAC_SECRET || getSecureStorage().get('hmac_secret') || 'default-secret';
+  const hmacSecret = resolveHmacSecret(secret);
   return createHmac('sha256', hmacSecret).update(data).digest('hex');
 }
 
@@ -217,15 +230,15 @@ export function signData(data: string, secret?: string): string {
  * Verify data signature
  */
 export function verifySignature(data: string, signature: string, secret?: string): boolean {
-  // Timing-safe comparison
-  try {
-    return createHmac('sha256', secret || '')
-      .update(data)
-      .digest()
-      .equals(Buffer.from(signature, 'hex'));
-  } catch {
-    return false;
+  const hmacSecret = resolveHmacSecret(secret);
+  const expected = createHmac('sha256', hmacSecret).update(data).digest('hex');
+  // Constant-time comparison to prevent timing attacks
+  if (expected.length !== signature.length) return false;
+  let result = 0;
+  for (let i = 0; i < expected.length; i++) {
+    result |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
   }
+  return result === 0;
 }
 
 /**

@@ -152,7 +152,7 @@ describe('Security Module', () => {
     it('should sign and verify data', () => {
       const data = 'important-data';
       const secret = 'my-secret-key';
-      
+
       const signature = signData(data, secret);
       expect(verifySignature(data, signature, secret)).toBe(true);
     });
@@ -160,16 +160,28 @@ describe('Security Module', () => {
     it('should reject tampered data', () => {
       const data = 'important-data';
       const secret = 'my-secret-key';
-      
+
       const signature = signData(data, secret);
       expect(verifySignature('tampered-data', signature, secret)).toBe(false);
     });
 
-    it('should reject invalid signature', () => {
+    it('should reject mismatched signature length', () => {
       const data = 'important-data';
       const secret = 'my-secret-key';
-      
-      expect(verifySignature(data, 'invalid-signature', secret)).toBe(false);
+
+      // Short string won't match 64-char SHA-256 hex digest
+      expect(verifySignature(data, 'abcd', secret)).toBe(false);
+    });
+
+    it('should throw when no secret is available', () => {
+      const origEnv = process.env.HMAC_SECRET;
+      delete process.env.HMAC_SECRET;
+      try {
+        expect(() => signData('data')).toThrow('No HMAC secret available');
+        expect(() => verifySignature('data', 'a'.repeat(64))).toThrow('No HMAC secret available');
+      } finally {
+        if (origEnv !== undefined) process.env.HMAC_SECRET = origEnv;
+      }
     });
   });
 
