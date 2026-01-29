@@ -365,7 +365,7 @@ export const getToolByName = (name: string): UnifiedTool | undefined => registry
  */
 export enum InternalToolName {
   PING = 'ping',
-  HELP = 'Help',
+  HELP = 'help',
   TIMEOUT_TEST = 'timeout-test',
   GET_SHARED_CONTEXT = 'get-shared-context',
   AGENT_LIST = 'agent-list',

@@ -30,7 +30,7 @@ export const pingTool: UnifiedTool = {
 };
 
 export const helpTool: UnifiedTool = {
-  name: 'Help',
+  name: 'help',
   description: 'Show available tools and commands',
   zodSchema: z.object({}),
   execute: async () =>

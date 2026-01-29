@@ -20,6 +20,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { executeAI, parseFiles } from '../../ai/index.js';
 import { getEnhancedContextString } from '../../utils/projectContext.enhanced.js';
+import { recordSuggestion } from '../../context/feedback-loop.js';
 
 const TYPE_PROMPTS: Record<string, string> = {
   unit: `**UNIT TESTS** - Test individual methods in isolation, mock dependencies, use PHPUnit assertions. Location: tests/Unit/`,
@@ -116,6 +117,22 @@ class ExampleControllerTest extends TestCase
 Begin generating tests:`;
 
     onProgress?.(`Generating tests (${type}, ${coverage}): ${filesStr}`);
-    return executeAI({ prompt, agent: 'plan', files: parseFiles(filesStr), onProgress });
+    const result = await executeAI({ prompt, agent: 'plan', files: parseFiles(filesStr), onProgress });
+
+    // Record suggestions for feedback tracking
+    const parsedFiles = parseFiles(filesStr);
+    for (const file of parsedFiles) {
+      recordSuggestion(
+        'write-tests',
+        file,
+        'test',
+        `Test generation (${type}, ${coverage})`,
+        result.slice(0, 500)
+      ).catch(() => {
+        /* ignore errors */
+      });
+    }
+
+    return result;
   },
 };

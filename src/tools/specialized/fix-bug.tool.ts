@@ -20,6 +20,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { executeAI, parseFiles } from '../../ai/index.js';
 import { getEnhancedContextString } from '../../utils/projectContext.enhanced.js';
+import { recordSuggestion } from '../../context/feedback-loop.js';
 
 const schema = z.object({
   files: z.string().describe('Files with the bug (use @path/file.php syntax)'),
@@ -105,6 +106,23 @@ public function test_bug_is_fixed(): void
 Begin analysis:`;
 
     onProgress?.(`Analyzing bug in: ${filesStr}`);
-    return executeAI({ prompt, agent: 'plan', files: parseFiles(filesStr), onProgress });
+    const result = await executeAI({ prompt, agent: 'plan', files: parseFiles(filesStr), onProgress });
+
+    // Record suggestions for feedback tracking
+    const parsedFiles = parseFiles(filesStr);
+    const descStr = String(description);
+    for (const file of parsedFiles) {
+      recordSuggestion(
+        'fix-bug',
+        file,
+        'fix',
+        `Bug fix: ${descStr.slice(0, 100)}${descStr.length > 100 ? '...' : ''}`,
+        result.slice(0, 500)
+      ).catch(() => {
+        /* ignore errors */
+      });
+    }
+
+    return result;
   },
 };

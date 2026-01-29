@@ -24,6 +24,7 @@ import { executeAI, parseFiles, type AgentType } from '../../ai/index.js';
 import { getEnhancedContextString } from '../../utils/projectContext.enhanced.js';
 import { Logger } from '../../utils/logger.js';
 import { validatePath } from '../../utils/validation.js';
+import { recordSuggestion } from '../../context/feedback-loop.js';
 
 const FOCUS_MAP: Record<string, string> = {
   security: 'SECURITY: SQL injection, XSS, CSRF, auth bypass, hardcoded secrets',
@@ -282,6 +283,19 @@ Begin analysis:`;
 
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
+
+    // Record suggestions for feedback tracking
+    for (const result of successful) {
+      recordSuggestion(
+        'auto-fix',
+        result.file,
+        'fix',
+        result.description,
+        `Severity: ${result.severity}`
+      ).catch(() => {
+        /* ignore errors */
+      });
+    }
 
     return JSON.stringify({
       success: failed.length === 0,

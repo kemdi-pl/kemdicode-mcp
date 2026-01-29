@@ -43,15 +43,13 @@ const schema = z.object({
     .describe('Check if invocation would be allowed without executing'),
 });
 
-type InvokeToolArgs = z.infer<typeof schema>;
-
 export const invokeToolTool: UnifiedTool = {
   name: 'invoke-tool',
   description: 'Invoke another MCP tool from within an agent context (recursive tool usage)',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
-    const input = args as InvokeToolArgs;
+    const input = schema.parse(args);
 
     if (!checkRateLimit('recursive-operations', { maxRequests: 50, windowMs: 60000 })) {
       return JSON.stringify({

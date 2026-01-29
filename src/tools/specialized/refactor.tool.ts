@@ -20,6 +20,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { executeAI, parseFiles } from '../../ai/index.js';
 import { getEnhancedContextString } from '../../utils/projectContext.enhanced.js';
+import { recordSuggestion } from '../../context/feedback-loop.js';
 
 const GOALS: Record<string, string> = {
   readability: `**READABILITY** - Better naming, shorter methods (max 15-20 lines), early returns, clear conditions`,
@@ -116,6 +117,22 @@ class NewService
 Begin refactoring:`;
 
     onProgress?.(`Refactoring (${goal}, ${scope}): ${filesStr}`);
-    return executeAI({ prompt, agent: 'plan', files: parseFiles(filesStr), onProgress });
+    const result = await executeAI({ prompt, agent: 'plan', files: parseFiles(filesStr), onProgress });
+
+    // Record suggestions for feedback tracking
+    const parsedFiles = parseFiles(filesStr);
+    for (const file of parsedFiles) {
+      recordSuggestion(
+        'refactor',
+        file,
+        'refactor',
+        `Refactoring (${goal}, ${scope})`,
+        result.slice(0, 500)
+      ).catch(() => {
+        /* ignore errors */
+      });
+    }
+
+    return result;
   },
 };

@@ -26,6 +26,7 @@ import { getEnhancedContextString } from '../../utils/projectContext.enhanced.js
 import { Logger } from '../../utils/logger.js';
 import { config } from '../../config/index.js';
 import { readFile } from 'node:fs/promises';
+import { recordSuggestion } from '../../context/feedback-loop.js';
 
 const FOCUS_MAP: Record<string, string> = {
   security: 'SECURITY: SQL injection, XSS, CSRF, auth bypass, hardcoded secrets',
@@ -151,6 +152,21 @@ ${fileContents}
 
       // Extract results
       const output = result.finalOutput || 'No output from agent';
+
+      // Record suggestions for feedback tracking (only when fixes were applied)
+      if (!dryRun) {
+        for (const file of parsedFiles) {
+          recordSuggestion(
+            'auto-fix-agent',
+            file,
+            'fix',
+            `Auto-fix agent (${focus}, ${severity})`,
+            output.slice(0, 500)
+          ).catch(() => {
+            /* ignore errors */
+          });
+        }
+      }
 
       return JSON.stringify({
         success: true,

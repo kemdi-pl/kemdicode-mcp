@@ -45,15 +45,13 @@ const schema = z.object({
   stopOnError: z.boolean().default(false).describe('Stop on first error (sequential only)'),
 });
 
-type InvokeBatchArgs = z.infer<typeof schema>;
-
 export const invokeBatchTool: UnifiedTool = {
   name: 'invoke-batch',
   description: 'Invoke multiple tools in a batch (parallel or sequential execution)',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
-    const input = args as unknown as InvokeBatchArgs;
+    const input = schema.parse(args);
 
     if (!checkRateLimit('recursive-operations', { maxRequests: 50, windowMs: 60000 })) {
       return JSON.stringify({
