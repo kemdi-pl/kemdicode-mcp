@@ -64,6 +64,9 @@ export class AgentMonitor {
   private messageHandlers: MessageHandler[] = [];
   private alertHandlers: AlertHandler[] = [];
   private statusHandlers: StatusHandler[] = [];
+  private messageHandlerRegistered = false;
+  private alertHandlerRegistered = false;
+  private statusHandlerRegistered = false;
 
   constructor(private readonly config: RedisConfig = {}) {}
 
@@ -121,6 +124,9 @@ export class AgentMonitor {
       this.redis = null;
     }
     this.connected = false;
+    this.messageHandlerRegistered = false;
+    this.alertHandlerRegistered = false;
+    this.statusHandlerRegistered = false;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -496,9 +502,14 @@ export class AgentMonitor {
       for (const key of keys) {
         const rawAlerts = await this.redis.zrange(key, 0, -1);
         for (const raw of rawAlerts) {
-          const alert: SupervisorAlert = JSON.parse(raw);
-          if (alert.targetAgentIds.includes('*') || alert.targetAgentIds.includes(agentId)) {
-            alerts.push(alert);
+          try {
+            const alert: SupervisorAlert = JSON.parse(raw);
+            if (alert.targetAgentIds.includes('*') || alert.targetAgentIds.includes(agentId)) {
+              alerts.push(alert);
+            }
+          } catch {
+            Logger.warn(`Failed to parse alert: ${raw.substring(0, 100)}`);
+            // Kontynuuj z następnym alertem
           }
         }
       }
@@ -546,7 +557,8 @@ export class AgentMonitor {
 
     this.messageHandlers.push(handler);
 
-    if (this.messageHandlers.length === 1) {
+    if (!this.messageHandlerRegistered) {
+      this.messageHandlerRegistered = true;
       await this.subscriber.subscribe(REDIS_KEYS.PREFIX + REDIS_KEYS.CHANNEL_MESSAGES);
 
       this.subscriber.on('message', (channel, data) => {
@@ -570,7 +582,8 @@ export class AgentMonitor {
 
     this.alertHandlers.push(handler);
 
-    if (this.alertHandlers.length === 1) {
+    if (!this.alertHandlerRegistered) {
+      this.alertHandlerRegistered = true;
       await this.subscriber.subscribe(REDIS_KEYS.PREFIX + REDIS_KEYS.CHANNEL_ALERTS);
 
       this.subscriber.on('message', (channel, data) => {
@@ -594,7 +607,8 @@ export class AgentMonitor {
 
     this.statusHandlers.push(handler);
 
-    if (this.statusHandlers.length === 1) {
+    if (!this.statusHandlerRegistered) {
+      this.statusHandlerRegistered = true;
       await this.subscriber.subscribe(REDIS_KEYS.PREFIX + REDIS_KEYS.CHANNEL_AGENT_STATUS);
 
       this.subscriber.on('message', (channel, data) => {

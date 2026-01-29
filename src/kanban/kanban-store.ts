@@ -249,14 +249,12 @@ export async function updateTask(
   if (update.estimatedMinutes !== undefined) task.estimatedMinutes = update.estimatedMinutes;
 
   // Handle status change
+  let statusChanged = false;
   if (update.status !== undefined && update.status !== oldStatus) {
     task.status = update.status;
+    statusChanged = true;
 
-    // Update status indices
-    await client.srem(KANBAN_KEYS.byStatus(task.sessionId, oldStatus), taskId);
-    await client.sadd(KANBAN_KEYS.byStatus(task.sessionId, update.status), taskId);
-
-    // Handle status-specific updates
+    // Handle status-specific updates (outside transaction - events should not be rolled back)
     if (update.status === 'in_progress' && !task.startedAt) {
       task.startedAt = now;
       await emitEvent({
@@ -273,22 +271,10 @@ export async function updateTask(
       if (task.startedAt) {
         task.actualMinutes = Math.round((now - task.startedAt) / 60000);
       }
-
-      // Set shorter TTL for completed tasks
-      await client.expire(KANBAN_KEYS.task(taskId), COMPLETED_TASK_TTL);
-
-      await emitEvent({
-        type: 'task-completed',
-        taskId,
-        agentId,
-        sessionId: task.sessionId,
-        timestamp: now,
-        data: { actualMinutes: task.actualMinutes },
-      });
     }
   }
 
-  // Handle blockedBy changes
+  // Handle blockedBy changes (outside transaction - separate task updates)
   if (update.blockedBy !== undefined) {
     const oldBlockedBy = new Set(task.blockedBy);
     const newBlockedBy = new Set(update.blockedBy);
@@ -312,8 +298,18 @@ export async function updateTask(
 
   task.updatedAt = now;
 
+  // ATOMIC UPDATE: Use MULTI/EXEC for status indices and task data
+  // This ensures consistency between status indices and task data
+  const multi = client.multi();
+
+  if (statusChanged) {
+    // Update status indices atomically
+    multi.srem(KANBAN_KEYS.byStatus(task.sessionId, oldStatus), taskId);
+    multi.sadd(KANBAN_KEYS.byStatus(task.sessionId, task.status), taskId);
+  }
+
   // Store updated task
-  await client.hset(KANBAN_KEYS.task(taskId), {
+  multi.hset(KANBAN_KEYS.task(taskId), {
     ...task,
     blockedBy: JSON.stringify(task.blockedBy),
     blocks: JSON.stringify(task.blocks),
@@ -326,6 +322,34 @@ export async function updateTask(
     estimatedMinutes: task.estimatedMinutes?.toString() || '',
     actualMinutes: task.actualMinutes?.toString() || '',
   });
+
+  // Set shorter TTL for completed tasks
+  if (task.status === 'done') {
+    multi.expire(KANBAN_KEYS.task(taskId), COMPLETED_TASK_TTL);
+  }
+
+  // Execute all operations atomically
+  const results = await multi.exec();
+
+  // Check for errors in transaction
+  if (results) {
+    const errors = results.filter(([, err]) => err !== null);
+    if (errors.length > 0) {
+      throw new Error(`Redis transaction failed: ${errors.map(([, err]) => err).join(', ')}`);
+    }
+  }
+
+  // Emit events outside transaction (they shouldn't be rolled back)
+  if (statusChanged && task.status === 'done') {
+    await emitEvent({
+      type: 'task-completed',
+      taskId,
+      agentId,
+      sessionId: task.sessionId,
+      timestamp: now,
+      data: { actualMinutes: task.actualMinutes },
+    });
+  }
 
   await emitEvent({
     type: 'task-updated',

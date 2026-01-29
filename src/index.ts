@@ -200,8 +200,20 @@ async function main(): Promise<void> {
   }
 
   // Handle graceful shutdown
+  let isShuttingDown = false;
+
   const shutdown = async (signal: string) => {
+    // Zapobiegaj wielokrotnemu wywołaniu
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+
     console.log(`${signal} received, shutting down gracefully...`);
+
+    const shutdownTimeout = setTimeout(() => {
+      console.error('Shutdown timeout exceeded, forcing exit');
+      process.exit(1);
+    }, 10000);  // 10s timeout
+
     try {
       // Stop HTTP server
       await stopHttpServer();
@@ -211,10 +223,13 @@ async function main(): Promise<void> {
       await redisManager.disconnect();
       console.log('Redis connection closed');
       console.log('Shutdown complete');
+      process.exit(0);
     } catch (error) {
       console.error('Error during shutdown:', error);
+      process.exit(1);
+    } finally {
+      clearTimeout(shutdownTimeout);
     }
-    process.exit(0);
   };
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));

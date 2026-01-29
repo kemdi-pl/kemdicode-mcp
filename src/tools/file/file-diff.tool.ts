@@ -284,6 +284,8 @@ async function executeDiff(args: FileDiffArgs): Promise<{ stdout: string; identi
     });
 
     proc.on('error', (error) => {
+      proc.kill(); // Zamknij oryginalny proces
+
       // If git fails, try regular diff
       if (useGit && (error as NodeJS.ErrnoException).code === 'ENOENT') {
         const fallbackArgs = buildDiffArgs({ ...args, format: 'unified' });
@@ -294,9 +296,14 @@ async function executeDiff(args: FileDiffArgs): Promise<{ stdout: string; identi
         });
 
         let fallbackStdout = '';
+        let fallbackStderr = '';
 
         fallbackProc.stdout.on('data', (data) => {
           fallbackStdout += data.toString();
+        });
+
+        fallbackProc.stderr.on('data', (data) => {
+          fallbackStderr += data.toString();
         });
 
         fallbackProc.on('close', (code) => {
@@ -306,7 +313,7 @@ async function executeDiff(args: FileDiffArgs): Promise<{ stdout: string; identi
           } else if (code === 1) {
             resolve({ stdout: fallbackStdout, identical: false });
           } else {
-            reject(new Error(`diff failed with exit code ${code}`));
+            reject(new Error(`diff failed with exit code ${code}: ${fallbackStderr.trim()}`));
           }
         });
 
