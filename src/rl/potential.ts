@@ -40,17 +40,26 @@ export function calculatePotential(
   state: AgentState,
   weights: PotentialWeights = DEFAULT_POTENTIAL_WEIGHTS
 ): number {
+  // Guard against NaN in state fields — corrupted Redis data must not propagate
+  const taskProgress = Number.isFinite(state.taskProgress) ? state.taskProgress : 0;
+  const toolSuccessRate = Number.isFinite(state.toolSuccessRate) ? state.toolSuccessRate : 0;
+  const peerInteractions = Number.isFinite(state.peerInteractions) ? state.peerInteractions : 0;
+  const errorCount = Number.isFinite(state.errorCount) ? state.errorCount : 0;
+  const consecutiveErrors = Number.isFinite(state.consecutiveErrors) ? state.consecutiveErrors : 0;
+  const stateAge = Number.isFinite(state.stateAge) ? state.stateAge : 0;
+
   const positive =
-    weights.taskProgress * state.taskProgress +
-    weights.toolSuccessRate * state.toolSuccessRate +
-    weights.peerInteractions * Math.min(state.peerInteractions, 10) * 0.1; // Cap peer interactions contribution
+    weights.taskProgress * taskProgress +
+    weights.toolSuccessRate * toolSuccessRate +
+    weights.peerInteractions * Math.min(peerInteractions, 10) * 0.1; // Cap peer interactions contribution
 
   const negative =
-    weights.errorPenalty * state.errorCount +
-    weights.consecutiveErrorPenalty * state.consecutiveErrors * state.consecutiveErrors + // Quadratic penalty
-    weights.ageDecay * (state.stateAge / 1000);
+    weights.errorPenalty * errorCount +
+    weights.consecutiveErrorPenalty * consecutiveErrors * consecutiveErrors + // Quadratic penalty
+    weights.ageDecay * (stateAge / 1000);
 
-  return positive - negative;
+  const result = positive - negative;
+  return Number.isFinite(result) ? result : 0;
 }
 
 /**

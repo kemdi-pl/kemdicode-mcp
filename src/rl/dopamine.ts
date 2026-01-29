@@ -286,9 +286,13 @@ export function getDopamineEmitter(): DopamineEmitter {
 /**
  * Reset the global dopamine emitter (for testing)
  */
-export function resetDopamineEmitter(): void {
+export async function resetDopamineEmitter(): Promise<void> {
   if (dopamineEmitter) {
-    dopamineEmitter.disconnect().catch(console.error);
+    try {
+      await dopamineEmitter.disconnect();
+    } catch (error) {
+      console.error('[DopamineEmitter] Error during disconnect:', error);
+    }
   }
   dopamineEmitter = null;
 }
