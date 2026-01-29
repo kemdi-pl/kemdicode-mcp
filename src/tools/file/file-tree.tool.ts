@@ -141,9 +141,9 @@ const schema = z.object({
   maxEntries: z
     .number()
     .int()
-    .positive()
+    .min(-1)
     .default(MAX_ENTRIES)
-    .describe('Maximum entries to return'),
+    .describe('Maximum entries to return (-1 for default)')
 });
 
 type FileTreeArgs = z.infer<typeof schema>;
@@ -404,6 +404,12 @@ export const fileTreeTool: UnifiedTool<typeof schema> = {
   execute: async (args): Promise<string> => {
     // args is now properly typed as FileTreeArgs via the generic
     const treeArgs = args;
+    
+    // Handle -1 as "use default" for maxEntries
+    if (treeArgs.maxEntries === -1) {
+      treeArgs.maxEntries = MAX_ENTRIES;
+    }
+    
     const result: TreeResult = {
       success: false,
       root: treeArgs.path,
