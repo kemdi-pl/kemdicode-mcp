@@ -321,15 +321,8 @@ export async function updateTask(
   }
 
   // Execute all operations atomically
-  const results = await multi.exec();
-
-  // Check for errors in transaction
-  if (results) {
-    const errors = results.filter(([, err]) => err !== null);
-    if (errors.length > 0) {
-      throw new Error(`Redis transaction failed: ${errors.map(([, err]) => err).join(', ')}`);
-    }
-  }
+  // In ioredis v5 with async/await, exec() returns results directly or throws on error
+  await multi.exec();
 
   // Emit events outside transaction (they shouldn't be rolled back)
   if (statusChanged && task.status === 'done') {
