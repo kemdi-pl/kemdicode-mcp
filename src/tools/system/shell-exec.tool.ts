@@ -34,14 +34,17 @@ import {
   DangerousOperationError,
   TimeoutError,
   CommandError,
+  PermissionError,
 } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
+import { config } from '../../config/index.js';
 import {
   validatePath,
   sanitizeEnvVars,
   ValidationError,
   checkRateLimit,
 } from '../../utils/validation.js';
+import { maskSensitiveData } from '../../utils/security.js';
 
 /**
  * List of dangerous commands that should be blocked
@@ -108,7 +111,13 @@ const REQUIRES_CONFIRMATION = [
 const schema = z.object({
   command: z.string().min(1).describe('Shell command to execute'),
   cwd: z.string().optional().describe('Working directory (defaults to current directory)'),
-  timeout: z.number().default(60000).describe('Timeout in milliseconds (default: 60 seconds)'),
+  // NOTE: timeout=0 means "no timeout" (infinite) for backward compatibility.
+  timeout: z
+    .number()
+    .int()
+    .min(0)
+    .default(60000)
+    .describe('Timeout in milliseconds (0 = no timeout, default: 60 seconds)'),
   shell: z
     .enum(['bash', 'sh', 'zsh', 'fish', 'powershell'])
     .default('bash')
@@ -116,6 +125,17 @@ const schema = z.object({
   env: z.record(z.string(), z.string()).optional().describe('Additional environment variables'),
   allowDangerous: z.boolean().default(false).describe('Allow potentially dangerous commands'),
 });
+
+function isShellExecEnabled(): boolean {
+  // Disabled-by-default: require explicit opt-in at deployment/runtime.
+  const v = process.env.KEMDICODE_SHELL_EXEC_ENABLED;
+  return v === '1' || v === 'true';
+}
+
+function maskForLogs(text: string, maxLen = 200): string {
+  const masked = maskSensitiveData(text);
+  return masked.length > maxLen ? masked.slice(0, maxLen) + '…' : masked;
+}
 
 /**
  * Check if command is dangerous
@@ -163,7 +183,9 @@ async function executeShellCommand(
     const shellCmd = shell === 'powershell' ? 'powershell' : shell;
     const shellArgs = shell === 'powershell' ? ['-Command', command] : ['-c', command];
 
-    Logger.debug(`Executing: ${shellCmd} ${shellArgs.join(' ')} in ${cwd}`);
+    Logger.debug(
+      `Executing: ${shellCmd} ${maskForLogs(shellArgs.join(' '), 500)} in ${maskForLogs(cwd, 300)}`
+    );
     onProgress?.(`$ ${command}\n\n`);
 
     const proc = spawn(shellCmd, shellArgs, {
@@ -180,31 +202,35 @@ async function executeShellCommand(
     let stderr = '';
     let done = false;
 
-    const timer = setTimeout(() => {
-      if (done) return;
-      done = true;
-      try {
-        proc.kill('SIGTERM');
-        setTimeout(() => {
-          try {
-            proc.kill('SIGKILL');
-          } catch {
-            // Process may have already exited
-          }
-        }, 5000);
-      } catch {
-        // Process may have already exited
-      }
+    const forceKillDelayMs = config.get('timeouts').forceKill;
+    const timer =
+      timeout > 0
+        ? setTimeout(() => {
+            if (done) return;
+            done = true;
+            try {
+              proc.kill('SIGTERM');
+              setTimeout(() => {
+                try {
+                  proc.kill('SIGKILL');
+                } catch {
+                  // Process may have already exited
+                }
+              }, forceKillDelayMs);
+            } catch {
+              // Process may have already exited
+            }
 
-      const output = stdout.trim();
-      if (output) {
-        // Return partial output with timeout notice
-        resolve(output + `\n\n[TIMEOUT: Command exceeded ${timeout / 1000}s limit]`);
-      } else {
-        // No output captured, throw TimeoutError
-        reject(new TimeoutError(command, timeout, undefined, { cwd, shell }));
-      }
-    }, timeout);
+            const output = stdout.trim();
+            if (output) {
+              // Return partial output with timeout notice
+              resolve(output + `\n\n[TIMEOUT: Command exceeded ${timeout / 1000}s limit]`);
+            } else {
+              // No output captured, throw TimeoutError
+              reject(new TimeoutError(command, timeout, undefined, { cwd, shell }));
+            }
+          }, timeout)
+        : null;
 
     proc.stdout.on('data', (data) => {
       const chunk = data.toString();
@@ -221,7 +247,7 @@ async function executeShellCommand(
     proc.on('error', (err) => {
       if (done) return;
       done = true;
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
       reject(
         new CommandError(
           command,
@@ -236,7 +262,7 @@ async function executeShellCommand(
     proc.on('close', (code) => {
       if (done) return;
       done = true;
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
 
       const duration = ((Date.now() - start) / 1000).toFixed(2);
       const output = stdout + (stderr ? `\nSTDERR:\n${stderr}` : '');
@@ -255,16 +281,25 @@ export const shellExecTool: UnifiedTool = {
   description: 'Execute shell command safely with timeout and streaming output',
   zodSchema: schema,
   execute: async (args, onProgress) => {
+    // Disabled-by-default / admin-gated.
+    if (!isShellExecEnabled()) {
+      throw new PermissionError('shell-exec', 'execute', {
+        reason:
+          'shell-exec is disabled by default. Set KEMDICODE_SHELL_EXEC_ENABLED=true to enable it.',
+      });
+    }
+
     const command = String(args.command);
     const inputCwd = (args.cwd as string) || process.cwd();
-    const timeout = (args.timeout as number) || 60000;
+    // Preserve explicit 0 (no timeout)
+    const timeout = typeof args.timeout === 'number' ? (args.timeout as number) : 60000;
     const shell = (args.shell as string) || 'bash';
     const envVars = args.env as Record<string, string> | undefined;
     const allowDangerous = Boolean(args.allowDangerous);
 
     // Rate limit check for shell commands (stricter limit)
     if (!checkRateLimit('shell-exec', { maxRequests: 30, windowMs: 60000 })) {
-      logSecurityEvent('RATE_LIMIT_EXCEEDED', { command: command.substring(0, 100) });
+      logSecurityEvent('RATE_LIMIT_EXCEEDED', { command: maskForLogs(command, 100) });
       throw new Error(
         'Rate limit exceeded for shell-exec operations. Please wait before executing more commands.'
       );
@@ -315,8 +350,8 @@ export const shellExecTool: UnifiedTool = {
     // Check for dangerous commands
     if (isDangerous(command)) {
       logSecurityEvent('DANGEROUS_COMMAND_ATTEMPT', {
-        command: command.substring(0, 200),
-        cwd: validatedCwd,
+        command: maskForLogs(command, 200),
+        cwd: maskForLogs(validatedCwd, 200),
         allowDangerous,
       });
       if (!allowDangerous) {
@@ -332,8 +367,8 @@ export const shellExecTool: UnifiedTool = {
     // Check for suspicious commands
     if (isSuspicious(command)) {
       logSecurityEvent('SUSPICIOUS_COMMAND', {
-        command: command.substring(0, 200),
-        cwd: validatedCwd,
+        command: maskForLogs(command, 200),
+        cwd: maskForLogs(validatedCwd, 200),
       });
       onProgress?.(`CAUTION: This command pattern is flagged as potentially risky.\n\n`);
     }
@@ -344,7 +379,7 @@ export const shellExecTool: UnifiedTool = {
     }
 
     // Log the execution for audit trail
-    Logger.debug(`shell-exec: executing command in ${validatedCwd}`);
+    Logger.debug(`shell-exec: executing command in ${maskForLogs(validatedCwd, 300)}`);
 
     return executeShellCommand(command, validatedCwd, timeout, shell, sanitizedEnvVars, onProgress);
   },
