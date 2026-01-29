@@ -6,6 +6,7 @@
  */
 
 import { complete, getClientConfig } from './client.js';
+import { hasProviderPrefix } from './model-spec.js';
 import {
   buildAgentMessages,
   getAgentTemperature,
@@ -72,7 +73,10 @@ const sessionHistory = new Map<string, Array<{ role: 'user' | 'assistant'; conte
  */
 async function prepareAndExecute(options: ExecuteAIOptions) {
   const config = getClientConfig();
-  if (!config) {
+  // Allow provider-prefixed models (e.g. "anthropic:claude-...") to work without
+  // initAIClient(). The multi-provider path in complete() does not require the
+  // OpenAI SDK client.
+  if (!config && !(options.model && hasProviderPrefix(options.model))) {
     throw new Error('AI client not initialized. Call initAIClient() first.');
   }
 
