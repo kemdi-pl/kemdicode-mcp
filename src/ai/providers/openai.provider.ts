@@ -48,19 +48,28 @@ export class OpenAIProvider implements LLMProvider {
       content: m.content,
     }));
 
-    // Build params with proper typing
-    const baseParams = {
+    const isReasoning = !!request.thinking?.reasoningEffort;
+
+    // Build params: o-series models require different param names and don't support temperature
+    const baseParams: Record<string, unknown> = {
       model: request.model,
       messages,
-      max_tokens: request.maxTokens ?? 8192,
-      temperature: request.temperature ?? 0.7,
     };
+
+    if (isReasoning) {
+      // o-series models: use max_completion_tokens, no temperature, add reasoning_effort
+      baseParams.max_completion_tokens = request.maxTokens ?? 8192;
+      baseParams.reasoning_effort = request.thinking!.reasoningEffort;
+    } else {
+      baseParams.max_tokens = request.maxTokens ?? 8192;
+      baseParams.temperature = request.temperature ?? 0.7;
+    }
 
     try {
       if (request.stream && request.onProgress) {
-        return this.completeStreaming(baseParams, request);
+        return await this.completeStreaming(baseParams, request);
       }
-      return this.completeNonStreaming(baseParams, request);
+      return await this.completeNonStreaming(baseParams, request);
     } catch (error) {
       if (error instanceof OpenAI.APIError) {
         throw new Error(`OpenAI API error: ${error.status} ${error.message}`);
@@ -70,18 +79,13 @@ export class OpenAIProvider implements LLMProvider {
   }
 
   private async completeStreaming(
-    baseParams: {
-      model: string;
-      messages: ChatCompletionMessageParam[];
-      max_tokens: number;
-      temperature: number;
-    },
+    baseParams: Record<string, unknown>,
     request: UnifiedCompletionRequest
   ): Promise<CompletionResponse> {
     const stream = await this.client!.chat.completions.create({
       ...baseParams,
       stream: true,
-    });
+    } as unknown as OpenAI.ChatCompletionCreateParamsStreaming);
 
     let content = '';
     let finishReason: string | undefined;
@@ -101,19 +105,16 @@ export class OpenAIProvider implements LLMProvider {
       }
     }
 
-    return { content, model: baseParams.model, finishReason };
+    return { content, model: request.model, finishReason };
   }
 
   private async completeNonStreaming(
-    baseParams: {
-      model: string;
-      messages: ChatCompletionMessageParam[];
-      max_tokens: number;
-      temperature: number;
-    },
+    baseParams: Record<string, unknown>,
     _request: UnifiedCompletionRequest
   ): Promise<CompletionResponse> {
-    const response = (await this.client!.chat.completions.create(baseParams)) as ChatCompletion;
+    const response = (await this.client!.chat.completions.create(
+      baseParams as unknown as OpenAI.ChatCompletionCreateParamsNonStreaming
+    )) as ChatCompletion;
 
     const choice = response.choices[0];
     const message = choice?.message as ReasoningMessage | undefined;

@@ -158,18 +158,32 @@ export async function complete(request: CompletionRequest): Promise<CompletionRe
     const spec = parseModelSpec(model);
 
     if (isProviderAvailable(spec.provider)) {
-      const provider = getProvider(spec.provider);
-      return provider.complete({
-        provider: spec.provider,
-        model: spec.model,
-        messages: request.messages,
-        thinking: spec.thinking,
-        maxTokens: request.maxTokens,
-        temperature: request.temperature,
-        stream: request.stream,
-        onProgress: request.onProgress,
-      });
+      try {
+        const provider = getProvider(spec.provider);
+        return await provider.complete({
+          provider: spec.provider,
+          model: spec.model,
+          messages: request.messages,
+          thinking: spec.thinking,
+          maxTokens: request.maxTokens,
+          temperature: request.temperature,
+          stream: request.stream,
+          onProgress: request.onProgress,
+        });
+      } catch (error) {
+        // Try fallback model if configured
+        if (currentConfig?.fallbackModel && request.model !== currentConfig.fallbackModel) {
+          Logger.warn(`Provider ${spec.provider} failed, trying fallback: ${currentConfig.fallbackModel}`);
+          return complete({ ...request, model: currentConfig.fallbackModel });
+        }
+        throw error;
+      }
     }
+
+    // Provider prefix recognized but not available - throw clear error
+    throw new AIError(
+      `Provider "${spec.provider}" is not configured. Set API key via environment variable or config tool.`
+    );
   }
 
   // Default: use existing OpenAI SDK (backward compatible)

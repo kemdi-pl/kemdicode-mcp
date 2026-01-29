@@ -55,21 +55,21 @@ export class AnthropicProvider implements LLMProvider {
       params.system = systemPrompt;
     }
 
-    // Add thinking support
+    // Add thinking support (temperature is mutually exclusive with thinking)
     if (hasBudget) {
       params.thinking = {
         type: 'enabled',
         budget_tokens: request.thinking!.thinkingBudget!,
       };
-    } else if (request.temperature !== undefined) {
-      params.temperature = request.temperature;
+    } else {
+      params.temperature = request.temperature ?? 0.7;
     }
 
     try {
       if (request.stream && request.onProgress) {
-        return this.completeStreaming(params, request);
+        return await this.completeStreaming(params, request);
       }
-      return this.completeNonStreaming(params);
+      return await this.completeNonStreaming(params);
     } catch (error) {
       if (error instanceof Anthropic.APIError) {
         throw new Error(`Anthropic API error: ${error.status} ${error.message}`);

@@ -40,7 +40,8 @@ export function registerBuiltinProviders(): void {
  * Set configuration override for a provider (from config file or tool).
  */
 export function setProviderConfig(id: ProviderId, config: Partial<ProviderConfig>): void {
-  providerConfigs.set(id, config);
+  const existing = providerConfigs.get(id);
+  providerConfigs.set(id, { ...existing, ...config });
   // Reset provider so it re-initializes with new config on next use
   const provider = providers.get(id);
   if (provider?.isInitialized()) {

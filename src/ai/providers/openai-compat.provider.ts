@@ -84,7 +84,7 @@ export function createOpenAICompatProvider(providerId: ProviderId): LLMProvider 
 
             if (text) {
               content += text;
-              request.onProgress(text);
+              request.onProgress?.(text);
             }
 
             if (chunk.choices[0]?.finish_reason) {

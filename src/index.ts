@@ -51,6 +51,8 @@ import { Logger } from './utils/logger.js';
 import { config } from './config/index.js';
 import { initContext, initAgentMonitor, getSessionId } from './context/index.js';
 import { initAIClient } from './ai/index.js';
+import { registerBuiltinProviders, setProviderConfig } from './ai/providers/registry.js';
+import type { ProviderId } from './ai/providers/types.js';
 import { VERSION, type ServerConfig, startHttpServer, stopHttpServer } from './server/index.js';
 
 // Re-export for backwards compatibility
@@ -197,6 +199,21 @@ async function main(): Promise<void> {
     Logger.debug(`AI client initialized: ${serverConfig.primaryModel}`);
   } else {
     Logger.warn('AI client not initialized: apiBaseUrl or apiKey not configured');
+  }
+
+  // Initialize multi-provider registry with config values
+  registerBuiltinProviders();
+  const providersConfig = config.get('providers');
+  const providerIds: ProviderId[] = ['openai', 'anthropic', 'gemini', 'groq', 'deepseek', 'ollama', 'openrouter'];
+  for (const id of providerIds) {
+    const entry = providersConfig[id];
+    if (entry && (entry.apiKey || entry.baseURL)) {
+      setProviderConfig(id, {
+        id,
+        apiKey: entry.apiKey || '',
+        baseURL: entry.baseURL,
+      });
+    }
   }
 
   // Handle graceful shutdown

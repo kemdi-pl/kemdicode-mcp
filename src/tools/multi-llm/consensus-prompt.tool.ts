@@ -160,8 +160,8 @@ async function execute(args: Record<string, unknown>): Promise<string> {
 
   const template = synthesisPrompt || DEFAULT_SYNTHESIS_PROMPT;
   const ceoPrompt = template
-    .replace('{original_prompt}', prompt)
-    .replace('{board_responses}', boardResponsesXml.join('\n\n'));
+    .replaceAll('{original_prompt}', prompt)
+    .replaceAll('{board_responses}', boardResponsesXml.join('\n\n'));
 
   output.push('---\n');
   output.push('## CEO Decision\n');

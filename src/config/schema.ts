@@ -116,15 +116,15 @@ export const lociSchema = z.object({
 /** Provider entry schema */
 const providerEntrySchema = z.object({
   apiKey: z.string().optional().describe('API key for this provider'),
-  baseURL: z.string().optional().describe('Custom base URL override'),
+  baseURL: z.string().url().optional().describe('Custom base URL override'),
   enabled: z.boolean().optional().describe('Whether this provider is enabled'),
 });
 
 /** Providers config schema */
 export const providersSchema = z.object({
   defaultProvider: z
-    .string()
-    .describe('Default provider when no prefix (openai, anthropic, gemini, groq, deepseek, ollama, openrouter)'),
+    .enum(['openai', 'anthropic', 'gemini', 'groq', 'deepseek', 'ollama', 'openrouter'])
+    .describe('Default provider when no prefix'),
   openai: providerEntrySchema.describe('OpenAI configuration'),
   anthropic: providerEntrySchema.describe('Anthropic configuration'),
   gemini: providerEntrySchema.describe('Google Gemini configuration'),
