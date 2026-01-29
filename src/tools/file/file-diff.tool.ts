@@ -29,6 +29,7 @@ import { promises as fs } from 'fs';
 import { spawn } from 'child_process';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
+import { validatePath, ValidationError } from '../../utils/validation.js';
 
 /** Default timeout for diff (30 seconds) */
 const DIFF_TIMEOUT = 30_000;
@@ -351,10 +352,35 @@ export const fileDiffTool: UnifiedTool = {
     };
 
     try {
-      // Validate both files
+      // Validate both paths for security (path traversal protection)
+      let validatedPath1: string;
+      let validatedPath2: string;
+      try {
+        validatedPath1 = await validatePath(diffArgs.file1, {
+          allowSymlinks: false,
+          requireWithinProject: true,
+          allowReadFromBlocked: false,
+          operation: 'read',
+        });
+        validatedPath2 = await validatePath(diffArgs.file2, {
+          allowSymlinks: false,
+          requireWithinProject: true,
+          allowReadFromBlocked: false,
+          operation: 'read',
+        });
+      } catch (validationError) {
+        if (validationError instanceof ValidationError) {
+          result.error = `Path validation failed: ${validationError.message}`;
+        } else {
+          result.error = `Path validation failed: ${(validationError as Error).message}`;
+        }
+        return JSON.stringify(result);
+      }
+
+      // Validate both files (existence, size)
       const [validation1, validation2] = await Promise.all([
-        validateFile(diffArgs.file1),
-        validateFile(diffArgs.file2),
+        validateFile(validatedPath1),
+        validateFile(validatedPath2),
       ]);
 
       if (!validation1.valid) {
@@ -367,8 +393,12 @@ export const fileDiffTool: UnifiedTool = {
         return JSON.stringify(result);
       }
 
-      // Execute diff
-      const { stdout, identical } = await executeDiff(diffArgs);
+      // Execute diff with validated paths
+      const { stdout, identical } = await executeDiff({
+        ...diffArgs,
+        file1: validatedPath1,
+        file2: validatedPath2,
+      });
 
       result.success = true;
       result.identical = identical;

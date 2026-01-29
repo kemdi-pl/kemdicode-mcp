@@ -451,7 +451,15 @@ export class AgentMonitor {
 
       const rawMessages = await this.redis.zrangebyscore(key, minScore, '+inf', 'LIMIT', 0, limit);
 
-      return rawMessages.map((m) => JSON.parse(m));
+      return rawMessages
+        .map((m) => {
+          try {
+            return JSON.parse(m);
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
     } catch (error) {
       Logger.error('Failed to get message history:', error);
       return [];
@@ -769,8 +777,15 @@ export class AgentMonitor {
       const rawMessages = await this.redis.zrevrange(key, 0, limit - 1);
 
       const messages: QueuedMessage[] = rawMessages
-        .map((m) => JSON.parse(m))
-        .filter((m: QueuedMessage) => {
+        .map((m) => {
+          try {
+            return JSON.parse(m);
+          } catch {
+            return null;
+          }
+        })
+        .filter((m: QueuedMessage | null) => {
+          if (!m) return false;
           // Filter expired messages
           if (m.expiresAt && m.expiresAt < Date.now()) return false;
           // Filter by priority if specified

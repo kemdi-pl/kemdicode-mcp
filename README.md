@@ -1,7 +1,7 @@
 # KemdiCode MCP Server
 
 <p align="center">
-  <a href="https://git.kemdi.pl/Kemdi/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.14.0-blue?style=flat-square" alt="Version" /></a>
+  <a href="https://git.kemdi.pl/Kemdi/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.14.6-blue?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License" /></a>
   <a href="https://bun.sh"><img src="https://img.shields.io/badge/Bun-%E2%89%A51.0-f9f1e1?style=flat-square&logo=bun&logoColor=f9f1e1&labelColor=14151a" alt="Bun" /></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-%E2%89%A518-339933?style=flat-square&logo=node.js&logoColor=white" alt="Node.js" /></a>

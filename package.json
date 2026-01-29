@@ -48,7 +48,7 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "prepare": "npm run format && npm run build",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run typecheck && npm run lint",
     "add-license": "bun scripts/add-license-headers.ts"
   },
@@ -78,6 +78,8 @@
     "node": ">=18.0.0",
     "bun": ">=1.0.0"
   },
+  "os": ["darwin", "linux", "win32"],
+  "cpu": ["x64", "arm64"],
   "files": [
     "dist/",
     "README.md",
@@ -112,5 +114,13 @@
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.54.0",
     "vitest": "^4.0.18"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://git.kemdi.pl/Kemdi/kemdicode-mcp.git"
+  },
+  "bugs": {
+    "url": "https://git.kemdi.pl/Kemdi/kemdicode-mcp/issues"
+  },
+  "homepage": "https://git.kemdi.pl/Kemdi/kemdicode-mcp#readme"
 }

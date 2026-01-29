@@ -200,20 +200,25 @@ async function main(): Promise<void> {
   }
 
   // Handle graceful shutdown
-  const shutdown = async () => {
-    Logger.info('Graceful shutdown initiated...');
+  const shutdown = async (signal: string) => {
+    console.log(`${signal} received, shutting down gracefully...`);
     try {
       // Stop HTTP server
       await stopHttpServer();
-      Logger.info('Shutdown complete');
+      // Disconnect Redis
+      const { getRedisConnectionManager } = await import('./infrastructure/redis/connection.js');
+      const redisManager = getRedisConnectionManager();
+      await redisManager.disconnect();
+      console.log('Redis connection closed');
+      console.log('Shutdown complete');
     } catch (error) {
-      Logger.error('Error during shutdown:', error);
+      console.error('Error during shutdown:', error);
     }
     process.exit(0);
   };
 
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 
   // Start HTTP server
   await startHttpServer(serverConfig.host, serverConfig.port);

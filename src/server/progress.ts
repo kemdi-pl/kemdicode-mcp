@@ -111,21 +111,34 @@ export function startProgress(
   let progress = 0;
 
   const interval = setInterval(() => {
-    const currentState = progressStates.get(requestId);
-    if (!currentState?.isProcessing) {
+    try {
+      const currentState = progressStates.get(requestId);
+      if (!currentState?.isProcessing) {
+        clearInterval(interval);
+        progressStates.delete(requestId);
+        return;
+      }
+      if (token) {
+        progress++;
+        const preview = currentState.latestOutput.slice(-100).trim();
+        const progressPromise = sendProgress(
+          token,
+          progress,
+          `${messages[idx++ % messages.length]}${preview ? `\n${preview}` : ''}`,
+          mcpServer
+        );
+        if (progressPromise && typeof progressPromise.catch === 'function') {
+          progressPromise.catch((err: Error) => {
+            console.error(`[Progress] Error sending progress: ${err}`);
+            clearInterval(interval);
+            progressStates.delete(requestId);
+          });
+        }
+      }
+    } catch (error) {
+      console.error(`[Progress] Error in progress interval: ${error}`);
       clearInterval(interval);
       progressStates.delete(requestId);
-      return;
-    }
-    if (token) {
-      progress++;
-      const preview = currentState.latestOutput.slice(-100).trim();
-      sendProgress(
-        token,
-        progress,
-        `${messages[idx++ % messages.length]}${preview ? `\n${preview}` : ''}`,
-        mcpServer
-      );
     }
   }, PROTOCOL.KEEPALIVE_INTERVAL);
 
