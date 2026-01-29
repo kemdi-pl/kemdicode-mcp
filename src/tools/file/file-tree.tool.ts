@@ -30,6 +30,7 @@ import { promises as fs } from 'fs';
 import { join, basename } from 'path';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
+import { validatePath, ValidationError } from '../../utils/validation.js';
 
 /** Maximum entries to prevent memory issues */
 const MAX_ENTRIES = 5000;
@@ -401,12 +402,19 @@ export const fileTreeTool: UnifiedTool<typeof schema> = {
     };
 
     try {
+      // Validate path for security
+      const validatedPath = await validatePath(treeArgs.path, {
+        allowSymlinks: false,
+        requireWithinProject: true,
+        operation: 'read',
+      });
+
       // Build ignore patterns
       const ignorePatterns = [...DEFAULT_IGNORE_PATTERNS, ...(treeArgs.ignorePatterns || [])];
 
       const stats = { files: 0, dirs: 0, size: 0, entries: 0 };
 
-      const tree = await buildTree(treeArgs.path, treeArgs, ignorePatterns, 0, stats);
+      const tree = await buildTree(validatedPath, treeArgs, ignorePatterns, 0, stats);
 
       if (!tree) {
         result.error = `Cannot access path: ${treeArgs.path}`;
@@ -429,6 +437,12 @@ export const fileTreeTool: UnifiedTool<typeof schema> = {
         summary: `${stats.dirs} directories, ${stats.files} files${stats.size > 0 ? `, ${formatSize(stats.size)}` : ''}`,
       });
     } catch (error) {
+      // Handle ValidationError specifically
+      if (error instanceof ValidationError) {
+        result.error = `Path validation failed: ${error.message}`;
+        return JSON.stringify(result);
+      }
+
       const errorMessage = error instanceof Error ? error.message : String(error);
       Logger.error(`file-tree error: ${errorMessage}`);
 
