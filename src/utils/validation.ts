@@ -234,7 +234,8 @@ export async function validatePath(
 
   // Check for path traversal attempts
   const normalizedPath = normalize(trimmedPath);
-  if (normalizedPath.includes('..') || trimmedPath.includes('..')) {
+  const pathSegments = normalizedPath.split(/[/\\]/);
+  if (pathSegments.includes('..')) {
     logSecurityEvent('PATH_TRAVERSAL_ATTEMPT', { inputPath, normalizedPath, operation });
     throw new ValidationError(
       'Path traversal detected: ".." not allowed',

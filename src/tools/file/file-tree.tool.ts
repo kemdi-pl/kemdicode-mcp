@@ -177,7 +177,8 @@ function getFileIcon(name: string, isDirectory: boolean): string {
     return FILE_ICONS.directory;
   }
 
-  const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
+  const lastDot = name.lastIndexOf('.');
+  const ext = lastDot === -1 ? '' : name.slice(lastDot).toLowerCase();
   return FILE_ICONS[ext] || FILE_ICONS.default;
 }
 
@@ -367,7 +368,14 @@ async function buildTree(
 /**
  * Format tree as string for display
  */
-function formatTreeString(entry: TreeEntry, prefix = '', isLast = true): string {
+function formatTreeString(entry: TreeEntry, prefix = '', isLast = true, visited = new Set<string>()): string {
+  // Protection against circular references (e.g., symlink cycles)
+  if (visited.has(entry.path)) {
+    const connector = isLast ? '\\-- ' : '|-- ';
+    return `${prefix}${connector}(circular reference)\n`;
+  }
+  visited.add(entry.path);
+
   const lines: string[] = [];
   const connector = isLast ? '\\-- ' : '|-- ';
   const icon = entry.icon ? `${entry.icon} ` : '';
@@ -379,7 +387,7 @@ function formatTreeString(entry: TreeEntry, prefix = '', isLast = true): string 
     const childPrefix = prefix + (isLast ? '    ' : '|   ');
     entry.children.forEach((child, index) => {
       const isLastChild = index === entry.children!.length - 1;
-      lines.push(formatTreeString(child, childPrefix, isLastChild));
+      lines.push(formatTreeString(child, childPrefix, isLastChild, visited));
     });
   }
 
