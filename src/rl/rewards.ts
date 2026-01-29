@@ -36,6 +36,31 @@ import { calculatePotential } from './potential.js';
 import { randomBytes } from 'crypto';
 
 /**
+ * Safely parse a float, returning fallback if NaN/Infinity
+ */
+function safeFloat(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+/**
+ * Safely parse an int, returning fallback if NaN
+ */
+function safeInt(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+/**
+ * Validate that a number is finite, replace with fallback if not
+ */
+function ensureFinite(value: number, fallback: number): number {
+  return Number.isFinite(value) ? value : fallback;
+}
+
+/**
  * Reward Tracker configuration
  */
 export interface RewardTrackerConfig {
@@ -64,14 +89,15 @@ export function shapeReward(
   postState: AgentState,
   weights: PotentialWeights = DEFAULT_POTENTIAL_WEIGHTS
 ): ShapedReward {
-  const previousPotential = calculatePotential(preState, weights);
-  const currentPotential = calculatePotential(postState, weights);
+  const previousPotential = ensureFinite(calculatePotential(preState, weights), 0);
+  const currentPotential = ensureFinite(calculatePotential(postState, weights), 0);
+  const safeIntrinsic = ensureFinite(intrinsicReward, 0);
 
   // R_shaped = r + γ * Φ(s') - Φ(s)
-  const shapedReward = intrinsicReward + GAMMA * currentPotential - previousPotential;
+  const shapedReward = ensureFinite(safeIntrinsic + GAMMA * currentPotential - previousPotential, 0);
 
   return {
-    intrinsicReward,
+    intrinsicReward: safeIntrinsic,
     previousPotential,
     currentPotential,
     gamma: GAMMA,
@@ -148,7 +174,8 @@ export class RewardTracker extends RedisBackedService {
   }
 
   /**
-   * Update running statistics
+   * Update running statistics atomically using Lua script
+   * Prevents race conditions when multiple agents record rewards concurrently
    */
   private async updateRunningStats(
     agentId: string,
@@ -158,33 +185,72 @@ export class RewardTracker extends RedisBackedService {
     if (!this.redis) return;
 
     try {
-      const key = RL_KEYS.runningStats(agentId);
-
-      // Get current stats
-      const stats = await this.redis.hgetall(key);
-
-      const count = (parseInt(stats.count || '0', 10) || 0) + 1;
-      const total = (parseFloat(stats.total || '0') || 0) + reward.shapedReward;
-      const max = Math.max(parseFloat(stats.max || '0') || -Infinity, reward.shapedReward);
-      const min = Math.min(parseFloat(stats.min || '0') || Infinity, reward.shapedReward);
-
-      await this.redis.hset(key, {
-        count: count.toString(),
-        total: total.toString(),
-        max: max.toString(),
-        min: min.toString(),
-        lastAction: action,
-        lastReward: reward.shapedReward.toString(),
-        lastTimestamp: Date.now().toString(),
-      });
-
-      // Update tool-specific stats
+      const statsKey = RL_KEYS.runningStats(agentId);
       const toolKey = RL_KEYS.toolPerformance(agentId);
-      const toolStats = await this.redis.hget(toolKey, action);
-      const parsed = toolStats ? JSON.parse(toolStats) : { count: 0, total: 0 };
-      parsed.count += 1;
-      parsed.total += reward.shapedReward;
-      await this.redis.hset(toolKey, action, JSON.stringify(parsed));
+      const safeReward = ensureFinite(reward.shapedReward, 0);
+
+      // Atomic stats update via Lua script — no race conditions
+      const luaScript = `
+        local key = KEYS[1]
+        local reward = tonumber(ARGV[1])
+        local action = ARGV[2]
+        local timestamp = ARGV[3]
+
+        local count = redis.call('HINCRBY', key, 'count', 1)
+        local totalStr = redis.call('HGET', key, 'total')
+        local total = tonumber(totalStr) or 0
+        total = total + reward
+        redis.call('HSET', key, 'total', tostring(total))
+
+        local maxStr = redis.call('HGET', key, 'max')
+        local currentMax = tonumber(maxStr)
+        if currentMax == nil or reward > currentMax then
+          redis.call('HSET', key, 'max', tostring(reward))
+        end
+
+        local minStr = redis.call('HGET', key, 'min')
+        local currentMin = tonumber(minStr)
+        if currentMin == nil or reward < currentMin then
+          redis.call('HSET', key, 'min', tostring(reward))
+        end
+
+        redis.call('HSET', key, 'lastAction', action)
+        redis.call('HSET', key, 'lastReward', tostring(reward))
+        redis.call('HSET', key, 'lastTimestamp', timestamp)
+
+        return count
+      `;
+
+      await this.redis.eval(
+        luaScript,
+        1,
+        statsKey,
+        safeReward.toString(),
+        action,
+        Date.now().toString()
+      );
+
+      // Atomic tool-specific stats update via Lua
+      const toolLua = `
+        local key = KEYS[1]
+        local field = ARGV[1]
+        local reward = tonumber(ARGV[2])
+
+        local raw = redis.call('HGET', key, field)
+        local data = nil
+        if raw then
+          data = cjson.decode(raw)
+        end
+        if not data then
+          data = {count = 0, total = 0}
+        end
+        data.count = data.count + 1
+        data.total = data.total + reward
+        redis.call('HSET', key, field, cjson.encode(data))
+        return 1
+      `;
+
+      await this.redis.eval(toolLua, 1, toolKey, action, safeReward.toString());
     } catch (error) {
       console.error('[RewardTracker] Error updating stats:', error);
     }
@@ -234,10 +300,10 @@ export class RewardTracker extends RedisBackedService {
         return null;
       }
 
-      const count = parseInt(stats.count || '0', 10) || 0;
-      const total = parseFloat(stats.total || '0') || 0;
-      const max = parseFloat(stats.max || '0') || 0;
-      const min = parseFloat(stats.min || '0') || 0;
+      const count = safeInt(stats.count, 0);
+      const total = safeFloat(stats.total, 0);
+      const max = safeFloat(stats.max, 0);
+      const min = safeFloat(stats.min, 0);
 
       // Parse tool stats
       const rewardsByTool: Record<string, { count: number; total: number; average: number }> = {};
@@ -334,9 +400,13 @@ export function getRewardTracker(): RewardTracker {
 /**
  * Reset the global reward tracker (for testing)
  */
-export function resetRewardTracker(): void {
+export async function resetRewardTracker(): Promise<void> {
   if (rewardTracker) {
-    rewardTracker.disconnect().catch(console.error);
+    try {
+      await rewardTracker.disconnect();
+    } catch (error) {
+      console.error('[RewardTracker] Error during disconnect:', error);
+    }
   }
   rewardTracker = null;
 }

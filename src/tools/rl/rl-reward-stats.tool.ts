@@ -31,6 +31,14 @@ import {
   suggestOptimalAction,
 } from '../../rl/index.js';
 
+/**
+ * Safely format a stat number, handling NaN/Infinity
+ */
+function formatStat(value: number): string {
+  if (!Number.isFinite(value)) return 'N/A';
+  return value.toFixed(3);
+}
+
 const schema = z.object({
   agentId: z.string().describe('Agent ID to get stats for'),
   sessionId: z.string().describe('Session ID'),
@@ -83,10 +91,10 @@ export const rlRewardStatsTool: UnifiedTool<typeof schema> = {
         '║ REWARD SUMMARY                                                   ║',
         '╠──────────────────────────────────────────────────────────────────╣',
         `║ Total Rewards:    ${String(stats.rewardCount).padEnd(46)} ║`,
-        `║ Cumulative:       ${stats.cumulativeReward.toFixed(3).padEnd(46)} ║`,
-        `║ Average:          ${stats.averageReward.toFixed(3).padEnd(46)} ║`,
-        `║ Max:              ${stats.maxReward.toFixed(3).padEnd(46)} ║`,
-        `║ Min:              ${stats.minReward.toFixed(3).padEnd(46)} ║`,
+        `║ Cumulative:       ${formatStat(stats.cumulativeReward).padEnd(46)} ║`,
+        `║ Average:          ${formatStat(stats.averageReward).padEnd(46)} ║`,
+        `║ Max:              ${formatStat(stats.maxReward).padEnd(46)} ║`,
+        `║ Min:              ${formatStat(stats.minReward).padEnd(46)} ║`,
         `║ Trend:            ${trendIcon} ${stats.recentTrend.padEnd(44)} ║`
       );
 

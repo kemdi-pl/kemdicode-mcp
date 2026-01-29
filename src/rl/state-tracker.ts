@@ -97,10 +97,12 @@ export class StateTracker extends RedisBackedService {
     const existing = await this.getState(agentId);
 
     if (existing) {
-      // Update state age
-      existing.stateAge = Date.now() - existing.timestamp;
-      existing.timestamp = Date.now();
-      return existing;
+      // Return a defensive copy — never mutate the original
+      return {
+        ...existing,
+        stateAge: Date.now() - existing.timestamp,
+        timestamp: Date.now(),
+      };
     }
 
     // Create initial state
@@ -334,9 +336,13 @@ export function getStateTracker(): StateTracker {
 /**
  * Reset the global state tracker (for testing)
  */
-export function resetStateTracker(): void {
+export async function resetStateTracker(): Promise<void> {
   if (stateTracker) {
-    stateTracker.disconnect().catch(console.error);
+    try {
+      await stateTracker.disconnect();
+    } catch (error) {
+      console.error('[StateTracker] Error during disconnect:', error);
+    }
   }
   stateTracker = null;
 }
