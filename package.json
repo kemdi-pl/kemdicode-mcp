@@ -127,10 +127,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://git.kemdi.pl/Kemdi/kemdicode-mcp.git"
+    "url": "git+https://github.com/kemdi-pl/kemdicode-mcp.git"
   },
   "bugs": {
-    "url": "https://git.kemdi.pl/Kemdi/kemdicode-mcp/issues"
+    "url": "https://github.com/kemdi-pl/kemdicode-mcp/issues"
   },
-  "homepage": "https://git.kemdi.pl/Kemdi/kemdicode-mcp#readme"
+  "homepage": "https://github.com/kemdi-pl/kemdicode-mcp#readme"
 }
