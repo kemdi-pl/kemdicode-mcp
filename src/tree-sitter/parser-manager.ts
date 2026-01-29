@@ -157,7 +157,14 @@ export async function loadLanguage(language: TreeSitterLanguage): Promise<Langua
 /**
  * Parse source code
  */
+/** Maximum file size for tree-sitter parsing (5MB) */
+const MAX_PARSE_SIZE = 5 * 1024 * 1024;
+
 export async function parseCode(code: string, language: TreeSitterLanguage): Promise<Tree> {
+  if (code.length > MAX_PARSE_SIZE) {
+    throw new Error(`File too large for tree-sitter parsing (${(code.length / 1024 / 1024).toFixed(1)}MB, max ${MAX_PARSE_SIZE / 1024 / 1024}MB)`);
+  }
+
   await initParser();
   if (!parser) throw new Error('Parser not initialized');
 
@@ -200,6 +207,7 @@ export function findSymbols(
 
   function processNode(node: SyntaxNode, parent?: string): void {
     // Check if this node matches any symbol type
+    let matched = false;
     for (const [symbolType, nodeTypes] of Object.entries(queries)) {
       if (types && !types.includes(symbolType as SymbolType)) continue;
       if (!nodeTypes.includes(node.type)) continue;
@@ -207,40 +215,22 @@ export function findSymbols(
       const symbol = extractSymbol(node, symbolType as SymbolType, language, parent);
       if (symbol) {
         symbols.push(symbol);
+        matched = true;
         // Process children with this symbol as parent
         for (let i = 0; i < node.childCount; i++) {
           const child = node.child(i);
           if (child) processNode(child, symbol.name);
         }
+        break; // Only match first symbol type per node
       }
     }
 
-    // Process children for nodes that didn't match a symbol type
-    for (let i = 0; i < node.childCount; i++) {
-      const child = node.child(i);
-      if (child) processNode(child, parent);
-    }
-    // Check if this node matches any symbol type
-    for (const [symbolType, nodeTypes] of Object.entries(queries)) {
-      if (types && !types.includes(symbolType as SymbolType)) continue;
-      if (!nodeTypes.includes(node.type)) continue;
-
-      const symbol = extractSymbol(node, symbolType as SymbolType, language, parent);
-      if (symbol) {
-        symbols.push(symbol);
-        // Process children with this symbol as parent
-        for (let i = 0; i < node.childCount; i++) {
-          const child = node.child(i);
-          if (child) processNode(child, symbol.name);
-        }
-        return; // Don't process children twice
+    // Process children only if this node didn't match (avoids double processing)
+    if (!matched) {
+      for (let i = 0; i < node.childCount; i++) {
+        const child = node.child(i);
+        if (child) processNode(child, parent);
       }
-    }
-
-    // Process children
-    for (let i = 0; i < node.childCount; i++) {
-      const child = node.child(i);
-      if (child) processNode(child, parent);
     }
   }
 

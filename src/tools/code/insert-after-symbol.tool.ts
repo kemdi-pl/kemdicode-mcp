@@ -27,7 +27,6 @@
 
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
-import { executeCommand } from '../../utils/commandExecutor.js';
 import { Logger } from '../../utils/logger.js';
 import { validatePath, ValidationError, checkRateLimit } from '../../utils/validation.js';
 import { readFileLines, writeFileLines } from '../../utils/edit-utils.js';
@@ -36,58 +35,11 @@ import {
   findSymbolBlockEnd as treeSitterFindBlockEnd,
   getLanguageFromFile,
 } from '../../tree-sitter/index.js';
-
-/**
- * Language-specific patterns for finding symbol definitions
- */
-const DEFINITION_PATTERNS: Record<string, string[]> = {
-  ts: [
-    '(class|interface|type|enum)\\s+SYMBOL\\b',
-    '(const|let|var)\\s+SYMBOL\\s*[=:]',
-    '(function|async function)\\s+SYMBOL\\s*[(<]',
-    'export\\s+(const|let|var|function|class|interface|type|enum)\\s+SYMBOL\\b',
-  ],
-  php: [
-    'class\\s+SYMBOL\\b',
-    'interface\\s+SYMBOL\\b',
-    'trait\\s+SYMBOL\\b',
-    'function\\s+SYMBOL\\s*\\(',
-    '(public|private|protected|static)\\s+function\\s+SYMBOL\\s*\\(',
-  ],
-  py: ['class\\s+SYMBOL\\s*[:(]', 'def\\s+SYMBOL\\s*\\(', 'async\\s+def\\s+SYMBOL\\s*\\('],
-  go: [
-    'func\\s+SYMBOL\\s*\\(',
-    'func\\s+\\([^)]+\\)\\s+SYMBOL\\s*\\(',
-    'type\\s+SYMBOL\\s+(struct|interface)',
-  ],
-  rs: [
-    'fn\\s+SYMBOL\\s*[<(]',
-    'struct\\s+SYMBOL\\s*[<{]',
-    'enum\\s+SYMBOL\\s*[<{]',
-    'trait\\s+SYMBOL\\s*[<{]',
-    'impl\\s+SYMBOL\\b',
-  ],
-};
-
-/**
- * Get file type filter for ripgrep
- */
-function getTypeFilter(language: string): string[] {
-  switch (language) {
-    case 'ts':
-      return ['--type', 'ts', '--type', 'js'];
-    case 'php':
-      return ['--type', 'php'];
-    case 'py':
-      return ['--type', 'py'];
-    case 'go':
-      return ['--type', 'go'];
-    case 'rs':
-      return ['--type', 'rust'];
-    default:
-      return [];
-  }
-}
+import {
+  findSymbolDefinition,
+  findSymbolAuto,
+  type SymbolLocation,
+} from './symbol-search.js';
 
 /** Languages that use braces for blocks */
 const BRACE_LANGUAGES = ['ts', 'php', 'go', 'rs'];
@@ -107,78 +59,6 @@ const schema = z.object({
 });
 
 type InsertAfterSymbolArgs = z.infer<typeof schema>;
-
-interface SymbolLocation {
-  file: string;
-  line: number;
-  content: string;
-}
-
-/**
- * Find symbol definition using ripgrep
- */
-async function findSymbolDefinition(
-  symbol: string,
-  language: string,
-  searchPath: string
-): Promise<SymbolLocation | null> {
-  const patterns = DEFINITION_PATTERNS[language] || DEFINITION_PATTERNS.ts;
-  const typeFilter = getTypeFilter(language);
-
-  for (const pattern of patterns) {
-    const regex = pattern.replace(/SYMBOL/g, symbol);
-
-    const args = [
-      '-n',
-      '-H',
-      '--no-heading',
-      '--color=never',
-      '-e',
-      regex,
-      ...typeFilter,
-      searchPath,
-    ];
-
-    try {
-      const output = await executeCommand('rg', args);
-      const lines = output.split('\n').filter((l) => l.trim());
-
-      if (lines.length > 0) {
-        const match = lines[0].match(/^([^:]+):(\d+):(.*)$/);
-        if (match) {
-          return {
-            file: match[1],
-            line: parseInt(match[2], 10),
-            content: match[3].trim(),
-          };
-        }
-      }
-    } catch {
-      // Pattern didn't match, try next
-    }
-  }
-
-  return null;
-}
-
-/**
- * Try all languages to find symbol
- */
-async function findSymbolAuto(
-  symbol: string,
-  searchPath: string
-): Promise<{ location: SymbolLocation; language: 'ts' | 'php' | 'py' | 'go' | 'rs' } | null> {
-  const languages: Array<'ts' | 'php' | 'py' | 'go' | 'rs'> = ['ts', 'php', 'py', 'go', 'rs'];
-
-  for (const lang of languages) {
-    const location = await findSymbolDefinition(symbol, lang, searchPath);
-    if (location) {
-      return { location, language: lang };
-    }
-  }
-
-  return null;
-}
 
 /**
  * Find the end of a brace-delimited block

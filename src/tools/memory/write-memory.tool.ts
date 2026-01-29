@@ -26,7 +26,8 @@
  */
 
 import { z } from 'zod';
-import { Redis } from 'ioredis';
+import type { Redis } from 'ioredis';
+import { getSharedRedis } from '../../infrastructure/redis/connection.js';
 import { createHash } from 'crypto';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
@@ -52,31 +53,7 @@ const DEFAULT_TTL = 30 * 24 * 60 * 60;
 /** Maximum memory content size: 1MB */
 const MAX_CONTENT_SIZE = 1024 * 1024;
 
-/** Redis client (lazy init) */
-let redis: Redis | null = null;
-
-/**
- * Get or create Redis connection for memory storage
- *
- * @description Lazily initializes Redis client for the MCP context database (DB 2)
- * @returns {Promise<Redis>} Connected Redis client
- * @throws {Error} If Redis connection fails
- * @internal
- */
-async function getRedis(): Promise<Redis> {
-  if (!redis) {
-    redis = new Redis({
-      host: process.env.REDIS_HOST || '127.0.0.1',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD || undefined,
-      db: 2, // MCP context database
-      lazyConnect: true,
-    });
-    await redis.connect();
-  }
-  return redis;
-}
-
+const getRedis = getSharedRedis;
 /**
  * Generate a unique project identifier from current working directory
  *

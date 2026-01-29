@@ -272,7 +272,7 @@ export const SYMBOL_QUERIES: Record<TreeSitterLanguage, Record<SymbolType, strin
     interface: [],
     function: ['function_definition'],
     method: ['function_definition'],
-    property: ['expression_statement'],
+    property: ['assignment'],
     variable: ['assignment'],
     constant: ['assignment'],
     enum: [],
@@ -384,7 +384,7 @@ export const SYMBOL_QUERIES: Record<TreeSitterLanguage, Record<SymbolType, strin
     type: [],
     namespace: ['module'],
     module: ['module'],
-    import: ['call'], // require/require_relative
+    import: [], // require/require_relative handled by regex fallback
     export: [],
   },
   swift: {

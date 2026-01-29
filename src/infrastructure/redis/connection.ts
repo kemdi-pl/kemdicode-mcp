@@ -272,3 +272,22 @@ export function getRedisConnectionManager(
 export function resetRedisConnectionManager(): void {
   globalConnectionManager = null;
 }
+
+/**
+ * Get a shared Redis client from the global connection manager.
+ * This is the recommended way to get a Redis client in any module.
+ * Replaces per-module `let redis: Redis | null = null` + `getRedis()` patterns.
+ *
+ * @throws Error if Redis is not connected
+ */
+export async function getSharedRedis(): Promise<Redis> {
+  const manager = getRedisConnectionManager();
+  if (!manager.isConnected()) {
+    await manager.connect();
+  }
+  const client = manager.getClient();
+  if (!client) {
+    throw new Error('Redis is not available');
+  }
+  return client;
+}

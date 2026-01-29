@@ -26,39 +26,19 @@
  * @module kanban/migration
  */
 
-import { Redis } from 'ioredis';
 import { Logger } from '../utils/logger.js';
+import { getSharedRedis } from '../infrastructure/redis/connection.js';
 import { KanbanTask, KANBAN_KEYS, DEFAULT_TASK_TTL, PRIORITY_SCORES } from './types.js';
 import { getOrCreateDefaultBoard, updateBoardTaskCount } from './board-store.js';
 import { addBoardMember, isBoardMember } from './membership-store.js';
 
-/** Redis client (lazy init) */
-let redis: Redis | null = null;
+const getRedis = getSharedRedis;
 
 /** Track migrated sessions to avoid duplicate work */
 const migratedSessions = new Set<string>();
 
 /** Track migrated tasks to avoid duplicate work */
 const migratedTasks = new Set<string>();
-
-/**
- * Get or create Redis connection
- *
- * @internal
- */
-async function getRedis(): Promise<Redis> {
-  if (!redis) {
-    redis = new Redis({
-      host: process.env.REDIS_HOST || '127.0.0.1',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD || undefined,
-      db: 2,
-      lazyConnect: true,
-    });
-    await redis.connect();
-  }
-  return redis;
-}
 
 /**
  * Migrate a single task to the multi-board system

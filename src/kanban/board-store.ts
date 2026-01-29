@@ -26,9 +26,9 @@
  * @module kanban/board-store
  */
 
-import { Redis } from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../utils/logger.js';
+import { getSharedRedis } from '../infrastructure/redis/connection.js';
 import {
   KanbanBoard,
   CreateBoardInput,
@@ -38,37 +38,13 @@ import {
   DEFAULT_TASK_TTL,
 } from './types.js';
 
-/** Redis client (lazy init) */
-let redis: Redis | null = null;
+const getRedis = getSharedRedis;
 
 /** Default board name for backward compatibility */
 export const DEFAULT_BOARD_NAME = 'default';
 
 /** Maximum events to keep per board */
 const MAX_BOARD_EVENTS = 100;
-
-/**
- * Get or create Redis connection for Board storage
- *
- * @description Lazily initializes and returns a Redis client connection
- *              configured for the MCP context database (DB 2)
- * @returns {Promise<Redis>} Connected Redis client instance
- * @throws {Error} If Redis connection fails
- * @internal
- */
-async function getRedis(): Promise<Redis> {
-  if (!redis) {
-    redis = new Redis({
-      host: process.env.REDIS_HOST || '127.0.0.1',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD || undefined,
-      db: 2,
-      lazyConnect: true,
-    });
-    await redis.connect();
-  }
-  return redis;
-}
 
 /**
  * Generate a unique board ID

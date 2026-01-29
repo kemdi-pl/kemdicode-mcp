@@ -25,8 +25,8 @@
  * @module kanban/membership-store
  */
 
-import { Redis } from 'ioredis';
 import { Logger } from '../utils/logger.js';
+import { getSharedRedis } from '../infrastructure/redis/connection.js';
 import {
   BoardMembership,
   BoardRole,
@@ -36,31 +36,7 @@ import {
   DEFAULT_TASK_TTL,
 } from './types.js';
 
-/** Redis client (lazy init) */
-let redis: Redis | null = null;
-
-/**
- * Get or create Redis connection for Membership storage
- *
- * @description Lazily initializes and returns a Redis client connection
- *              configured for the MCP context database (DB 2)
- * @returns {Promise<Redis>} Connected Redis client instance
- * @throws {Error} If Redis connection fails
- * @internal
- */
-async function getRedis(): Promise<Redis> {
-  if (!redis) {
-    redis = new Redis({
-      host: process.env.REDIS_HOST || '127.0.0.1',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD || undefined,
-      db: 2,
-      lazyConnect: true,
-    });
-    await redis.connect();
-  }
-  return redis;
-}
+const getRedis = getSharedRedis;
 
 /**
  * Add an agent as a member of a board

@@ -822,23 +822,26 @@ export class AgentMonitor {
 
     try {
       const key = `${REDIS_KEYS.AGENT_QUEUE}${agentId}`;
+      const maxAttempts = 100;
 
-      // Get and remove highest priority message
-      // Using ZPOPMAX to get the message with highest score
-      const result = await this.redis.zpopmax(key, 1);
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const result = await this.redis.zpopmax(key, 1);
 
-      if (!result || result.length === 0) return null;
+        if (!result || result.length === 0) return null;
 
-      const message: QueuedMessage = JSON.parse(result[0]);
+        const message: QueuedMessage = JSON.parse(result[0]);
 
-      // Check if expired
-      if (message.expiresAt && message.expiresAt < Date.now()) {
-        // Message expired, try next one
-        return this.popMessage(agentId);
+        // Skip expired messages
+        if (message.expiresAt && message.expiresAt < Date.now()) {
+          continue;
+        }
+
+        Logger.debug(`Message popped for ${agentId}: ${message.id}`);
+        return message;
       }
 
-      Logger.debug(`Message popped for ${agentId}: ${message.id}`);
-      return message;
+      Logger.warn(`popMessage: skipped ${maxAttempts} expired messages for ${agentId}`);
+      return null;
     } catch (error) {
       Logger.error('Failed to pop message:', error);
       return null;

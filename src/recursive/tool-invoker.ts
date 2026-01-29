@@ -24,7 +24,7 @@
  * @module recursive/tool-invoker
  */
 
-import { Redis } from 'ioredis';
+import { getSharedRedis } from '../infrastructure/redis/connection.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../utils/logger.js';
 import { getToolByName, executeTool, type ToolArguments } from '../tools/registry.js';
@@ -42,27 +42,27 @@ import {
   MAX_LOG_ENTRIES,
 } from './types.js';
 
-/** Redis client (lazy init) */
-let redis: Redis | null = null;
-
 /** Current invocation context (per-request) */
 const contextStack = new Map<string, InvocationContext>();
 
+const getRedis = getSharedRedis;
 /**
- * Get or create Redis connection
+ * Read and normalize rate limit entry from Redis.
+ * Resets the window if expired.
  */
-async function getRedis(): Promise<Redis> {
-  if (!redis) {
-    redis = new Redis({
-      host: process.env.REDIS_HOST || '127.0.0.1',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD || undefined,
-      db: 2,
-      lazyConnect: true,
-    });
-    await redis.connect();
+async function getRateLimitEntry(agentId: string): Promise<RateLimitEntry> {
+  const client = await getRedis();
+  const rateLimitKey = RECURSIVE_KEYS.rateLimit(agentId);
+  const data = await client.get(rateLimitKey);
+
+  let entry: RateLimitEntry = { count: 0, windowStart: Date.now() };
+  if (data) {
+    entry = JSON.parse(data);
+    if (Date.now() - entry.windowStart > RATE_LIMIT_WINDOW) {
+      entry = { count: 0, windowStart: Date.now() };
+    }
   }
-  return redis;
+  return entry;
 }
 
 /**
@@ -116,23 +116,10 @@ export async function checkSafety(
   }
 
   // Check rate limit
-  const client = await getRedis();
-  const rateLimitKey = RECURSIVE_KEYS.rateLimit(request.agentId);
-  const rateLimitData = await client.get(rateLimitKey);
-
-  let rateEntry: RateLimitEntry = { count: 0, windowStart: Date.now() };
-
-  if (rateLimitData) {
-    rateEntry = JSON.parse(rateLimitData);
-
-    // Check if window has expired
-    if (Date.now() - rateEntry.windowStart > RATE_LIMIT_WINDOW) {
-      rateEntry = { count: 0, windowStart: Date.now() };
-    }
-  }
+  const rateEntry = await getRateLimitEntry(request.agentId);
+  const resetIn = RATE_LIMIT_WINDOW - (Date.now() - rateEntry.windowStart);
 
   if (rateEntry.count >= policy.maxInvocationsPerMinute) {
-    const resetIn = RATE_LIMIT_WINDOW - (Date.now() - rateEntry.windowStart);
     return {
       allowed: false,
       reason: 'Rate limit exceeded',
@@ -144,28 +131,26 @@ export async function checkSafety(
     };
   }
 
+  const rateLimit = {
+    current: rateEntry.count,
+    max: policy.maxInvocationsPerMinute,
+    resetIn,
+  };
+
   // Check if approval required
   if (policy.requiresApproval.includes(request.toolName)) {
     return {
       allowed: true,
       requiresSupervisorApproval: true,
       currentDepth,
-      rateLimit: {
-        current: rateEntry.count,
-        max: policy.maxInvocationsPerMinute,
-        resetIn: RATE_LIMIT_WINDOW - (Date.now() - rateEntry.windowStart),
-      },
+      rateLimit,
     };
   }
 
   return {
     allowed: true,
     currentDepth,
-    rateLimit: {
-      current: rateEntry.count,
-      max: policy.maxInvocationsPerMinute,
-      resetIn: RATE_LIMIT_WINDOW - (Date.now() - rateEntry.windowStart),
-    },
+    rateLimit,
   };
 }
 
@@ -201,18 +186,9 @@ export async function invokeTool(
 
   try {
     // Update rate limit
-    const rateLimitKey = RECURSIVE_KEYS.rateLimit(request.agentId);
-    const rateLimitData = await client.get(rateLimitKey);
-    let rateEntry: RateLimitEntry = { count: 0, windowStart: Date.now() };
-
-    if (rateLimitData) {
-      rateEntry = JSON.parse(rateLimitData);
-      if (Date.now() - rateEntry.windowStart > RATE_LIMIT_WINDOW) {
-        rateEntry = { count: 0, windowStart: Date.now() };
-      }
-    }
-
+    const rateEntry = await getRateLimitEntry(request.agentId);
     rateEntry.count++;
+    const rateLimitKey = RECURSIVE_KEYS.rateLimit(request.agentId);
     await client.setex(rateLimitKey, 120, JSON.stringify(rateEntry));
 
     // Set up context

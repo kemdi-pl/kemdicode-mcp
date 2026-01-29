@@ -25,7 +25,7 @@
  */
 
 import { z } from 'zod';
-import { Redis } from 'ioredis';
+import { getSharedRedis } from '../../infrastructure/redis/connection.js';
 import { createHash } from 'crypto';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
@@ -35,25 +35,7 @@ import { checkRateLimit } from '../../utils/validation.js';
 const MEMORY_PREFIX = 'mcp:memory:';
 const MEMORY_INDEX_PREFIX = 'mcp:memory:index:';
 
-/** Redis client (lazy init) */
-let redis: Redis | null = null;
-
-/**
- * Get or create Redis connection
- */
-async function getRedis(): Promise<Redis> {
-  if (!redis) {
-    redis = new Redis({
-      host: process.env.REDIS_HOST || '127.0.0.1',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD || undefined,
-      db: 2,
-      lazyConnect: true,
-    });
-    await redis.connect();
-  }
-  return redis;
-}
+const getRedis = getSharedRedis;
 
 /**
  * Generate project ID from current working directory

@@ -27,6 +27,7 @@
 import { Redis } from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../utils/logger.js';
+import { getSharedRedis } from '../infrastructure/redis/connection.js';
 import {
   KanbanTask,
   TaskStatus,
@@ -43,30 +44,7 @@ import {
   MAX_EVENTS,
 } from './types.js';
 
-/** Redis client (lazy init) */
-let redis: Redis | null = null;
-
-/**
- * Get or create Redis connection for Kanban storage
- *
- * @description Lazily initializes and returns a Redis client connection
- *              configured for the MCP context database (DB 2)
- * @returns {Promise<Redis>} Connected Redis client instance
- * @throws {Error} If Redis connection fails
- */
-async function getRedis(): Promise<Redis> {
-  if (!redis) {
-    redis = new Redis({
-      host: process.env.REDIS_HOST || '127.0.0.1',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD || undefined,
-      db: 2,
-      lazyConnect: true,
-    });
-    await redis.connect();
-  }
-  return redis;
-}
+const getRedis = getSharedRedis;
 
 /**
  * Create a new task on the Kanban board
@@ -893,13 +871,13 @@ export function subscribeToEvents(callback: (event: TaskEvent) => void): () => v
     });
 
     // Set up error handler before any async operations
-    subscriber.on('error', (error) => {
+    subscriber.on('error', (error: Error) => {
       Logger.error(`kanban: Redis subscriber error: ${error}`);
       void cleanup();
     });
 
     // Subscribe with error handling
-    subscriber.subscribe(KANBAN_KEYS.channel, (error) => {
+    subscriber.subscribe(KANBAN_KEYS.channel, (error: Error | null | undefined) => {
       if (error) {
         Logger.error(`kanban: failed to subscribe to channel: ${error}`);
         void cleanup();
@@ -907,7 +885,7 @@ export function subscribeToEvents(callback: (event: TaskEvent) => void): () => v
       }
     });
 
-    subscriber.on('message', (_channel, message) => {
+    subscriber.on('message', (_channel: string, message: string) => {
       try {
         const event = JSON.parse(message) as TaskEvent;
         callback(event);
