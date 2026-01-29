@@ -309,7 +309,10 @@ const registryManager = new ToolRegistryManager();
  * @deprecated Use registryManager methods instead. Kept for backward compatibility.
  * @description Direct access to the tool registry array
  */
-export const toolRegistry: readonly UnifiedTool[] = registryManager.getAll();
+export function getToolRegistry(): readonly UnifiedTool[] {
+  // Dynamic getter avoids snapshotting the registry at module init time.
+  return registryManager.getAll();
+}
 
 /**
  * Register a tool in the registry
@@ -436,7 +439,7 @@ function isJsonSchemaShape(obj: unknown): obj is JsonSchemaShape {
  * ```
  */
 export function getToolDefinitions(): Tool[] {
-  return toolRegistry.map((tool) => {
+  return getToolRegistry().map((tool) => {
     // Use native Zod 4 toJSONSchema with runtime validation
     const rawSchema = z.toJSONSchema(tool.zodSchema, { target: 'draft-07' });
 
@@ -474,7 +477,7 @@ export function getToolDefinitions(): Tool[] {
  * ```
  */
 export function getPromptDefinitions(): Prompt[] {
-  return toolRegistry
+  return getToolRegistry()
     .filter((t) => t.prompt)
     .map((t) => ({ name: t.name, description: t.prompt!.description }));
 }
@@ -504,10 +507,11 @@ export async function executeTool(
   args: ToolArguments,
   onProgress?: (output: string) => void
 ): Promise<string> {
-  const tool = toolRegistry.find((t) => t.name === name);
+  const registry = getToolRegistry();
+  const tool = registry.find((t) => t.name === name);
   if (!tool)
     throw new ToolExecutionError(name, `Unknown tool: ${name}`, {
-      availableTools: toolRegistry.map((t) => t.name).slice(0, 10),
+      availableTools: registry.map((t) => t.name).slice(0, 10),
     });
 
   // Start timing and log tool execution start
@@ -628,7 +632,7 @@ export async function executeTool(
  * ```
  */
 export function getPromptMessage(name: string, args: Record<string, unknown>): string {
-  const tool = toolRegistry.find((t) => t.name === name);
+  const tool = getToolRegistry().find((t) => t.name === name);
   if (!tool?.prompt) throw new Error(`No prompt for: ${name}`);
 
   const params = Object.entries(args)

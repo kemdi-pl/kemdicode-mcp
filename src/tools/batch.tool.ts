@@ -29,9 +29,8 @@
  */
 
 import { z } from 'zod';
-import { UnifiedTool, toolRegistry } from './registry.js';
+import { UnifiedTool, executeTool } from './registry.js';
 import { Logger } from '../utils/logger.js';
-import { ToolArguments } from '../constants.js';
 
 const operationSchema = z.object({
   tool: z.string().describe('Tool name to execute'),
@@ -81,24 +80,9 @@ export const batchTool: UnifiedTool<typeof schema> = {
       const opId = op.id || `op_${index}`;
       const opStart = Date.now();
 
-      // Find tool in registry
-      const tool = toolRegistry.find((t) => t.name === op.tool);
-      if (!tool) {
-        return {
-          id: opId,
-          tool: op.tool,
-          success: false,
-          error: `Unknown tool: ${op.tool}`,
-          durationMs: Date.now() - opStart,
-        };
-      }
-
       try {
-        // Validate args with tool's schema and cast to ToolArguments
-        const validatedArgs = tool.zodSchema.parse(op.args) as ToolArguments;
-
-        // Execute tool
-        const result = await tool.execute(validatedArgs, (output) => {
+        // Execute tool via central execution path (validation + logging + RL + context share)
+        const result = await executeTool(op.tool, op.args, (output) => {
           onProgress?.(`[${opId}] ${output.slice(0, 100)}`);
         });
 
