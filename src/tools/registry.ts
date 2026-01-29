@@ -31,6 +31,7 @@ import { z, ZodError } from 'zod';
 import { shareContext, isContextEnabled } from '../context/index.js';
 import { Logger } from '../utils/logger.js';
 import { McpError, InputValidationError, ToolExecutionError } from '../utils/errors.js';
+import { recordToolExecution } from '../rl/middleware.js';
 import type { BaseToolArguments } from '../types/tool-types.js';
 
 /**
@@ -532,9 +533,15 @@ export async function executeTool(
       resultLength: result.length,
       success: true,
     });
+
+    // RL tracking (async, fire-and-forget — never blocks response)
+    recordToolExecution(name, args as Record<string, unknown>, true, duration).catch(() => {});
   } catch (error) {
     isError = true;
     const duration = Date.now() - startTime;
+
+    // RL tracking for failures (fire-and-forget)
+    recordToolExecution(name, args as Record<string, unknown>, false, duration).catch(() => {});
 
     // Handle Zod validation errors
     if (error instanceof ZodError) {

@@ -84,3 +84,6 @@ export {
   resetDopamineEmitter,
   type DopamineEmitterConfig,
 } from './dopamine.js';
+
+// Middleware (tool execution integration)
+export { recordToolExecution } from './middleware.js';
