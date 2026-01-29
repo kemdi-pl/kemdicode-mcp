@@ -29,13 +29,11 @@ import { z } from 'zod';
 import { promises as fs } from 'fs';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
-import { fromNodeError, formatErrorResponse } from '../../utils/errors.js';
 import {
-  validatePath,
-  ValidationError,
-  checkRateLimit,
   validateRegexPattern,
+  ValidationError,
 } from '../../utils/validation.js';
+import { validateEditRequest, formatEditError } from './edit-shared.js';
 
 const schema = z.object({
   path: z.string().min(1).describe('File path to edit'),
@@ -153,16 +151,6 @@ export const replaceContentTool: UnifiedTool = {
       dryRun,
     } = args as ReplaceContentArgs;
 
-    // Rate limit check
-    if (!checkRateLimit('edit-operations', { maxRequests: 50, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for edit operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-        path: inputPath,
-      });
-    }
-
     // Validate regex if using regex mode
     if (isRegex) {
       try {
@@ -180,27 +168,12 @@ export const replaceContentTool: UnifiedTool = {
       }
     }
 
-    // Validate path
-    let validatedPath: string;
-    try {
-      validatedPath = await validatePath(inputPath, {
-        allowSymlinks: false,
-        requireWithinProject: false,
-        allowReadFromBlocked: false,
-        operation: dryRun ? 'read' : 'write',
-      });
-    } catch (validationError) {
-      if (validationError instanceof ValidationError) {
-        Logger.warn(`replace-content security validation failed: ${validationError.message}`);
-        return JSON.stringify({
-          success: false,
-          error: validationError.message,
-          code: validationError.code,
-          path: inputPath,
-        });
-      }
-      throw validationError;
-    }
+    // Common validation: rate limit + path
+    const validation = await validateEditRequest('replace-content', inputPath, {
+      operation: dryRun ? 'read' : 'write',
+    });
+    if (!validation.ok) return validation.errorResponse;
+    const { validatedPath } = validation;
 
     try {
       // Check file size
@@ -293,25 +266,7 @@ export const replaceContentTool: UnifiedTool = {
         dryRun: false,
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`replace-content error: ${errorMessage}`);
-
-      const nodeError = error as NodeJS.ErrnoException;
-      if (nodeError.code) {
-        const mcpError = fromNodeError(nodeError, validatedPath, 'write');
-        const errorResponse = formatErrorResponse(mcpError);
-        return JSON.stringify({
-          success: false,
-          path: validatedPath,
-          ...errorResponse,
-        });
-      }
-
-      return JSON.stringify({
-        success: false,
-        path: validatedPath,
-        error: errorMessage,
-      });
+      return formatEditError('replace-content', error, validatedPath);
     }
   },
 };

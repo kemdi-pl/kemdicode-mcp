@@ -28,14 +28,13 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
-import { fromNodeError, formatErrorResponse } from '../../utils/errors.js';
-import { validatePath, ValidationError, checkRateLimit } from '../../utils/validation.js';
 import {
   readFileLines,
   writeFileLines,
   validateLineRange,
   truncateForPreview,
 } from '../../utils/edit-utils.js';
+import { validateEditRequest, formatEditError } from './edit-shared.js';
 
 const schema = z.object({
   path: z.string().min(1).describe('File path to edit'),
@@ -47,9 +46,6 @@ const schema = z.object({
 
 type ReplaceLinesArgs = z.infer<typeof schema>;
 
-/** Maximum content size (10MB) */
-const MAX_CONTENT_SIZE = 10 * 1024 * 1024;
-
 export const replaceLinesTool: UnifiedTool = {
   name: 'replace-lines',
   description: 'Replace a range of lines with new content',
@@ -58,47 +54,12 @@ export const replaceLinesTool: UnifiedTool = {
   execute: async (args): Promise<string> => {
     const { path: inputPath, startLine, endLine, content, createBackup } = args as ReplaceLinesArgs;
 
-    // Rate limit check
-    if (!checkRateLimit('edit-operations', { maxRequests: 50, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for edit operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-        path: inputPath,
-      });
-    }
-
-    // Check content size
-    if (content.length > MAX_CONTENT_SIZE) {
-      return JSON.stringify({
-        success: false,
-        error: `Content too large: ${content.length} bytes (max: ${MAX_CONTENT_SIZE} bytes)`,
-        code: 'CONTENT_TOO_LARGE',
-        path: inputPath,
-      });
-    }
-
-    // Validate path
-    let validatedPath: string;
-    try {
-      validatedPath = await validatePath(inputPath, {
-        allowSymlinks: false,
-        requireWithinProject: false,
-        allowReadFromBlocked: false,
-        operation: 'write',
-      });
-    } catch (validationError) {
-      if (validationError instanceof ValidationError) {
-        Logger.warn(`replace-lines security validation failed: ${validationError.message}`);
-        return JSON.stringify({
-          success: false,
-          error: validationError.message,
-          code: validationError.code,
-          path: inputPath,
-        });
-      }
-      throw validationError;
-    }
+    // Common validation: rate limit + content size + path
+    const validation = await validateEditRequest('replace-lines', inputPath, {
+      contentLength: content.length,
+    });
+    if (!validation.ok) return validation.errorResponse;
+    const { validatedPath } = validation;
 
     try {
       // Read existing file
@@ -150,25 +111,7 @@ export const replaceLinesTool: UnifiedTool = {
         backup: backupPath,
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`replace-lines error: ${errorMessage}`);
-
-      const nodeError = error as NodeJS.ErrnoException;
-      if (nodeError.code) {
-        const mcpError = fromNodeError(nodeError, validatedPath, 'write');
-        const errorResponse = formatErrorResponse(mcpError);
-        return JSON.stringify({
-          success: false,
-          path: validatedPath,
-          ...errorResponse,
-        });
-      }
-
-      return JSON.stringify({
-        success: false,
-        path: validatedPath,
-        error: errorMessage,
-      });
+      return formatEditError('replace-lines', error, validatedPath);
     }
   },
 };

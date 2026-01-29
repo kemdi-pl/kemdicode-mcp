@@ -22,7 +22,7 @@
  * Tracks tool execution sequences and learns effective patterns.
  */
 
-import { Redis } from 'ioredis';
+import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
 import type { ToolSequence, SequenceRecommendation } from './types.js';
 import { LOCI_KEYS } from './types.js';
 import { randomBytes } from 'crypto';
@@ -31,10 +31,6 @@ import { randomBytes } from 'crypto';
  * Sequence Tracker configuration
  */
 export interface SequenceTrackerConfig {
-  host?: string;
-  port?: number;
-  password?: string;
-  db?: number;
   /** Minimum sequence length to track */
   minSequenceLength?: number;
   /** Maximum sequence length to track */
@@ -50,69 +46,19 @@ export interface SequenceTrackerConfig {
 /**
  * Sequence Tracker
  */
-export class SequenceTracker {
-  private redis: Redis | null = null;
-  private connected = false;
+export class SequenceTracker extends RedisBackedService {
+  protected get serviceName() { return 'SequenceTracker'; }
   private config: SequenceTrackerConfig;
 
   constructor(config: SequenceTrackerConfig = {}) {
+    super();
     this.config = {
-      host: config.host || process.env.REDIS_HOST || '127.0.0.1',
-      port: config.port || parseInt(process.env.REDIS_PORT || '6379', 10),
-      password: config.password || process.env.REDIS_PASSWORD,
-      db: config.db ?? 2,
       minSequenceLength: config.minSequenceLength || 2,
       maxSequenceLength: config.maxSequenceLength || 5,
       minOccurrences: config.minOccurrences || 3,
       maxSequences: config.maxSequences || 100,
       sequenceTtl: config.sequenceTtl || 7200,
     };
-  }
-
-  /**
-   * Connect to Redis
-   */
-  async connect(): Promise<void> {
-    if (this.connected) return;
-
-    try {
-      this.redis = new Redis({
-        host: this.config.host,
-        port: this.config.port,
-        password: this.config.password,
-        db: this.config.db,
-        lazyConnect: true,
-        retryStrategy: (times: number) => {
-          if (times > 3) return null;
-          return Math.min(times * 100, 3000);
-        },
-      });
-
-      await this.redis.connect();
-      this.connected = true;
-    } catch (error) {
-      console.error('[SequenceTracker] Failed to connect to Redis:', error);
-      this.redis = null;
-      throw error;
-    }
-  }
-
-  /**
-   * Disconnect from Redis
-   */
-  async disconnect(): Promise<void> {
-    if (this.redis) {
-      await this.redis.quit();
-      this.redis = null;
-      this.connected = false;
-    }
-  }
-
-  /**
-   * Check if connected
-   */
-  isConnected(): boolean {
-    return this.connected && this.redis !== null;
   }
 
   /**
@@ -412,13 +358,6 @@ export class SequenceTracker {
     }
   }
 
-  /**
-   * Inject Redis instance (for testing)
-   */
-  injectRedis(redis: Redis): void {
-    this.redis = redis;
-    this.connected = true;
-  }
 }
 
 // Singleton instance

@@ -23,7 +23,7 @@
  * Uses sorted sets for edges and hashes for nodes.
  */
 
-import { Redis } from 'ioredis';
+import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
 import type {
   GraphNode,
   GraphEdge,
@@ -38,10 +38,6 @@ import { randomBytes } from 'crypto';
  * Graph Storage configuration
  */
 export interface GraphStorageConfig {
-  host?: string;
-  port?: number;
-  password?: string;
-  db?: number;
   /** Default TTL for nodes in seconds */
   nodeTtl?: number;
   /** Default TTL for edges in seconds */
@@ -51,66 +47,16 @@ export interface GraphStorageConfig {
 /**
  * Graph Storage
  */
-export class GraphStorage {
-  private redis: Redis | null = null;
-  private connected = false;
+export class GraphStorage extends RedisBackedService {
+  protected get serviceName() { return 'GraphStorage'; }
   private config: GraphStorageConfig;
 
   constructor(config: GraphStorageConfig = {}) {
+    super();
     this.config = {
-      host: config.host || process.env.REDIS_HOST || '127.0.0.1',
-      port: config.port || parseInt(process.env.REDIS_PORT || '6379', 10),
-      password: config.password || process.env.REDIS_PASSWORD,
-      db: config.db ?? 2,
       nodeTtl: config.nodeTtl || 7200, // 2 hours
       edgeTtl: config.edgeTtl || 7200,
     };
-  }
-
-  /**
-   * Connect to Redis
-   */
-  async connect(): Promise<void> {
-    if (this.connected) return;
-
-    try {
-      this.redis = new Redis({
-        host: this.config.host,
-        port: this.config.port,
-        password: this.config.password,
-        db: this.config.db,
-        lazyConnect: true,
-        retryStrategy: (times: number) => {
-          if (times > 3) return null;
-          return Math.min(times * 100, 3000);
-        },
-      });
-
-      await this.redis.connect();
-      this.connected = true;
-    } catch (error) {
-      console.error('[GraphStorage] Failed to connect to Redis:', error);
-      this.redis = null;
-      throw error;
-    }
-  }
-
-  /**
-   * Disconnect from Redis
-   */
-  async disconnect(): Promise<void> {
-    if (this.redis) {
-      await this.redis.quit();
-      this.redis = null;
-      this.connected = false;
-    }
-  }
-
-  /**
-   * Check if connected
-   */
-  isConnected(): boolean {
-    return this.connected && this.redis !== null;
   }
 
   /**
@@ -579,13 +525,6 @@ export class GraphStorage {
     };
   }
 
-  /**
-   * Inject Redis instance (for testing)
-   */
-  injectRedis(redis: Redis): void {
-    this.redis = redis;
-    this.connected = true;
-  }
 }
 
 // Singleton instance

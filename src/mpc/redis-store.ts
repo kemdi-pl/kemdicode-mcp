@@ -22,7 +22,7 @@
  * Persistent storage for MPC shares and secret metadata using Redis.
  */
 
-import { Redis } from 'ioredis';
+import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
 import type { MpcShare, MpcSecretMetadata, MpcSecretStatus } from './types.js';
 import { MPC_KEYS } from './types.js';
 import { getKeyManager, type EncryptedData } from './crypto.js';
@@ -30,96 +30,18 @@ import { getKeyManager, type EncryptedData } from './crypto.js';
 /**
  * MPC Redis Store configuration
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface MpcRedisStoreConfig {
-  host?: string;
-  port?: number;
-  password?: string;
-  db?: number;
 }
 
 /**
  * MPC Redis Store
  */
-export class MpcRedisStore {
-  private redis: Redis | null = null;
-  private connected = false;
-  private config: MpcRedisStoreConfig;
+export class MpcRedisStore extends RedisBackedService {
+  protected get serviceName() { return 'MpcRedisStore'; }
 
-  constructor(config: MpcRedisStoreConfig = {}) {
-    this.config = {
-      host: config.host || process.env.REDIS_HOST || '127.0.0.1',
-      port: config.port || parseInt(process.env.REDIS_PORT || '6379', 10),
-      password: config.password || process.env.REDIS_PASSWORD,
-      db: config.db ?? 2, // Use DB 2 for MCP context
-    };
-  }
-
-  /**
-   * Connect to Redis
-   *
-   * SECURITY: Requires password in production mode or explicit opt-in for insecure mode.
-   */
-  async connect(): Promise<void> {
-    if (this.connected) return;
-
-    const isProduction = process.env.NODE_ENV === 'production';
-    const allowInsecure = process.env.MPC_ALLOW_INSECURE_REDIS === 'true';
-
-    // Security check for passwordless Redis
-    if (!this.config.password) {
-      if (isProduction && !allowInsecure) {
-        throw new Error(
-          '[MPC Store] SECURITY ERROR: Redis password not configured in production mode. ' +
-            'Set REDIS_PASSWORD environment variable or set MPC_ALLOW_INSECURE_REDIS=true ' +
-            '(not recommended for production).'
-        );
-      }
-      console.warn(
-        '[MPC Store] ⚠️  SECURITY WARNING: Redis password not configured. ' +
-          'MPC shares will be stored in Redis without authentication. ' +
-          'Set REDIS_PASSWORD environment variable for production use.'
-      );
-    }
-
-    try {
-      this.redis = new Redis({
-        host: this.config.host,
-        port: this.config.port,
-        password: this.config.password,
-        db: this.config.db,
-        lazyConnect: true,
-        retryStrategy: (times: number) => {
-          if (times > 3) return null;
-          return Math.min(times * 100, 3000);
-        },
-      });
-
-      await this.redis.connect();
-      this.connected = true;
-      console.log('[MPC Store] Connected to Redis');
-    } catch (error) {
-      console.error('[MPC Store] Failed to connect to Redis:', error);
-      this.redis = null;
-      throw error;
-    }
-  }
-
-  /**
-   * Disconnect from Redis
-   */
-  async disconnect(): Promise<void> {
-    if (this.redis) {
-      await this.redis.quit();
-      this.redis = null;
-      this.connected = false;
-    }
-  }
-
-  /**
-   * Check if connected
-   */
-  isConnected(): boolean {
-    return this.connected && this.redis !== null;
+  constructor(_config: MpcRedisStoreConfig = {}) {
+    super();
   }
 
   /**
@@ -425,13 +347,6 @@ export class MpcRedisStore {
     }
   }
 
-  /**
-   * Inject Redis instance (for testing)
-   */
-  injectRedis(redis: Redis): void {
-    this.redis = redis;
-    this.connected = true;
-  }
 }
 
 // Singleton instance

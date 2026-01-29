@@ -41,18 +41,26 @@ const DEFAULT_TRAVERSAL_OPTIONS: TraversalOptions = {
   trackVisited: true,
 };
 
+interface TraversalEntry {
+  nodeId: string;
+  depth: number;
+  path: string[];
+  edgePath: string[];
+}
+
 /**
- * Breadth-First Search traversal
+ * Generic graph traversal (shared logic for BFS and DFS)
  */
-export async function bfs(
+async function traverse(
   startNodeId: string,
+  strategy: 'bfs' | 'dfs',
   options: TraversalOptions = {}
 ): Promise<TraversalResult> {
   const opts = { ...DEFAULT_TRAVERSAL_OPTIONS, ...options };
   const storage = getGraphStorage();
 
   const visited = new Set<string>();
-  const queue: Array<{ nodeId: string; depth: number; path: string[]; edgePath: string[] }> = [];
+  const frontier: TraversalEntry[] = [];
   const result: TraversalResult = {
     nodes: [],
     edges: [],
@@ -61,50 +69,52 @@ export async function bfs(
     paths: new Map(),
   };
 
-  // Start node
   const startNode = await storage.getNode(startNodeId);
   if (!startNode) return result;
 
-  queue.push({ nodeId: startNodeId, depth: 0, path: [startNodeId], edgePath: [] });
-  visited.add(startNodeId);
+  frontier.push({ nodeId: startNodeId, depth: 0, path: [startNodeId], edgePath: [] });
+  if (strategy === 'bfs') visited.add(startNodeId);
 
-  while (queue.length > 0 && result.nodesVisited < opts.maxNodes!) {
-    const current = queue.shift()!;
+  while (frontier.length > 0 && result.nodesVisited < opts.maxNodes!) {
+    // BFS: shift from front, DFS: pop from back
+    const current = strategy === 'bfs' ? frontier.shift()! : frontier.pop()!;
 
-    // Get node
+    // DFS checks visited on dequeue
+    if (strategy === 'dfs') {
+      if (visited.has(current.nodeId)) continue;
+      visited.add(current.nodeId);
+    }
+
     const node = await storage.getNode(current.nodeId);
     if (!node) continue;
 
-    // Apply node type filter
     if (opts.nodeTypes && !opts.nodeTypes.includes(node.type)) continue;
 
     result.nodes.push(node);
     result.nodesVisited++;
     result.maxDepthReached = Math.max(result.maxDepthReached, current.depth);
 
-    // Store path
     result.paths.set(current.nodeId, {
       nodeIds: current.path,
       edgeIds: current.edgePath,
-      totalWeight: 0, // Will calculate if needed
+      totalWeight: 0,
     });
 
-    // Don't explore beyond max depth
     if (current.depth >= opts.maxDepth!) continue;
 
-    // Get outgoing edges
     const edges = await storage.getOutgoingEdges(current.nodeId);
+    // DFS reverses edge order to process in natural order
+    const edgeList = strategy === 'dfs' ? [...edges].reverse() : edges;
 
-    for (const edge of edges) {
-      // Apply edge filters
+    for (const edge of edgeList) {
       if (opts.edgeTypes && !opts.edgeTypes.includes(edge.type)) continue;
       if (opts.minEdgeWeight !== undefined && edge.weight < opts.minEdgeWeight) continue;
 
       if (!visited.has(edge.to)) {
-        visited.add(edge.to);
+        if (strategy === 'bfs') visited.add(edge.to);
         result.edges.push(edge);
 
-        queue.push({
+        frontier.push({
           nodeId: edge.to,
           depth: current.depth + 1,
           path: [...current.path, edge.to],
@@ -118,82 +128,23 @@ export async function bfs(
 }
 
 /**
+ * Breadth-First Search traversal
+ */
+export async function bfs(
+  startNodeId: string,
+  options: TraversalOptions = {}
+): Promise<TraversalResult> {
+  return traverse(startNodeId, 'bfs', options);
+}
+
+/**
  * Depth-First Search traversal
  */
 export async function dfs(
   startNodeId: string,
   options: TraversalOptions = {}
 ): Promise<TraversalResult> {
-  const opts = { ...DEFAULT_TRAVERSAL_OPTIONS, ...options };
-  const storage = getGraphStorage();
-
-  const visited = new Set<string>();
-  const stack: Array<{ nodeId: string; depth: number; path: string[]; edgePath: string[] }> = [];
-  const result: TraversalResult = {
-    nodes: [],
-    edges: [],
-    maxDepthReached: 0,
-    nodesVisited: 0,
-    paths: new Map(),
-  };
-
-  // Start node
-  const startNode = await storage.getNode(startNodeId);
-  if (!startNode) return result;
-
-  stack.push({ nodeId: startNodeId, depth: 0, path: [startNodeId], edgePath: [] });
-
-  while (stack.length > 0 && result.nodesVisited < opts.maxNodes!) {
-    const current = stack.pop()!;
-
-    if (visited.has(current.nodeId)) continue;
-    visited.add(current.nodeId);
-
-    // Get node
-    const node = await storage.getNode(current.nodeId);
-    if (!node) continue;
-
-    // Apply node type filter
-    if (opts.nodeTypes && !opts.nodeTypes.includes(node.type)) continue;
-
-    result.nodes.push(node);
-    result.nodesVisited++;
-    result.maxDepthReached = Math.max(result.maxDepthReached, current.depth);
-
-    // Store path
-    result.paths.set(current.nodeId, {
-      nodeIds: current.path,
-      edgeIds: current.edgePath,
-      totalWeight: 0,
-    });
-
-    // Don't explore beyond max depth
-    if (current.depth >= opts.maxDepth!) continue;
-
-    // Get outgoing edges (in reverse order for DFS to process in natural order)
-    const edges = await storage.getOutgoingEdges(current.nodeId);
-
-    for (let i = edges.length - 1; i >= 0; i--) {
-      const edge = edges[i];
-
-      // Apply edge filters
-      if (opts.edgeTypes && !opts.edgeTypes.includes(edge.type)) continue;
-      if (opts.minEdgeWeight !== undefined && edge.weight < opts.minEdgeWeight) continue;
-
-      if (!visited.has(edge.to)) {
-        result.edges.push(edge);
-
-        stack.push({
-          nodeId: edge.to,
-          depth: current.depth + 1,
-          path: [...current.path, edge.to],
-          edgePath: [...current.edgePath, edge.id],
-        });
-      }
-    }
-  }
-
-  return result;
+  return traverse(startNodeId, 'dfs', options);
 }
 
 /**

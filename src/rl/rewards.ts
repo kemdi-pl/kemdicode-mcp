@@ -22,7 +22,7 @@
  * Handles intrinsic reward assignment and shaped reward calculation.
  */
 
-import { Redis } from 'ioredis';
+import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
 import type {
   AgentState,
   ShapedReward,
@@ -39,10 +39,6 @@ import { randomBytes } from 'crypto';
  * Reward Tracker configuration
  */
 export interface RewardTrackerConfig {
-  host?: string;
-  port?: number;
-  password?: string;
-  db?: number;
   /** Maximum reward history entries */
   maxHistorySize?: number;
   /** Reward history TTL in seconds */
@@ -88,70 +84,20 @@ export function shapeReward(
 /**
  * Reward Tracker
  */
-export class RewardTracker {
-  private redis: Redis | null = null;
-  private connected = false;
+export class RewardTracker extends RedisBackedService {
+  protected get serviceName() { return 'RewardTracker'; }
   private config: RewardTrackerConfig;
   private weights: PotentialWeights;
   private intrinsicRewards: IntrinsicRewards;
 
   constructor(config: RewardTrackerConfig = {}) {
+    super();
     this.config = {
-      host: config.host || process.env.REDIS_HOST || '127.0.0.1',
-      port: config.port || parseInt(process.env.REDIS_PORT || '6379', 10),
-      password: config.password || process.env.REDIS_PASSWORD,
-      db: config.db ?? 2,
       maxHistorySize: config.maxHistorySize || 1000,
       historyTtl: config.historyTtl || 7200, // 2 hours
     };
     this.weights = { ...DEFAULT_POTENTIAL_WEIGHTS };
     this.intrinsicRewards = { ...DEFAULT_INTRINSIC_REWARDS };
-  }
-
-  /**
-   * Connect to Redis
-   */
-  async connect(): Promise<void> {
-    if (this.connected) return;
-
-    try {
-      this.redis = new Redis({
-        host: this.config.host,
-        port: this.config.port,
-        password: this.config.password,
-        db: this.config.db,
-        lazyConnect: true,
-        retryStrategy: (times: number) => {
-          if (times > 3) return null;
-          return Math.min(times * 100, 3000);
-        },
-      });
-
-      await this.redis.connect();
-      this.connected = true;
-    } catch (error) {
-      console.error('[RewardTracker] Failed to connect to Redis:', error);
-      this.redis = null;
-      throw error;
-    }
-  }
-
-  /**
-   * Disconnect from Redis
-   */
-  async disconnect(): Promise<void> {
-    if (this.redis) {
-      await this.redis.quit();
-      this.redis = null;
-      this.connected = false;
-    }
-  }
-
-  /**
-   * Check if connected
-   */
-  isConnected(): boolean {
-    return this.connected && this.redis !== null;
   }
 
   /**
@@ -370,13 +316,6 @@ export class RewardTracker {
     return { ...this.intrinsicRewards };
   }
 
-  /**
-   * Inject Redis instance (for testing)
-   */
-  injectRedis(redis: Redis): void {
-    this.redis = redis;
-    this.connected = true;
-  }
 }
 
 // Singleton instance

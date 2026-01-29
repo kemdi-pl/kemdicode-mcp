@@ -22,7 +22,7 @@
  * Manages mnemonic locations (loci) in the memory palace.
  */
 
-import { Redis } from 'ioredis';
+import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
 import type { Loci, LociCategory, LociRecall, GraphNode, LociTemplate } from './types.js';
 import { LOCI_KEYS, LOCI_TEMPLATES } from './types.js';
 import { getGraphStorage } from './graph-storage.js';
@@ -32,10 +32,6 @@ import { randomBytes } from 'crypto';
  * Loci Manager configuration
  */
 export interface LociManagerConfig {
-  host?: string;
-  port?: number;
-  password?: string;
-  db?: number;
   /** TTL for loci in seconds */
   lociTtl?: number;
 }
@@ -43,65 +39,15 @@ export interface LociManagerConfig {
 /**
  * Loci Manager
  */
-export class LociManager {
-  private redis: Redis | null = null;
-  private connected = false;
+export class LociManager extends RedisBackedService {
+  protected get serviceName() { return 'LociManager'; }
   private config: LociManagerConfig;
 
   constructor(config: LociManagerConfig = {}) {
+    super();
     this.config = {
-      host: config.host || process.env.REDIS_HOST || '127.0.0.1',
-      port: config.port || parseInt(process.env.REDIS_PORT || '6379', 10),
-      password: config.password || process.env.REDIS_PASSWORD,
-      db: config.db ?? 2,
       lociTtl: config.lociTtl || 7200,
     };
-  }
-
-  /**
-   * Connect to Redis
-   */
-  async connect(): Promise<void> {
-    if (this.connected) return;
-
-    try {
-      this.redis = new Redis({
-        host: this.config.host,
-        port: this.config.port,
-        password: this.config.password,
-        db: this.config.db,
-        lazyConnect: true,
-        retryStrategy: (times: number) => {
-          if (times > 3) return null;
-          return Math.min(times * 100, 3000);
-        },
-      });
-
-      await this.redis.connect();
-      this.connected = true;
-    } catch (error) {
-      console.error('[LociManager] Failed to connect to Redis:', error);
-      this.redis = null;
-      throw error;
-    }
-  }
-
-  /**
-   * Disconnect from Redis
-   */
-  async disconnect(): Promise<void> {
-    if (this.redis) {
-      await this.redis.quit();
-      this.redis = null;
-      this.connected = false;
-    }
-  }
-
-  /**
-   * Check if connected
-   */
-  isConnected(): boolean {
-    return this.connected && this.redis !== null;
   }
 
   /**
@@ -528,13 +474,6 @@ export class LociManager {
     };
   }
 
-  /**
-   * Inject Redis instance (for testing)
-   */
-  injectRedis(redis: Redis): void {
-    this.redis = redis;
-    this.connected = true;
-  }
 }
 
 // Singleton instance

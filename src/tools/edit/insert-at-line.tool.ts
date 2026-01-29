@@ -28,9 +28,8 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
-import { fromNodeError, formatErrorResponse } from '../../utils/errors.js';
-import { validatePath, ValidationError, checkRateLimit } from '../../utils/validation.js';
 import { readFileLines, writeFileLines, validateLineNumber } from '../../utils/edit-utils.js';
+import { validateEditRequest, formatEditError } from './edit-shared.js';
 
 const schema = z.object({
   path: z.string().min(1).describe('File path to edit'),
@@ -45,9 +44,6 @@ const schema = z.object({
 
 type InsertAtLineArgs = z.infer<typeof schema>;
 
-/** Maximum content size to insert (10MB) */
-const MAX_CONTENT_SIZE = 10 * 1024 * 1024;
-
 export const insertAtLineTool: UnifiedTool = {
   name: 'insert-at-line',
   description: 'Insert content at a specific line number in a file',
@@ -56,47 +52,12 @@ export const insertAtLineTool: UnifiedTool = {
   execute: async (args): Promise<string> => {
     const { path: inputPath, line, content, createBackup } = args as InsertAtLineArgs;
 
-    // Rate limit check
-    if (!checkRateLimit('edit-operations', { maxRequests: 50, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for edit operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-        path: inputPath,
-      });
-    }
-
-    // Check content size
-    if (content.length > MAX_CONTENT_SIZE) {
-      return JSON.stringify({
-        success: false,
-        error: `Content too large: ${content.length} bytes (max: ${MAX_CONTENT_SIZE} bytes)`,
-        code: 'CONTENT_TOO_LARGE',
-        path: inputPath,
-      });
-    }
-
-    // Validate path
-    let validatedPath: string;
-    try {
-      validatedPath = await validatePath(inputPath, {
-        allowSymlinks: false,
-        requireWithinProject: false,
-        allowReadFromBlocked: false,
-        operation: 'write',
-      });
-    } catch (validationError) {
-      if (validationError instanceof ValidationError) {
-        Logger.warn(`insert-at-line security validation failed: ${validationError.message}`);
-        return JSON.stringify({
-          success: false,
-          error: validationError.message,
-          code: validationError.code,
-          path: inputPath,
-        });
-      }
-      throw validationError;
-    }
+    // Common validation: rate limit + content size + path
+    const validation = await validateEditRequest('insert-at-line', inputPath, {
+      contentLength: content.length,
+    });
+    if (!validation.ok) return validation.errorResponse;
+    const { validatedPath } = validation;
 
     try {
       // Read existing file
@@ -139,25 +100,7 @@ export const insertAtLineTool: UnifiedTool = {
         backup: backupPath,
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`insert-at-line error: ${errorMessage}`);
-
-      const nodeError = error as NodeJS.ErrnoException;
-      if (nodeError.code) {
-        const mcpError = fromNodeError(nodeError, validatedPath, 'write');
-        const errorResponse = formatErrorResponse(mcpError);
-        return JSON.stringify({
-          success: false,
-          path: validatedPath,
-          ...errorResponse,
-        });
-      }
-
-      return JSON.stringify({
-        success: false,
-        path: validatedPath,
-        error: errorMessage,
-      });
+      return formatEditError('insert-at-line', error, validatedPath);
     }
   },
 };

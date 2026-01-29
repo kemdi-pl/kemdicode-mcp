@@ -68,38 +68,16 @@ export interface ExecuteAIResult {
 const sessionHistory = new Map<string, Array<{ role: 'user' | 'assistant'; content: string }>>();
 
 /**
- * Execute AI completion - drop-in replacement for executeAI
- *
- * @example
- * ```typescript
- * const result = await executeAI({
- *   prompt: "Review this code for security issues",
- *   agent: 'plan',
- *   files: ['src/auth.ts'],
- *   onProgress: (chunk) => console.log(chunk),
- * });
- * ```
+ * Shared preparation logic for AI execution
  */
-export async function executeAI(options: ExecuteAIOptions): Promise<string> {
+async function prepareAndExecute(options: ExecuteAIOptions) {
   const config = getClientConfig();
   if (!config) {
     throw new Error('AI client not initialized. Call initAIClient() first.');
   }
 
   const startTime = Date.now();
-
-  const {
-    prompt,
-    agent,
-    model,
-    files,
-    continueSession,
-    sessionId,
-    projectRoot,
-    onProgress,
-    temperature,
-    maxTokens,
-  } = options;
+  const { prompt, agent, model, files, continueSession, sessionId, projectRoot, onProgress, temperature, maxTokens } = options;
 
   // Load file contents if specified
   let fileContext = '';
@@ -109,16 +87,11 @@ export async function executeAI(options: ExecuteAIOptions): Promise<string> {
   }
 
   // Get conversation history if continuing session
-  let history: Array<{ role: 'user' | 'assistant'; content: string }> | undefined;
   const historyKey = sessionId || 'default';
-  if (continueSession) {
-    history = sessionHistory.get(historyKey);
-  }
+  const history = continueSession ? sessionHistory.get(historyKey) : undefined;
 
-  // Build messages
+  // Build messages and execute
   const messages = buildAgentMessages(agent, prompt, fileContext, history);
-
-  // Execute completion using OpenAI SDK
   const response = await complete({
     model,
     messages,
@@ -127,6 +100,16 @@ export async function executeAI(options: ExecuteAIOptions): Promise<string> {
     maxTokens: maxTokens ?? getAgentMaxTokens(agent),
     onProgress,
   });
+
+  return { response, startTime, historyKey, prompt, agent, sessionId, continueSession };
+}
+
+/**
+ * Execute AI completion - drop-in replacement for executeAI
+ */
+export async function executeAI(options: ExecuteAIOptions): Promise<string> {
+  const { response, startTime, historyKey, prompt, agent, sessionId, continueSession } =
+    await prepareAndExecute(options);
 
   // Store conversation for session continuity
   if (sessionId || continueSession) {
@@ -143,8 +126,6 @@ export async function executeAI(options: ExecuteAIOptions): Promise<string> {
   }
 
   const duration = Date.now() - startTime;
-
-  // Log completion stats
   console.log(
     `[AI] ${agent} agent completed in ${duration}ms` +
       (response.usage ? ` (${response.usage.totalTokens} tokens)` : '')
@@ -157,60 +138,13 @@ export async function executeAI(options: ExecuteAIOptions): Promise<string> {
  * Execute AI completion with full result metadata
  */
 export async function executeAIWithResult(options: ExecuteAIOptions): Promise<ExecuteAIResult> {
-  const config = getClientConfig();
-  if (!config) {
-    throw new Error('AI client not initialized. Call initAIClient() first.');
-  }
-
-  const startTime = Date.now();
-
-  const {
-    prompt,
-    agent,
-    model,
-    files,
-    continueSession,
-    sessionId,
-    projectRoot,
-    onProgress,
-    temperature,
-    maxTokens,
-  } = options;
-
-  // Load file contents if specified
-  let fileContext = '';
-  if (files?.length) {
-    const fileContexts = await loadFileContexts(files, projectRoot || process.cwd());
-    fileContext = formatFileContextForPrompt(fileContexts);
-  }
-
-  // Get conversation history if continuing session
-  let history: Array<{ role: 'user' | 'assistant'; content: string }> | undefined;
-  const historyKey = sessionId || 'default';
-  if (continueSession) {
-    history = sessionHistory.get(historyKey);
-  }
-
-  // Build messages
-  const messages = buildAgentMessages(agent, prompt, fileContext, history);
-
-  // Execute completion using OpenAI SDK
-  const response = await complete({
-    model,
-    messages,
-    stream: !!onProgress,
-    temperature: temperature ?? getAgentTemperature(agent),
-    maxTokens: maxTokens ?? getAgentMaxTokens(agent),
-    onProgress,
-  });
-
-  const duration = Date.now() - startTime;
+  const { response, startTime } = await prepareAndExecute(options);
 
   return {
     content: response.content,
     model: response.model,
     usage: response.usage,
-    duration,
+    duration: Date.now() - startTime,
   };
 }
 

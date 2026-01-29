@@ -22,7 +22,7 @@
  * Captures and persists agent state for reward calculation.
  */
 
-import { Redis } from 'ioredis';
+import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
 import type { AgentState } from './types.js';
 import { RL_KEYS } from './types.js';
 
@@ -30,10 +30,6 @@ import { RL_KEYS } from './types.js';
  * State Tracker configuration
  */
 export interface StateTrackerConfig {
-  host?: string;
-  port?: number;
-  password?: string;
-  db?: number;
   /** Maximum state history entries to keep */
   maxHistorySize?: number;
   /** State history TTL in seconds */
@@ -61,66 +57,16 @@ export interface StateUpdate {
 /**
  * RL State Tracker
  */
-export class StateTracker {
-  private redis: Redis | null = null;
-  private connected = false;
+export class StateTracker extends RedisBackedService {
+  protected get serviceName() { return 'StateTracker'; }
   private config: StateTrackerConfig;
 
   constructor(config: StateTrackerConfig = {}) {
+    super();
     this.config = {
-      host: config.host || process.env.REDIS_HOST || '127.0.0.1',
-      port: config.port || parseInt(process.env.REDIS_PORT || '6379', 10),
-      password: config.password || process.env.REDIS_PASSWORD,
-      db: config.db ?? 2,
       maxHistorySize: config.maxHistorySize || 1000,
       historyTtl: config.historyTtl || 3600, // 1 hour
     };
-  }
-
-  /**
-   * Connect to Redis
-   */
-  async connect(): Promise<void> {
-    if (this.connected) return;
-
-    try {
-      this.redis = new Redis({
-        host: this.config.host,
-        port: this.config.port,
-        password: this.config.password,
-        db: this.config.db,
-        lazyConnect: true,
-        retryStrategy: (times: number) => {
-          if (times > 3) return null;
-          return Math.min(times * 100, 3000);
-        },
-      });
-
-      await this.redis.connect();
-      this.connected = true;
-    } catch (error) {
-      console.error('[StateTracker] Failed to connect to Redis:', error);
-      this.redis = null;
-      throw error;
-    }
-  }
-
-  /**
-   * Disconnect from Redis
-   */
-  async disconnect(): Promise<void> {
-    if (this.redis) {
-      await this.redis.quit();
-      this.redis = null;
-      this.connected = false;
-    }
-  }
-
-  /**
-   * Check if connected
-   */
-  isConnected(): boolean {
-    return this.connected && this.redis !== null;
   }
 
   /**
@@ -370,13 +316,6 @@ export class StateTracker {
     };
   }
 
-  /**
-   * Inject Redis instance (for testing)
-   */
-  injectRedis(redis: Redis): void {
-    this.redis = redis;
-    this.connected = true;
-  }
 }
 
 // Singleton instance
