@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "kemdicode-mcp": {
+      "command": "node",
+      "args": [
+        "/path/to/kemdicode-mcp/dist/index.js",
+        "--stdio",
+        "-m", "minimax/MiniMax-M2",
+        "--redis-host", "127.0.0.1"
+      ],
+      "env": {}
+    }
+  }
+}

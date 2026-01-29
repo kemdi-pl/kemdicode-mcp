@@ -1,0 +1,16 @@
+{
+  "server": {
+    "port": 3100,
+    "host": "127.0.0.1",
+    "primaryModel": "moonshotai/kimi-k2.5",
+    "fallbackModel": "upstage/solar-pro-3:free",
+    "apiBaseUrl": "https://integrate.api.nvidia.com/v1",
+    "apiKey": "sample_key_replace_with_your_actual_key"
+  },
+  "redis": {
+    "host": "127.0.0.1",
+    "port": 6379,
+    "db": 2,
+    "password": null
+  }
+}

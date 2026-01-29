@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment and secrets
+.env
+.env.*
+kemdicode.json
+kemdicode.json.backup.*
+
+# Test coverage
+coverage/
+
+# Cache
+.eslintcache
+.prettiercache
+dist-bun/
+.kemdicode-mcp.json
+
+# Local scripts
+*.sh
