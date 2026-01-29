@@ -107,4 +107,15 @@ export const DEFAULT_CONFIG: AppConfig = {
     nodeTtl: 7_200, // 2 hours (seconds)
     edgeTtl: 7_200, // 2 hours (seconds)
   },
+
+  providers: {
+    defaultProvider: 'openai',
+    openai: {},
+    anthropic: {},
+    gemini: {},
+    groq: {},
+    deepseek: {},
+    ollama: {},
+    openrouter: {},
+  },
 };

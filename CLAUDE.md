@@ -4,7 +4,7 @@
 
 Model Context Protocol (MCP) server providing **100+ specialized tools** for code analysis, generation, git operations, file management, line/symbol editing, project memory, multi-board kanban with workspaces, recursive tool invocation, session monitoring, and multi-agent coordination.
 
-**Version:** 1.14.0
+**Version:** 1.15.0
 
 ## Architecture
 
@@ -12,11 +12,20 @@ Model Context Protocol (MCP) server providing **100+ specialized tools** for cod
 src/
 ├── index.ts                 # HTTP server, SSE handlers, MCP protocol
 ├── constants.ts             # CLI flags, error messages, timeouts
-├── ai/                      # OpenAI SDK integration
-│   ├── client.ts            # OpenAI SDK wrapper (any OpenAI-compatible API)
+├── ai/                      # Multi-provider LLM integration
+│   ├── client.ts            # Completion router (multi-provider + OpenAI SDK fallback)
 │   ├── execute.ts           # High-level AI execution with agents
 │   ├── agents.ts            # Agent configurations (plan, build, explore)
-│   └── file-context.ts      # File attachment handling
+│   ├── file-context.ts      # File attachment handling
+│   ├── model-spec.ts        # Parser for provider:model:thinking syntax
+│   └── providers/           # Native LLM provider adapters
+│       ├── types.ts         # LLMProvider interface, ProviderId, ThinkingConfig
+│       ├── registry.ts      # Provider registry with lazy init
+│       ├── openai.provider.ts       # OpenAI SDK (reasoning effort)
+│       ├── anthropic.provider.ts    # Anthropic SDK (thinking tokens)
+│       ├── gemini.provider.ts       # Google GenAI SDK (thinking budget)
+│       ├── openai-compat.provider.ts # Groq, DeepSeek, Ollama, OpenRouter
+│       └── index.ts
 ├── runtime/                 # Cross-runtime abstraction (Bun/Node.js)
 │   ├── index.ts             # Runtime detection (isBun, isNode)
 │   ├── http.ts              # HTTP server (Bun.serve / node:http)
@@ -65,6 +74,7 @@ src/
 │   ├── project/             # Project management (5 tools)
 │   ├── recursive/           # Recursive invocation (3 tools)
 │   ├── specialized/         # AI analysis (8 tools)
+│   ├── multi-llm/           # Multi-provider LLM tools (2 tools)
 │   └── system/              # System tools (7 tools)
 ├── types/                   # Shared type definitions
 │   ├── tool-types.ts
@@ -91,6 +101,12 @@ src/
 | `plan` | plan | Deep analysis and planning |
 | `build` | build | Immediate code execution |
 | `brainstorm` | plan | Creative ideation (SCAMPER, Design Thinking) |
+
+### Multi-LLM (2 tools)
+| Tool | Description |
+|------|-------------|
+| `multi-prompt` | Send same prompt to N models in parallel, collect all responses |
+| `consensus-prompt` | CEO-and-Board: board models respond, CEO model synthesizes decision |
 
 ### Code Analysis (8 tools)
 | Tool | Description |
@@ -235,10 +251,15 @@ src/
 - Centralized validation and execution
 - Auto-share results to Redis for context
 
-### OpenAI SDK Client (`ai/client.ts`)
-- Official OpenAI SDK for all OpenAI-compatible APIs
-- Supports NVIDIA NIM, OpenRouter, Azure, local models (Ollama)
-- No hardcoded defaults - fully configurable via `ai-config` tool
+### Multi-Provider LLM Client (`ai/client.ts` + `ai/providers/`)
+- **7 providers**: OpenAI, Anthropic, Google Gemini, Groq, DeepSeek, Ollama, OpenRouter
+- **Native SDKs**: Anthropic (`@anthropic-ai/sdk`), Gemini (`@google/genai`), OpenAI (`openai`)
+- **OpenAI-compatible**: Groq, DeepSeek, Ollama, OpenRouter via `openai` SDK with custom baseURL
+- **Model spec syntax**: `provider:model:thinking` (e.g., `a:claude-sonnet-4-20250514:4k`, `o:o3:high`)
+- **Short aliases**: `o`=OpenAI, `a`=Anthropic, `g`=Gemini, `q`=Groq, `d`=DeepSeek, `l`=Ollama, `r`=OpenRouter
+- **Thinking tokens**: Unified abstraction for OpenAI reasoning effort, Anthropic thinking budget, Gemini thinking budget
+- **Lazy initialization**: Providers init on first use, API keys from env vars
+- **Backward compatible**: Models without prefix use existing OpenAI SDK path
 - Model discovery via `ai-models` tool (list, search, select)
 - Built-in retry and rate limiting (SDK native)
 - Hot-reload configuration without restart

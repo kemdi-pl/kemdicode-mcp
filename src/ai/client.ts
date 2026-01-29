@@ -11,6 +11,8 @@ import type {
   ChatCompletionChunk,
 } from 'openai/resources/chat/completions';
 import { Logger } from '../utils/logger.js';
+import { parseModelSpec, hasProviderPrefix } from './model-spec.js';
+import { getProvider, isProviderAvailable, registerBuiltinProviders } from './providers/registry.js';
 
 /**
  * Extended types for reasoning models (DeepSeek, Kimi, etc.)
@@ -139,15 +141,39 @@ export function updateClientConfig(updates: Partial<AIClientConfig>): void {
 }
 
 /**
- * Complete a chat request using OpenAI SDK
+ * Complete a chat request using OpenAI SDK or multi-provider routing.
+ * If model has a provider prefix (e.g., "anthropic:claude-sonnet-4-20250514"),
+ * routes to the appropriate provider. Otherwise uses the default OpenAI SDK.
  */
 export async function complete(request: CompletionRequest): Promise<CompletionResponse> {
-  const openai = getAIClient();
   const model = request.model || currentConfig?.defaultModel;
 
   if (!model) {
     throw new AIError('No model specified. Set primaryModel in config or pass model in request.');
   }
+
+  // Multi-provider routing: if model has provider prefix, route to provider registry
+  if (hasProviderPrefix(model)) {
+    registerBuiltinProviders();
+    const spec = parseModelSpec(model);
+
+    if (isProviderAvailable(spec.provider)) {
+      const provider = getProvider(spec.provider);
+      return provider.complete({
+        provider: spec.provider,
+        model: spec.model,
+        messages: request.messages,
+        thinking: spec.thinking,
+        maxTokens: request.maxTokens,
+        temperature: request.temperature,
+        stream: request.stream,
+        onProgress: request.onProgress,
+      });
+    }
+  }
+
+  // Default: use existing OpenAI SDK (backward compatible)
+  const openai = getAIClient();
 
   const messages: ChatCompletionMessageParam[] = request.messages.map((m) => ({
     role: m.role,

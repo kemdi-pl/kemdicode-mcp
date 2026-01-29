@@ -1,6 +1,6 @@
 {
   "name": "kemdicode-mcp",
-  "version": "1.14.6",
+  "version": "1.15.0",
   "description": "Model Context Protocol (MCP) server with 100+ tools for code analysis, AI agents, git operations, multi-agent coordination, and kanban task management",
   "type": "module",
   "main": "dist/index.js",
@@ -78,8 +78,15 @@
     "node": ">=18.0.0",
     "bun": ">=1.0.0"
   },
-  "os": ["darwin", "linux", "win32"],
-  "cpu": ["x64", "arm64"],
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
   "files": [
     "dist/",
     "README.md",
@@ -91,6 +98,8 @@
     "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
+    "@google/genai": "^1.38.0",
     "@modelcontextprotocol/sdk": "^1.25.1",
     "@openai/agents": "^0.4.3",
     "@vscode/vscode-languagedetection": "^1.0.23",

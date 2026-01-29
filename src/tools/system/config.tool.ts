@@ -101,6 +101,16 @@ const ENV_VAR_MAPPINGS: Record<ConfigGroup, Record<string, string>> = {
     nodeTtl: 'KEMDICODE_LOCI_NODE_TTL',
     edgeTtl: 'KEMDICODE_LOCI_EDGE_TTL',
   },
+  providers: {
+    defaultProvider: 'KEMDICODE_PROVIDERS_DEFAULT',
+    openai: 'KEMDICODE_OPENAI_API_KEY',
+    anthropic: 'KEMDICODE_ANTHROPIC_API_KEY',
+    gemini: 'KEMDICODE_GEMINI_API_KEY',
+    groq: 'KEMDICODE_GROQ_API_KEY',
+    deepseek: 'KEMDICODE_DEEPSEEK_API_KEY',
+    ollama: 'KEMDICODE_OLLAMA_HOST',
+    openrouter: 'KEMDICODE_OPENROUTER_API_KEY',
+  },
 };
 
 const schema = z.object({
@@ -121,6 +131,7 @@ const schema = z.object({
       'retry',
       'rl',
       'loci',
+      'providers',
       'all',
     ])
     .optional()

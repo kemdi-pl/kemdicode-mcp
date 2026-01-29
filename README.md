@@ -1,7 +1,7 @@
 # KemdiCode MCP Server
 
 <p align="center">
-  <a href="https://git.kemdi.pl/Kemdi/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.14.6-blue?style=flat-square" alt="Version" /></a>
+  <a href="https://git.kemdi.pl/Kemdi/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.15.0-blue?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License" /></a>
   <a href="https://bun.sh"><img src="https://img.shields.io/badge/Bun-%E2%89%A51.0-f9f1e1?style=flat-square&logo=bun&logoColor=f9f1e1&labelColor=14151a" alt="Bun" /></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-%E2%89%A518-339933?style=flat-square&logo=node.js&logoColor=white" alt="Node.js" /></a>
@@ -22,8 +22,10 @@ A Model Context Protocol (MCP) server providing **100+ specialized tools** for c
 ## Features
 
 - **100+ MCP Tools** - Code review, refactoring, testing, git operations, file management, editing, memory, kanban, session monitoring
+- **Multi-Provider LLM** - Native SDKs for OpenAI, Anthropic, Google Gemini + OpenAI-compatible for Groq, DeepSeek, Ollama, OpenRouter
 - **Multi-Board Kanban** - Workspaces for cross-session collaboration, role-based permissions, task distribution to N agents
-- **OpenAI SDK** - Official SDK for all OpenAI-compatible APIs (NVIDIA NIM, OpenRouter, Azure, local)
+- **Parallel Multi-Model** - Send same prompt to N models in parallel (`multi-prompt`), CEO-and-Board consensus pattern (`consensus-prompt`)
+- **Thinking Token Abstraction** - Unified syntax: `o:o3:high`, `a:claude-sonnet-4-20250514:4k`, `g:gemini-2.5-flash:8k`
 - **Dynamic Model Selection** - Agents can list and select AI models at runtime (`ai-models` tool)
 - **Hot-Reload Config** - Change AI provider/model at runtime without restart
 - **Multi-Agent Architecture** - Multiple agents connect via HTTP, share context through Redis
@@ -163,11 +165,49 @@ ai-models --action select --model kimi-k2.5
 ai-config --action test
 ```
 
+#### Multi-Provider Setup
+
+KemdiCode supports **7 LLM providers** natively. Set API keys via environment variables:
+
+```bash
+export OPENAI_API_KEY=sk-...
+export ANTHROPIC_API_KEY=sk-ant-...
+export GEMINI_API_KEY=AI...
+export GROQ_API_KEY=gsk_...
+export DEEPSEEK_API_KEY=sk-...
+export OPENROUTER_API_KEY=sk-or-...
+# Ollama requires no key (local)
+```
+
+Use the `provider:model` syntax in any tool that accepts a model parameter:
+
+```bash
+# Full provider names
+openai:gpt-4o
+anthropic:claude-sonnet-4-20250514
+gemini:gemini-2.5-pro
+
+# Short aliases
+o:gpt-4o          # OpenAI
+a:claude-sonnet-4-20250514   # Anthropic
+g:gemini-2.5-pro  # Gemini
+q:llama-3.1-70b   # Groq
+d:deepseek-chat   # DeepSeek
+l:llama3          # Ollama
+r:gpt-4o          # OpenRouter
+
+# With thinking/reasoning tokens
+o:o3:high                    # OpenAI reasoning effort (low|medium|high)
+a:claude-sonnet-4-20250514:4k        # Anthropic thinking budget (1k-16k tokens)
+g:gemini-2.5-flash:8k       # Gemini thinking budget (0-24k tokens)
+```
+
 ## Tool Categories
 
 | Category | Count | Tools |
 |:---------|:-----:|:------|
 | **AI Agents** | 4 | `plan` `build` `brainstorm` `ask-ai` |
+| **Multi-LLM** | 2 | `multi-prompt` `consensus-prompt` |
 | **Code Analysis** | 8 | `code-review` `explain-code` `find-definition` `find-references` `find-symbols` `semantic-search` `code-outline` `analyze-deps` |
 | **Line Editing** | 4 | `insert-at-line` `delete-lines` `replace-lines` `replace-content` |
 | **Symbol Editing** | 3 | `insert-before-symbol` `insert-after-symbol` `rename-symbol` |
@@ -310,6 +350,34 @@ get-shared-context --scope all --format summary
 - **Context Injection**: Real-time context updates to running agents
 - **Hierarchical Monitoring**: Session → Workspaces → Boards → Tasks → Agents view
 - **Shared Thoughts**: Collective knowledge base across all agents
+
+### Multi-Model Comparison & Consensus
+
+Send the same prompt to multiple models in parallel and compare results:
+
+```bash
+# Compare responses from 3 providers
+multi-prompt --prompt "Explain monads in simple terms" \
+  --models '["o:gpt-4o", "a:claude-sonnet-4-20250514", "g:gemini-2.5-pro"]'
+
+# CEO-and-Board consensus: board members respond, CEO synthesizes
+consensus-prompt \
+  --prompt "Should we use Redis or PostgreSQL for session storage?" \
+  --boardModels '["o:gpt-4o", "a:claude-sonnet-4-20250514", "g:gemini-2.5-pro"]' \
+  --ceoModel "a:claude-sonnet-4-20250514:4k"
+
+# With thinking tokens for deeper analysis
+multi-prompt --prompt "Review this architecture" \
+  --models '["o:o3:high", "a:claude-sonnet-4-20250514:4k"]' \
+  --files "@src/index.ts"
+```
+
+**Key Features:**
+- **Parallel Execution**: All models run simultaneously via `Promise.allSettled()`
+- **Provider Prefix Syntax**: `provider:model:thinking` format for any provider
+- **Thinking Tokens**: Unified abstraction across OpenAI, Anthropic, and Gemini
+- **CEO-and-Board Pattern**: Multiple perspectives synthesized into a single decision
+- **Error Isolation**: Individual model failures don't affect other results
 
 ### Recursive Tool Invocation
 

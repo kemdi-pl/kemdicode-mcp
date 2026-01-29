@@ -113,6 +113,27 @@ export const lociSchema = z.object({
   edgeTtl: z.number().int().min(60).describe('Graph edge TTL in seconds'),
 });
 
+/** Provider entry schema */
+const providerEntrySchema = z.object({
+  apiKey: z.string().optional().describe('API key for this provider'),
+  baseURL: z.string().optional().describe('Custom base URL override'),
+  enabled: z.boolean().optional().describe('Whether this provider is enabled'),
+});
+
+/** Providers config schema */
+export const providersSchema = z.object({
+  defaultProvider: z
+    .string()
+    .describe('Default provider when no prefix (openai, anthropic, gemini, groq, deepseek, ollama, openrouter)'),
+  openai: providerEntrySchema.describe('OpenAI configuration'),
+  anthropic: providerEntrySchema.describe('Anthropic configuration'),
+  gemini: providerEntrySchema.describe('Google Gemini configuration'),
+  groq: providerEntrySchema.describe('Groq configuration'),
+  deepseek: providerEntrySchema.describe('DeepSeek configuration'),
+  ollama: providerEntrySchema.describe('Ollama configuration'),
+  openrouter: providerEntrySchema.describe('OpenRouter configuration'),
+});
+
 /** Complete app config schema */
 export const appConfigSchema = z.object({
   server: serverSchema,
@@ -125,6 +146,7 @@ export const appConfigSchema = z.object({
   retry: retrySchema,
   rl: rlSchema,
   loci: lociSchema,
+  providers: providersSchema,
 });
 
 /** Schema map for individual group validation */
@@ -139,4 +161,5 @@ export const groupSchemas = {
   retry: retrySchema,
   rl: rlSchema,
   loci: lociSchema,
+  providers: providersSchema,
 } as const;

@@ -124,6 +124,7 @@ import {
 import { aiConfigTool } from './system/ai-config.tool.js';
 import { aiModelsTool } from './system/ai-models.tool.js';
 import { invokeToolTool, invokeBatchTool, invocationLogTool } from './recursive/index.js';
+import { multiPromptTool, consensusPromptTool } from './multi-llm/index.js';
 import {
   sessionListTool,
   sessionInfoTool,
@@ -276,5 +277,9 @@ registerTool(sessionDeleteTool);
 // System configuration tools
 registerTool(aiConfigTool);
 registerTool(aiModelsTool);
+
+// Multi-LLM tools
+registerTool(multiPromptTool);
+registerTool(consensusPromptTool);
 
 export * from './registry.js';

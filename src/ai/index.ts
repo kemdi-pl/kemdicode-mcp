@@ -59,3 +59,24 @@ export {
   createWorkspaceEditor,
   type WorkspaceEditorOptions,
 } from './workspace-editor.js';
+
+// Model spec parser
+export { parseModelSpec, hasProviderPrefix, type ModelSpec } from './model-spec.js';
+
+// Multi-provider support
+export {
+  registerBuiltinProviders,
+  getProvider,
+  isProviderAvailable,
+  listProviders,
+  setProviderConfig,
+  type ProviderId,
+  type LLMProvider,
+  type ThinkingConfig,
+  type UnifiedCompletionRequest,
+  type ProviderConfig,
+  PROVIDER_ALIASES,
+  PROVIDER_BASE_URLS,
+  PROVIDER_ENV_KEYS,
+  PROVIDER_DISPLAY_NAMES,
+} from './providers/index.js';

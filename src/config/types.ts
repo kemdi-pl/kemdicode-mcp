@@ -158,6 +158,30 @@ export interface LociConfig {
   edgeTtl: number;
 }
 
+/** Single provider entry configuration */
+export interface ProviderEntry {
+  /** API key for this provider */
+  apiKey?: string;
+  /** Custom base URL override */
+  baseURL?: string;
+  /** Whether this provider is enabled */
+  enabled?: boolean;
+}
+
+/** Multi-provider configuration */
+export interface ProvidersConfig {
+  /** Default provider when no prefix is specified */
+  defaultProvider: string;
+  /** Per-provider settings */
+  openai: ProviderEntry;
+  anthropic: ProviderEntry;
+  gemini: ProviderEntry;
+  groq: ProviderEntry;
+  deepseek: ProviderEntry;
+  ollama: ProviderEntry;
+  openrouter: ProviderEntry;
+}
+
 /** Complete application configuration */
 export interface AppConfig {
   server: ServerConfig;
@@ -170,6 +194,7 @@ export interface AppConfig {
   retry: RetryConfig;
   rl: RlConfig;
   loci: LociConfig;
+  providers: ProvidersConfig;
 }
 
 /** Config group names */
@@ -187,4 +212,5 @@ export const CONFIG_GROUPS: ConfigGroup[] = [
   'retry',
   'rl',
   'loci',
+  'providers',
 ];
