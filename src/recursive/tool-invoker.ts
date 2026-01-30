@@ -349,7 +349,36 @@ export async function invokeBatch(
   parallel: boolean = true
 ): Promise<ToolInvocationResult[]> {
   if (parallel) {
-    return Promise.all(requests.map((r) => invokeTool(r, policy)));
+    // Snapshot the current depth before launching parallel ops so each
+    // operation starts from the same base depth instead of seeing an
+    // incrementing depth caused by shared contextStack mutation.
+    const baseContexts = new Map<string, InvocationContext | undefined>();
+    for (const r of requests) {
+      if (!baseContexts.has(r.agentId)) {
+        baseContexts.set(r.agentId, contextStack.get(r.agentId));
+      }
+    }
+    const results = await Promise.all(
+      requests.map(async (r) => {
+        // Reset to the snapshot before each parallel invocation
+        const base = baseContexts.get(r.agentId);
+        if (base) {
+          contextStack.set(r.agentId, { ...base });
+        } else {
+          contextStack.delete(r.agentId);
+        }
+        return invokeTool(r, policy);
+      })
+    );
+    // Restore original contexts after parallel batch completes
+    for (const [agentId, ctx] of baseContexts) {
+      if (ctx) {
+        contextStack.set(agentId, ctx);
+      } else {
+        contextStack.delete(agentId);
+      }
+    }
+    return results;
   } else {
     const results: ToolInvocationResult[] = [];
     for (const request of requests) {

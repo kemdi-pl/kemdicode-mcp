@@ -97,6 +97,7 @@ export async function createTask(input: CreateTaskInput): Promise<KanbanTask> {
   const task: KanbanTask = {
     id: taskId,
     sessionId: input.sessionId,
+    boardId: input.boardId,
     title: input.title,
     description: input.description,
     status: 'backlog',

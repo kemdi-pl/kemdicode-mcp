@@ -285,7 +285,7 @@ export const shellExecTool: UnifiedTool = {
     if (!isShellExecEnabled()) {
       throw new PermissionError('shell-exec', 'execute', {
         reason:
-          'shell-exec is disabled by default. Set KEMDICODE_SHELL_EXEC_ENABLED=true to enable it.',
+          'shell-exec is disabled by default for security. Set environment variable KEMDICODE_SHELL_EXEC_ENABLED=true to enable it. This is independent of the allowDangerous parameter.',
       });
     }
 

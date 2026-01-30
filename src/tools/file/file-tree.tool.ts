@@ -416,7 +416,7 @@ export const fileTreeTool: UnifiedTool<typeof schema> = {
       // Validate path for security
       const validatedPath = await validatePath(treeArgs.path, {
         allowSymlinks: false,
-        requireWithinProject: true,
+        requireWithinProject: false,
         operation: 'read',
         projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
       });

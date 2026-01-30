@@ -173,13 +173,47 @@ function formatGroupConfig(group: ConfigGroup): {
   default: Record<string, unknown>;
   envVars: Record<string, string>;
 } {
+  const current = config.get(group) as unknown as Record<string, unknown>;
+  const initial = config.getInitial()[group] as unknown as Record<string, unknown>;
+  const defaults = DEFAULT_CONFIG[group] as unknown as Record<string, unknown>;
+
+  // Mask sensitive values in all outputs
+  const maskedCurrent: Record<string, unknown> = {};
+  const maskedInitial: Record<string, unknown> = {};
+  const maskedDefaults: Record<string, unknown> = {};
+  for (const key of Object.keys(current)) {
+    maskedCurrent[key] = maskSensitiveValue(key, current[key]);
+    maskedInitial[key] = maskSensitiveValue(key, initial[key]);
+    maskedDefaults[key] = maskSensitiveValue(key, defaults[key]);
+  }
+
   return {
     group,
-    current: config.get(group) as unknown as Record<string, unknown>,
-    initial: config.getInitial()[group] as unknown as Record<string, unknown>,
-    default: DEFAULT_CONFIG[group] as unknown as Record<string, unknown>,
+    current: maskedCurrent,
+    initial: maskedInitial,
+    default: maskedDefaults,
     envVars: ENV_VAR_MAPPINGS[group],
   };
+}
+
+/** Keys whose values must be masked in output */
+const SENSITIVE_CONFIG_KEYS = new Set([
+  'apikey',
+  'apiKey',
+  'password',
+  'secret',
+  'token',
+]);
+
+/**
+ * Mask a sensitive value, keeping first 6 and last 4 chars
+ */
+function maskSensitiveValue(key: string, value: unknown): unknown {
+  if (typeof value !== 'string' || value.length === 0) return value;
+  const lowerKey = key.toLowerCase();
+  if (!SENSITIVE_CONFIG_KEYS.has(key) && !SENSITIVE_CONFIG_KEYS.has(lowerKey)) return value;
+  if (value.length <= 12) return '***';
+  return value.slice(0, 6) + '***' + value.slice(-4);
 }
 
 /**
@@ -208,8 +242,8 @@ function formatListOutput(): Record<string, unknown> {
 
     for (const [key, value] of Object.entries(currentConfig)) {
       groupDetails[key] = {
-        current: value,
-        default: defaultConfig[key],
+        current: maskSensitiveValue(key, value),
+        default: maskSensitiveValue(key, defaultConfig[key]),
         envVar: envVars[key] || `KEMDICODE_${group.toUpperCase()}_${key.toUpperCase()}`,
         description: descriptions[key] || 'No description',
       };
