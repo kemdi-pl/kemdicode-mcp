@@ -49,28 +49,26 @@ Concrete next steps
 </board-responses>`;
 
 const schema = z.object({
-  prompt: z.string().min(1).describe('Prompt to send to all board member models'),
+  prompt: z.string().min(1).describe('Prompt for all board models'),
   boardModels: z
     .array(z.string().min(1))
     .min(2)
     .max(8)
-    .describe(
-      'Board member models (e.g., ["openai:gpt-4o", "a:claude-sonnet-4-20250514", "g:gemini-2.5-pro"])'
-    ),
+    .describe('Board member model specs (provider:model syntax)'),
   ceoModel: z
     .string()
     .min(1)
-    .describe('CEO model for final synthesis (e.g., "a:claude-sonnet-4-20250514")'),
+    .describe('CEO model for synthesis'),
   agent: z
     .enum(['plan', 'build', 'explore', 'general'])
     .default('plan')
-    .describe('Agent type for board members'),
-  files: z.string().optional().describe('Files to attach (@path syntax, space-separated)'),
+    .describe('Agent type for board'),
+  files: z.string().optional().describe('Files to attach (@path syntax)'),
   synthesisPrompt: z
     .string()
     .optional()
-    .describe('Custom CEO synthesis prompt (default: structured decision framework)'),
-  temperature: z.number().min(0).max(2).optional().describe('Temperature for board members'),
+    .describe('Custom CEO synthesis prompt'),
+  temperature: z.number().min(0).max(2).optional().describe('Board member temperature'),
   maxTokens: z.number().int().min(1).optional().describe('Max tokens per model'),
 });
 
@@ -195,10 +193,8 @@ async function execute(args: Record<string, unknown>): Promise<string> {
 export const consensusPromptTool: UnifiedTool = {
   name: 'consensus-prompt',
   description:
-    'CEO-and-Board decision pattern. Multiple board models respond to a prompt in parallel, ' +
-    'then a CEO model synthesizes all responses into a final decision. ' +
-    'Use provider:model syntax (e.g., openai:gpt-4o, a:claude-sonnet-4-20250514). ' +
-    'Supports thinking tokens: o:o3:high, a:claude-sonnet-4-20250514:4k',
+    'CEO-and-Board decision pattern. Board models respond in parallel, CEO synthesizes final decision. ' +
+    'provider:model syntax. Supports thinking tokens.',
   zodSchema: schema,
   execute,
 };

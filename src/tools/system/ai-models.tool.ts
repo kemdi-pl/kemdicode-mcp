@@ -191,7 +191,7 @@ function formatModelList(models: ModelInfo[], filter?: string, category?: string
 export const aiModelsTool: UnifiedTool<typeof schema> = {
   name: 'ai-models',
   description:
-    'List and select AI models from the current provider. Agents can use this to discover available models and switch models dynamically.',
+    'List and select AI models from the provider. Discover and switch models dynamically.',
   zodSchema: schema,
 
   execute: async (args) => {

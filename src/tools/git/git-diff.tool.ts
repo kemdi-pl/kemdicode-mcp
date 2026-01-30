@@ -30,26 +30,25 @@ import { UnifiedTool } from '../registry.js';
 import { execGit, validateGitRepo, parseFileList, formatGitError } from '../../utils/git-utils.js';
 
 const schema = z.object({
-  cwd: z.string().optional().describe('Working directory path (defaults to current directory)'),
-  staged: z.boolean().default(false).describe('Show staged/cached changes (same as --cached)'),
-  files: z.string().optional().describe('Space-separated list of files to diff'),
-  commit: z.string().optional().describe('Commit SHA or ref to diff against (e.g., HEAD~1, main)'),
+  cwd: z.string().optional().describe('Working directory'),
+  staged: z.boolean().default(false).describe('Show staged changes'),
+  files: z.string().optional().describe('Files to diff, space-separated'),
+  commit: z.string().optional().describe('Commit or ref to diff against'),
   commitRange: z
     .string()
     .optional()
-    .describe('Commit range to diff (e.g., main..feature, abc123..def456)'),
-  stat: z.boolean().default(false).describe('Show diffstat instead of full diff'),
-  nameOnly: z.boolean().default(false).describe('Show only names of changed files'),
-  nameStatus: z.boolean().default(false).describe('Show names and status of changed files'),
-  context: z.number().min(0).max(100).default(3).describe('Number of context lines (default: 3)'),
-  ignoreWhitespace: z.boolean().default(false).describe('Ignore whitespace changes'),
-  colorWords: z.boolean().default(false).describe('Show word-level diff with colors'),
+    .describe('Commit range to diff'),
+  stat: z.boolean().default(false).describe('Show diffstat only'),
+  nameOnly: z.boolean().default(false).describe('Show changed file names only'),
+  nameStatus: z.boolean().default(false).describe('Show file names and status'),
+  context: z.number().min(0).max(100).default(3).describe('Context lines'),
+  ignoreWhitespace: z.boolean().default(false).describe('Ignore whitespace'),
+  colorWords: z.boolean().default(false).describe('Word-level diff'),
 });
 
 export const gitDiffTool: UnifiedTool = {
   name: 'git-diff',
-  description:
-    'Show git diff with support for staged changes, file filters, and various output formats',
+  description: 'Show git diff for staged, unstaged, or commit changes',
   zodSchema: schema,
   skipContextShare: true,
   execute: async (args) => {

@@ -43,6 +43,92 @@ import type { ToolArguments } from '../tools/registry.js';
 /** Map of session IDs to their configurations */
 const sessionConfigs = new Map<string, SessionConfig>();
 
+/** Map of session IDs to their MCP Server instances (for notifications) */
+const sessionServers = new Map<string, Server>();
+
+/** Session activity tracking for resume info */
+interface SessionActivity {
+  lastTool: string;
+  lastToolArgs?: string;
+  lastToolAt: number;
+  toolCount: number;
+}
+
+/** Map of session IDs to their last activity */
+const sessionActivity = new Map<string, SessionActivity>();
+
+/**
+ * Record tool execution activity for a session
+ */
+export function recordSessionActivity(sessionId: string, toolName: string, args?: Record<string, unknown>): void {
+  const existing = sessionActivity.get(sessionId);
+  const argsSummary = args
+    ? Object.entries(args)
+        .filter(([, v]) => v !== undefined && v !== null && v !== '' && v !== false)
+        .slice(0, 3)
+        .map(([k, v]) => `${k}: ${typeof v === 'string' ? v.slice(0, 50) : v}`)
+        .join(', ')
+    : undefined;
+
+  sessionActivity.set(sessionId, {
+    lastTool: toolName,
+    lastToolArgs: argsSummary || undefined,
+    lastToolAt: Date.now(),
+    toolCount: (existing?.toolCount ?? 0) + 1,
+  });
+}
+
+/**
+ * Get activity for a specific session
+ */
+export function getSessionActivity(sessionId: string): SessionActivity | undefined {
+  return sessionActivity.get(sessionId);
+}
+
+/**
+ * Get all session activities
+ */
+export function getAllSessionActivity(): Map<string, SessionActivity> {
+  return sessionActivity;
+}
+
+/**
+ * Delete session activity
+ */
+export function deleteSessionActivity(sessionId: string): void {
+  sessionActivity.delete(sessionId);
+}
+
+/**
+ * Get all active MCP server instances
+ * Used for broadcasting notifications like tools/list_changed
+ */
+export function getAllSessionServers(): Map<string, Server> {
+  return sessionServers;
+}
+
+/**
+ * Broadcast a notification to all connected MCP sessions
+ * @param method - Notification method name
+ * @param params - Notification parameters
+ */
+export async function broadcastNotification(method: string, params: Record<string, unknown> = {}): Promise<void> {
+  const servers = sessionServers;
+  if (servers.size === 0) return;
+
+  Logger.debug(`Broadcasting ${method} to ${servers.size} session(s)`);
+
+  const promises: Promise<void>[] = [];
+  for (const [sessionId, server] of servers) {
+    promises.push(
+      server.notification({ method, params }).catch((err: unknown) => {
+        Logger.warn(`Failed to notify session ${sessionId}: ${err instanceof Error ? err.message : String(err)}`);
+      })
+    );
+  }
+  await Promise.allSettled(promises);
+}
+
 /**
  * Resolve CWD for a request using priority order:
  * 1. X-Project-Path header
@@ -142,7 +228,15 @@ export function createSessionServer(_sessionId: string): Server {
 
     try {
       const args = (rawArgs as ToolArguments) || {};
+
+      // Inject session CWD so file tools resolve relative paths correctly
+      const sessionConfig = sessionConfigs.get(_sessionId);
+      if (sessionConfig?.cwd && !args._sessionCwd) {
+        args._sessionCwd = sessionConfig.cwd;
+      }
+
       Logger.toolInvocation(name, args);
+      recordSessionActivity(_sessionId, name, rawArgs as Record<string, unknown>);
 
       const result = await executeTool(name, args, (output) => {
         updateProgressOutput(progressData.requestId, output);
@@ -205,6 +299,7 @@ export async function getOrCreateTransport(
 
     const sessionServer = createSessionServer(sessionId);
     await sessionServer.connect(transport);
+    sessionServers.set(sessionId, sessionServer);
 
     // Store session config with resolved CWD
     const cwd = resolveCwd(req, sessionId);

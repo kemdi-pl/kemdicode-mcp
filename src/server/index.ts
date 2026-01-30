@@ -46,9 +46,15 @@ export {
   setSessionConfig,
   deleteSessionConfig,
   getAllSessionConfigs,
+  getAllSessionServers,
+  broadcastNotification,
   createSessionServer,
   getOrCreateTransport,
   generateSessionId,
+  recordSessionActivity,
+  getSessionActivity,
+  getAllSessionActivity,
+  deleteSessionActivity,
 } from './session-server.js';
 
 // HTTP server

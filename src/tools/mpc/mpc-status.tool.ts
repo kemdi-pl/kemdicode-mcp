@@ -31,19 +31,19 @@ import {
 } from '../../mpc/index.js';
 
 const schema = z.object({
-  secretId: z.string().optional().describe('Specific secret ID to check'),
+  secretId: z.string().optional().describe('Secret ID to check'),
   sessionId: z.string().describe('Session ID'),
-  agentId: z.string().optional().describe('Filter by agent holding shares'),
+  agentId: z.string().optional().describe('Filter by share-holding agent'),
   viewingAgentId: z
     .string()
     .optional()
-    .describe('Agent ID viewing status (for authorization). Defaults to agentId if provided.'),
+    .describe('Viewing agent ID for auth'),
 });
 
 export const mpcStatusTool: UnifiedTool<typeof schema> = {
   name: 'mpc-status',
   description:
-    'View status of shared secrets including distribution, holders, and reconstructability.',
+    'View secret status: distribution, holders, reconstructability.',
   zodSchema: schema,
   skipContextShare: true,
 

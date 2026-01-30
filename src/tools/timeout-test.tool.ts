@@ -20,12 +20,12 @@ import { z } from 'zod';
 import { UnifiedTool } from './registry.js';
 
 const timeoutTestArgsSchema = z.object({
-  duration: z.number().min(10).describe('Duration in milliseconds (minimum 10ms)'),
+  duration: z.number().min(10).describe('Duration in milliseconds (min 10ms)'),
 });
 
 export const timeoutTestTool: UnifiedTool = {
   name: 'timeout-test',
-  description: 'Test timeout prevention by running for a specified duration',
+  description: 'Test timeout prevention for specified duration',
   zodSchema: timeoutTestArgsSchema,
   prompt: { description: 'Test timeout prevention system' },
   execute: async (args) => {

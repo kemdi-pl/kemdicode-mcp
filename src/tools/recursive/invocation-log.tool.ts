@@ -32,15 +32,15 @@ import { getInvocationLog, getCurrentContext } from '../../recursive/index.js';
 
 const schema = z.object({
   agentId: z.string().min(1).describe('Agent ID'),
-  limit: z.number().min(1).max(100).default(20).describe('Number of entries to return'),
-  includeContext: z.boolean().default(false).describe('Include current invocation context'),
+  limit: z.number().min(1).max(100).default(20).describe('Max entries to return'),
+  includeContext: z.boolean().default(false).describe('Include invocation context'),
 });
 
 type InvocationLogArgs = z.infer<typeof schema>;
 
 export const invocationLogTool: UnifiedTool = {
   name: 'invocation-log',
-  description: 'View tool invocation history for an agent',
+  description: 'View agent tool invocation history',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

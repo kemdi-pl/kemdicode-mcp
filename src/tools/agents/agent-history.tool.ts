@@ -40,7 +40,7 @@ const schema = z.object({
 export const agentHistoryTool: UnifiedTool = {
   name: 'agent-history',
   description:
-    'View conversation history between agents. Shows messages, alerts, directives, and context injections. Filter by agent, type, or time.',
+    'View agent conversation history. Filter by agent, type, or time.',
   zodSchema: schema,
   skipContextShare: true,
 

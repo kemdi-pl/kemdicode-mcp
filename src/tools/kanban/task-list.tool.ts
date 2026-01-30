@@ -32,24 +32,24 @@ import { listTasks, TaskStatus, TaskPriority } from '../../kanban/index.js';
 
 const schema = z.object({
   sessionId: z.string().min(1).describe('Session ID'),
-  boardId: z.string().optional().describe('Filter by board ID'),
+  boardId: z.string().optional().describe('Filter by board'),
   status: z
     .enum(['backlog', 'in_progress', 'review', 'done'])
     .optional()
     .describe('Filter by status'),
   priority: z.enum(['critical', 'high', 'normal', 'low']).optional().describe('Filter by priority'),
-  assignee: z.string().optional().describe('Filter by assigned agent'),
-  unassigned: z.boolean().optional().describe('Show only unassigned tasks'),
-  blocked: z.boolean().optional().describe('Filter by blocked status'),
+  assignee: z.string().optional().describe('Filter by agent'),
+  unassigned: z.boolean().optional().describe('Only unassigned tasks'),
+  blocked: z.boolean().optional().describe('Filter blocked tasks'),
   labels: z.array(z.string()).optional().describe('Filter by labels'),
-  limit: z.number().min(1).max(100).default(50).describe('Maximum tasks to return'),
+  limit: z.number().min(1).max(100).default(50).describe('Max tasks to return'),
 });
 
 type TaskListArgs = z.infer<typeof schema>;
 
 export const taskListTool: UnifiedTool = {
   name: 'task-list',
-  description: 'List tasks from the Kanban board with optional filters',
+  description: 'List Kanban tasks with filters',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

@@ -32,17 +32,17 @@ import { executeAI, parseFiles } from '../../ai/index.js';
 import { getEnhancedContextString } from '../../utils/projectContext.enhanced.js';
 
 const schema = z.object({
-  query: z.string().describe('Natural language query describing what to find'),
+  query: z.string().describe('Natural language search query'),
   files: z
     .string()
     .optional()
-    .describe('Scope the search to specific files (use @path/file.ext syntax)'),
+    .describe('Scope to files (@path/file.ext syntax)'),
   type: z
     .enum(['function', 'class', 'pattern', 'usage', 'similar', 'any'])
     .default('any')
-    .describe('Type of code element to search for'),
-  maxResults: z.number().default(10).describe('Maximum number of results to return'),
-  includeContext: z.boolean().default(true).describe('Include surrounding code context in results'),
+    .describe('Code element type to search'),
+  maxResults: z.number().default(10).describe('Max results'),
+  includeContext: z.boolean().default(true).describe('Include surrounding code context'),
 });
 
 /**
@@ -133,7 +133,7 @@ Begin semantic search:`;
 
 export const semanticSearchTool: UnifiedTool = {
   name: 'semantic-search',
-  description: 'AI-powered semantic code search using natural language queries',
+  description: 'AI-powered semantic code search using natural language',
   zodSchema: schema,
   // Don't skip context share - semantic search results are valuable to share
 

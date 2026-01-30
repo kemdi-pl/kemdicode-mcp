@@ -33,8 +33,7 @@ const schema = z.object({
 
 export const agentListTool: UnifiedTool = {
   name: 'agent-list',
-  description:
-    'List all active agents in the multi-agent system. Shows agent IDs, roles, status, and current tasks.',
+  description: 'List active agents with IDs, roles, status, and tasks.',
   zodSchema: schema,
   skipContextShare: true,
 

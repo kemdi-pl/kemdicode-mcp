@@ -71,21 +71,21 @@ const EXT_TO_LANG: Record<string, string> = {
 };
 
 const schema = z.object({
-  symbol: z.string().describe('Symbol name to find references for'),
+  symbol: z.string().describe('Symbol name to find'),
   path: z
     .string()
     .optional()
-    .describe('Directory or file to search in (defaults to current directory)'),
+    .describe('Search directory or file'),
   fileType: z
     .string()
     .optional()
-    .describe('File type filter (e.g., ts, php, py, go, rs, or glob like "*.service.ts")'),
+    .describe('File type filter or glob'),
   excludeDefinitions: z
     .boolean()
     .default(false)
-    .describe('Exclude lines that appear to be definitions'),
-  maxResults: z.number().default(50).describe('Maximum number of results to return'),
-  context: z.number().default(0).describe('Lines of context to show around each match (0-5)'),
+    .describe('Exclude definition lines'),
+  maxResults: z.number().default(50).describe('Max results'),
+  context: z.number().default(0).describe('Context lines around match (0-5)'),
 });
 
 /**
@@ -132,7 +132,7 @@ function buildTypeArgs(fileType?: string): string[] {
 
 export const findReferencesTool: UnifiedTool = {
   name: 'find-references',
-  description: 'Find all usages of a symbol in the codebase',
+  description: 'Find all symbol usages in codebase',
   zodSchema: schema,
   skipContextShare: true, // Code navigation doesn't need sharing
 

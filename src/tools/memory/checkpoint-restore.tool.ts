@@ -17,11 +17,11 @@
  */
 
 /**
- * Delete Memory Tool
+ * Checkpoint Restore Tool
  *
- * Deletes a named memory entry for the current project.
+ * Retrieves a named checkpoint for the current project.
  *
- * @module tools/memory/delete-memory
+ * @module tools/memory/checkpoint-restore
  */
 
 import { z } from 'zod';
@@ -31,77 +31,85 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 
-/** Redis key prefix for memories */
-const MEMORY_PREFIX = 'mcp:memory:';
-const MEMORY_INDEX_PREFIX = 'mcp:memory:index:';
+/** Checkpoint entry structure */
+interface Checkpoint {
+  name: string;
+  projectId: string;
+  content: string;
+  createdAt: number;
+  updatedAt: number;
+  tags: string[];
+}
+
+/** Redis key prefix for checkpoints */
+const CHECKPOINT_PREFIX = 'mcp:checkpoint:';
 
 const getRedis = getSharedRedis;
 
-/**
- * Generate project ID from current working directory
- */
 function getProjectId(): string {
   const cwd = process.cwd();
   return createHash('sha256').update(cwd).digest('hex').slice(0, 16);
 }
 
 const schema = z.object({
-  name: z.string().min(1).describe('Memory name'),
+  name: z.string().min(1).describe('Checkpoint name'),
 });
 
-type DeleteMemoryArgs = z.infer<typeof schema>;
+type CheckpointRestoreArgs = z.infer<typeof schema>;
 
-export const deleteMemoryTool: UnifiedTool = {
-  name: 'delete-memory',
-  description: 'Delete named memory from current project',
+export const checkpointRestoreTool: UnifiedTool = {
+  name: 'checkpoint-restore',
+  description: 'Restore named checkpoint from current project',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
-    const { name } = args as DeleteMemoryArgs;
+    const { name } = args as CheckpointRestoreArgs;
 
-    // Rate limit check
-    if (!checkRateLimit('memory-operations', { maxRequests: 50, windowMs: 60000 })) {
+    if (!checkRateLimit('checkpoint-operations', { maxRequests: 200, windowMs: 60000 })) {
       return JSON.stringify({
         success: false,
-        error: 'Rate limit exceeded for memory operations',
+        error: 'Rate limit exceeded for checkpoint operations',
         code: 'RATE_LIMIT_EXCEEDED',
       });
     }
 
     const projectId = getProjectId();
-    const memoryKey = `${MEMORY_PREFIX}${projectId}:${name}`;
-    const indexKey = `${MEMORY_INDEX_PREFIX}${projectId}`;
+    const checkpointKey = `${CHECKPOINT_PREFIX}${projectId}:${name}`;
 
     try {
       const client = await getRedis();
 
-      // Check if memory exists
-      const exists = await client.exists(memoryKey);
-      if (!exists) {
+      const data = await client.get(checkpointKey);
+      if (!data) {
         return JSON.stringify({
           success: false,
-          error: `Memory '${name}' not found`,
-          code: 'MEMORY_NOT_FOUND',
+          error: `Checkpoint '${name}' not found`,
+          code: 'CHECKPOINT_NOT_FOUND',
           name,
           projectId,
         });
       }
 
-      // Delete memory and remove from index
-      await client.del(memoryKey);
-      await client.srem(indexKey, name);
+      const checkpoint = JSON.parse(data) as Checkpoint;
+      const ttl = await client.ttl(checkpointKey);
 
-      Logger.debug(`delete-memory: deleted '${name}' from project ${projectId}`);
+      Logger.debug(`checkpoint-restore: retrieved '${name}' for project ${projectId}`);
 
       return JSON.stringify({
         success: true,
-        name,
-        projectId,
-        message: `Memory '${name}' deleted successfully`,
+        name: checkpoint.name,
+        projectId: checkpoint.projectId,
+        content: checkpoint.content,
+        contentLength: checkpoint.content.length,
+        tags: checkpoint.tags,
+        createdAt: checkpoint.createdAt,
+        updatedAt: checkpoint.updatedAt,
+        ttlSeconds: ttl > 0 ? ttl : null,
+        ttlDays: ttl > 0 ? Math.round(ttl / 86400) : null,
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`delete-memory error: ${errorMessage}`);
+      Logger.error(`checkpoint-restore error: ${errorMessage}`);
 
       return JSON.stringify({
         success: false,

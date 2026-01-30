@@ -99,16 +99,16 @@ const _FILE_TYPE_MAP: Record<string, string> = {
 };
 
 const schema = z.object({
-  symbol: z.string().describe('Symbol name to find the definition of'),
+  symbol: z.string().describe('Symbol name to find'),
   language: z
     .enum(['ts', 'php', 'py', 'go', 'rs', 'auto'])
     .default('auto')
-    .describe('Target language (auto-detects if not specified)'),
+    .describe('Target language'),
   path: z
     .string()
     .optional()
-    .describe('Directory or file to search in (defaults to current directory)'),
-  maxResults: z.number().default(10).describe('Maximum number of results to return'),
+    .describe('Search directory or file'),
+  maxResults: z.number().default(10).describe('Max results'),
 });
 
 /**
@@ -192,7 +192,7 @@ async function searchWithRipgrep(
 
 export const findDefinitionTool: UnifiedTool = {
   name: 'find-definition',
-  description: 'Find symbol definition in codebase (classes, functions, constants, etc.)',
+  description: 'Find symbol definition in codebase',
   zodSchema: schema,
   skipContextShare: true, // Code navigation doesn't need sharing
 

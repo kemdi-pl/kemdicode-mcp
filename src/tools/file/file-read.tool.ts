@@ -89,14 +89,14 @@ const BINARY_EXTENSIONS = new Set([
 ]);
 
 const schema = z.object({
-  path: z.string().min(1).describe('Absolute or relative file path to read'),
-  startLine: z.number().int().positive().optional().describe('Start line number (1-based)'),
-  endLine: z.number().int().positive().optional().describe('End line number (1-based, inclusive)'),
+  path: z.string().min(1).describe('File path to read'),
+  startLine: z.number().int().positive().optional().describe('Start line (1-based)'),
+  endLine: z.number().int().positive().optional().describe('End line (1-based, inclusive)'),
   encoding: z
     .enum(['utf-8', 'utf-16', 'ascii', 'latin1', 'base64'])
     .default('utf-8')
-    .describe('File encoding'),
-  maxSize: z.number().int().positive().optional().describe('Maximum bytes to read (default: 5MB)'),
+    .describe('Encoding'),
+  maxSize: z.number().int().positive().optional().describe('Max bytes to read'),
 });
 
 type FileReadArgs = z.infer<typeof schema>;
@@ -150,7 +150,7 @@ function detectEncoding(buffer: Buffer): string {
 
 export const fileReadTool: UnifiedTool = {
   name: 'file-read',
-  description: 'Read file content with encoding detection, line ranges, and binary detection',
+  description: 'Read file with encoding detection and line ranges',
   zodSchema: schema,
   skipContextShare: true, // File content may be large
 
@@ -177,6 +177,7 @@ export const fileReadTool: UnifiedTool = {
           requireWithinProject: false, // Allow reading any accessible file
           allowReadFromBlocked: true, // Allow reading from more places, but not /proc, /sys, /dev
           operation: 'read',
+          projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
         });
       } catch (validationError) {
         if (validationError instanceof ValidationError) {

@@ -27,15 +27,15 @@ import { UnifiedTool } from '../registry.js';
 import { getDopamineEmitter } from '../../rl/index.js';
 
 const schema = z.object({
-  agentId: z.string().describe('Agent ID to get dopamine signals for'),
-  limit: z.number().int().min(1).max(100).default(20).describe('Number of signals to show'),
-  showStats: z.boolean().default(true).describe('Include aggregate statistics'),
+  agentId: z.string().describe('Agent ID'),
+  limit: z.number().int().min(1).max(100).default(20).describe('Max signals to show'),
+  showStats: z.boolean().default(true).describe('Include aggregate stats'),
 });
 
 export const rlDopamineLogTool: UnifiedTool<typeof schema> = {
   name: 'rl-dopamine-log',
   description:
-    'View recent dopamine signals for an agent. Shows spikes, dips, and sustained signals.',
+    'View agent dopamine signals: spikes, dips, sustained.',
   zodSchema: schema,
   skipContextShare: true,
 

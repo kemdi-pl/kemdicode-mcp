@@ -224,7 +224,7 @@ function formatListOutput(): Record<string, unknown> {
 export const configTool: UnifiedTool<typeof schema> = {
   name: 'config',
   description:
-    'Manage server configuration at runtime. Switch AI models, adjust timeouts, cache settings, and more without restart. Actions: get (show current), set (update values), reset (restore initial from CLI args), list (show all configurable options)',
+    'Manage server config at runtime. Switch AI models, adjust timeouts, cache settings. Actions: get, set, reset, list, save',
   zodSchema: schema,
   skipContextShare: true,
 

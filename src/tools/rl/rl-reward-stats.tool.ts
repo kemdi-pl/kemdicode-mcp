@@ -40,16 +40,16 @@ function formatStat(value: number): string {
 }
 
 const schema = z.object({
-  agentId: z.string().describe('Agent ID to get stats for'),
+  agentId: z.string().describe('Agent ID'),
   sessionId: z.string().describe('Session ID'),
-  includeHistory: z.boolean().default(false).describe('Include recent reward history'),
-  historyLimit: z.number().int().min(1).max(50).default(10).describe('Number of history entries'),
+  includeHistory: z.boolean().default(false).describe('Include reward history'),
+  historyLimit: z.number().int().min(1).max(50).default(10).describe('Max history entries'),
 });
 
 export const rlRewardStatsTool: UnifiedTool<typeof schema> = {
   name: 'rl-reward-stats',
   description:
-    'View reward statistics for an agent including cumulative rewards, tool performance, and trends.',
+    'View agent reward stats: cumulative rewards, tool performance, trends.',
   zodSchema: schema,
   skipContextShare: true,
 

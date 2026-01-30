@@ -31,15 +31,15 @@ import { checkRateLimit } from '../../utils/validation.js';
 import { joinWorkspace, getWorkspace } from '../../kanban/index.js';
 
 const schema = z.object({
-  workspaceId: z.string().min(1).describe('Workspace ID to join'),
-  sessionId: z.string().min(1).describe('Session ID joining the workspace'),
+  workspaceId: z.string().min(1).describe('Workspace ID'),
+  sessionId: z.string().min(1).describe('Session ID joining'),
 });
 
 type WorkspaceJoinArgs = z.infer<typeof schema>;
 
 export const workspaceJoinTool: UnifiedTool = {
   name: 'workspace-join',
-  description: 'Join a session to a workspace for cross-session collaboration',
+  description: 'Join session to workspace for cross-session collaboration',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

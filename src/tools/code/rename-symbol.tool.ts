@@ -70,13 +70,13 @@ function getTypeFilters(language: string): string[] {
 const schema = z.object({
   oldName: z.string().min(1).describe('Current symbol name'),
   newName: z.string().min(1).describe('New symbol name'),
-  path: z.string().optional().describe('Limit scope to directory or file'),
+  path: z.string().optional().describe('Scope directory or file'),
   language: z
     .enum(['ts', 'php', 'py', 'go', 'rs', 'auto'])
     .default('auto')
     .describe('Target language'),
-  dryRun: z.boolean().default(true).describe('Preview changes without applying'),
-  createBackups: z.boolean().default(true).describe('Create backups before editing'),
+  dryRun: z.boolean().default(true).describe('Preview without applying'),
+  createBackups: z.boolean().default(true).describe('Create backups'),
 });
 
 type RenameSymbolArgs = z.infer<typeof schema>;
@@ -172,7 +172,7 @@ async function replaceInFile(
 
 export const renameSymbolTool: UnifiedTool = {
   name: 'rename-symbol',
-  description: 'Rename a symbol across the codebase (supports dry-run)',
+  description: 'Rename symbol across codebase, supports dry-run',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
@@ -271,6 +271,7 @@ export const renameSymbolTool: UnifiedTool = {
             allowSymlinks: false,
             requireWithinProject: false,
             operation: 'write',
+            projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
           });
 
           const replaced = await replaceInFile(validatedPath, oldName, newName, createBackups);

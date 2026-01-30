@@ -27,18 +27,17 @@ import { UnifiedTool } from '../registry.js';
 import { getSessionManager } from '../../session/manager.js';
 
 const schema = z.object({
-  model: z.string().describe('AI model to use (e.g., meta/llama-3.1-405b-instruct, gpt-4)'),
-  fallbackModel: z.string().optional().describe('Fallback model if primary fails'),
-  cwd: z.string().optional().describe('Working directory (defaults to current)'),
-  sessionId: z.string().optional().describe('Custom session ID (auto-generated if not provided)'),
-  skipProjectDetection: z.boolean().default(false).describe('Skip automatic project detection'),
-  metadata: z.record(z.string(), z.unknown()).optional().describe('Additional session metadata'),
+  model: z.string().describe('AI model ID'),
+  fallbackModel: z.string().optional().describe('Fallback model'),
+  cwd: z.string().optional().describe('Working directory'),
+  sessionId: z.string().optional().describe('Custom session ID'),
+  skipProjectDetection: z.boolean().default(false).describe('Skip project detection'),
+  metadata: z.record(z.string(), z.unknown()).optional().describe('Session metadata'),
 });
 
 export const sessionCreateTool: UnifiedTool<typeof schema> = {
   name: 'session-create',
-  description:
-    'Create a new session with a specific AI model. Returns session ID for use with other session-* tools.',
+  description: 'Create new session with AI model, returns session ID',
   zodSchema: schema,
   skipContextShare: true,
 

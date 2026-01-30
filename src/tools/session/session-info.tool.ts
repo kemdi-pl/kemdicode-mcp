@@ -27,13 +27,12 @@ import { UnifiedTool } from '../registry.js';
 import { getSessionManager } from '../../session/manager.js';
 
 const schema = z.object({
-  sessionId: z.string().describe('Session ID to get info for'),
+  sessionId: z.string().describe('Session ID'),
 });
 
 export const sessionInfoTool: UnifiedTool<typeof schema> = {
   name: 'session-info',
-  description:
-    'Get detailed information about a specific session including model, CWD, project info, and metadata.',
+  description: 'Get detailed session info: model, CWD, project, metadata.',
   zodSchema: schema,
   skipContextShare: true,
 

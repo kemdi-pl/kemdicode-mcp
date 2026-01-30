@@ -67,7 +67,7 @@ const schema = z.object({
 export const feedbackTool: UnifiedTool = {
   name: 'feedback',
   description:
-    'Access feedback loop and iteration tracking. Get stats, insights, track iterations, suggest fixes based on history.',
+    'Access feedback loop. Get stats, insights, track iterations, suggest fixes.',
   zodSchema: schema,
   skipContextShare: true,
 

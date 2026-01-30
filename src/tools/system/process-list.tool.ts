@@ -44,10 +44,10 @@ interface ProcessInfo {
 }
 
 const schema = z.object({
-  filter: z.string().optional().describe('Filter processes by name pattern'),
-  sortBy: z.enum(['cpu', 'memory', 'pid', 'name']).default('cpu').describe('Sort by field'),
-  limit: z.number().default(20).describe('Maximum number of processes to show'),
-  all: z.boolean().default(false).describe('Show all processes (not just user processes)'),
+  filter: z.string().optional().describe('Filter by name pattern'),
+  sortBy: z.enum(['cpu', 'memory', 'pid', 'name']).default('cpu').describe('Sort field'),
+  limit: z.number().default(20).describe('Max processes to show'),
+  all: z.boolean().default(false).describe('Show all processes'),
 });
 
 /**
@@ -216,7 +216,7 @@ function formatProcessList(processes: ProcessInfo[], sortBy: string, limit: numb
 
 export const processListTool: UnifiedTool = {
   name: 'process-list',
-  description: 'List running processes with CPU/memory usage and optional filtering',
+  description: 'List running processes with CPU/memory usage',
   zodSchema: schema,
   skipContextShare: true,
   execute: async (args) => {

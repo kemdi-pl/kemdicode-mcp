@@ -32,21 +32,21 @@ import { readFileLines, writeFileLines, validateLineNumber } from '../../utils/e
 import { validateEditRequest, formatEditError } from './edit-shared.js';
 
 const schema = z.object({
-  path: z.string().min(1).describe('File path to edit'),
+  path: z.string().min(1).describe('File path'),
   line: z
     .number()
     .int()
     .positive()
-    .describe('Line number to insert at (1-based, content inserted before this line)'),
-  content: z.string().describe('Content to insert (can be multiple lines)'),
-  createBackup: z.boolean().default(true).describe('Create .bak backup before editing'),
+    .describe('Insert at line (1-based, inserted before this line)'),
+  content: z.string().describe('Content to insert'),
+  createBackup: z.boolean().default(true).describe('Create .bak backup'),
 });
 
 type InsertAtLineArgs = z.infer<typeof schema>;
 
 export const insertAtLineTool: UnifiedTool = {
   name: 'insert-at-line',
-  description: 'Insert content at a specific line number in a file',
+  description: 'Insert content at specific line number',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
@@ -55,6 +55,7 @@ export const insertAtLineTool: UnifiedTool = {
     // Common validation: rate limit + content size + path
     const validation = await validateEditRequest('insert-at-line', inputPath, {
       contentLength: content.length,
+      projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
     });
     if (!validation.ok) return validation.errorResponse;
     const { validatedPath } = validation;

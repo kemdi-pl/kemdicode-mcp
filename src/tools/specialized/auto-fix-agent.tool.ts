@@ -36,22 +36,21 @@ const FOCUS_MAP: Record<string, string> = {
 };
 
 const schema = z.object({
-  files: z.string().describe('Files to fix (use @path/file.ts syntax)'),
+  files: z.string().describe('Files to fix (@path/file syntax)'),
   focus: z.enum(['security', 'performance', 'quality', 'all']).default('all'),
   severity: z
     .enum(['critical', 'all'])
     .default('critical')
-    .describe('critical = only urgent fixes'),
-  dryRun: z.boolean().default(false).describe('true = show changes without applying'),
-  approve: z.boolean().default(true).describe('Auto-approve all patches (set false for manual)'),
+    .describe('critical = urgent fixes only'),
+  dryRun: z.boolean().default(false).describe('Preview changes without applying'),
+  approve: z.boolean().default(true).describe('Auto-approve patches'),
 });
 
 type AutoFixAgentArgs = z.infer<typeof schema>;
 
 export const autoFixAgentTool: UnifiedTool = {
   name: 'auto-fix-agent',
-  description:
-    'Multi-agent code fixing using OpenAI Agents SDK. Analyzes code and applies patches with diff-based editing.',
+  description: 'Multi-agent code fixing via OpenAI Agents SDK with diff-based patching',
   zodSchema: schema,
 
   execute: async (args, onProgress) => {

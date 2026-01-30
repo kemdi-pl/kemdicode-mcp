@@ -37,18 +37,18 @@ import {
 import { validateEditRequest, formatEditError } from './edit-shared.js';
 
 const schema = z.object({
-  path: z.string().min(1).describe('File path to edit'),
-  startLine: z.number().int().positive().describe('First line to replace (1-based, inclusive)'),
-  endLine: z.number().int().positive().describe('Last line to replace (1-based, inclusive)'),
-  content: z.string().describe('New content to insert (can be more or fewer lines)'),
-  createBackup: z.boolean().default(true).describe('Create .bak backup before editing'),
+  path: z.string().min(1).describe('File path'),
+  startLine: z.number().int().positive().describe('First line to replace (1-based)'),
+  endLine: z.number().int().positive().describe('Last line to replace (1-based)'),
+  content: z.string().describe('New content to insert'),
+  createBackup: z.boolean().default(true).describe('Create .bak backup'),
 });
 
 type ReplaceLinesArgs = z.infer<typeof schema>;
 
 export const replaceLinesTool: UnifiedTool = {
   name: 'replace-lines',
-  description: 'Replace a range of lines with new content',
+  description: 'Replace line range with new content',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
@@ -57,6 +57,7 @@ export const replaceLinesTool: UnifiedTool = {
     // Common validation: rate limit + content size + path
     const validation = await validateEditRequest('replace-lines', inputPath, {
       contentLength: content.length,
+      projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
     });
     if (!validation.ok) return validation.errorResponse;
     const { validatedPath } = validation;

@@ -43,7 +43,7 @@ const schema = z.object({
 export const agentAlertTool: UnifiedTool = {
   name: 'agent-alert',
   description:
-    'Send an alert to one or more agents. Use this to provide guidance, corrections, or important notifications during multi-agent execution. Format: [ALERT: Source] Message',
+    'Send alert to agents. Use for guidance, corrections, or notifications during multi-agent execution.',
   zodSchema: schema,
   skipContextShare: true,
 

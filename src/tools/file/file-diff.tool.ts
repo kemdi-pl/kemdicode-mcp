@@ -38,18 +38,18 @@ const DIFF_TIMEOUT = 30_000;
 const MAX_DIFF_SIZE = 10 * 1024 * 1024;
 
 const schema = z.object({
-  file1: z.string().min(1).describe('First file path (original)'),
-  file2: z.string().min(1).describe('Second file path (modified)'),
+  file1: z.string().min(1).describe('Original file path'),
+  file2: z.string().min(1).describe('Modified file path'),
   format: z
     .enum(['unified', 'git', 'side-by-side', 'context'])
     .default('unified')
     .describe('Output format'),
-  contextLines: z.number().int().min(0).max(20).default(3).describe('Number of context lines'),
-  ignoreWhitespace: z.boolean().default(false).describe('Ignore whitespace changes'),
-  ignoreCase: z.boolean().default(false).describe('Case-insensitive comparison'),
-  ignoreBlankLines: z.boolean().default(false).describe('Ignore blank line differences'),
+  contextLines: z.number().int().min(0).max(20).default(3).describe('Context lines'),
+  ignoreWhitespace: z.boolean().default(false).describe('Ignore whitespace'),
+  ignoreCase: z.boolean().default(false).describe('Case-insensitive'),
+  ignoreBlankLines: z.boolean().default(false).describe('Ignore blank lines'),
   showLineNumbers: z.boolean().default(true).describe('Show line numbers'),
-  colorize: z.boolean().default(false).describe('Include ANSI color codes'),
+  colorize: z.boolean().default(false).describe('ANSI color output'),
 });
 
 type FileDiffArgs = z.infer<typeof schema>;
@@ -347,7 +347,7 @@ async function executeDiff(args: FileDiffArgs): Promise<{ stdout: string; identi
 
 export const fileDiffTool: UnifiedTool = {
   name: 'file-diff',
-  description: 'Compare two files with git diff or unified format output',
+  description: 'Compare two files with unified or git diff format',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
@@ -368,12 +368,14 @@ export const fileDiffTool: UnifiedTool = {
           requireWithinProject: true,
           allowReadFromBlocked: false,
           operation: 'read',
+          projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
         });
         validatedPath2 = await validatePath(diffArgs.file2, {
           allowSymlinks: false,
           requireWithinProject: true,
           allowReadFromBlocked: false,
           operation: 'read',
+          projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
         });
       } catch (validationError) {
         if (validationError instanceof ValidationError) {

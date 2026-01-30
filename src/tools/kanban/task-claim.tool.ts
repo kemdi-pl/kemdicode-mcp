@@ -34,8 +34,8 @@ const schema = z.object({
   taskId: z
     .string()
     .optional()
-    .describe('Specific task ID to claim (if not provided, claims next available)'),
-  agentId: z.string().min(1).describe('Agent ID claiming the task'),
+    .describe('Task ID to claim (claims next available if omitted)'),
+  agentId: z.string().min(1).describe('Claiming agent ID'),
   sessionId: z.string().optional().describe('Session ID (required if no taskId)'),
 });
 
@@ -43,7 +43,7 @@ type TaskClaimArgs = z.infer<typeof schema>;
 
 export const taskClaimTool: UnifiedTool = {
   name: 'task-claim',
-  description: 'Claim a task to start working on it',
+  description: 'Claim task to start working on it',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

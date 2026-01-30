@@ -81,7 +81,7 @@ interface EnvInfo {
 }
 
 const schema = z.object({
-  detailed: z.boolean().default(false).describe('Show detailed information including PATH'),
+  detailed: z.boolean().default(false).describe('Include PATH details'),
   category: z
     .enum(['all', 'os', 'runtime', 'languages', 'tools', 'env'])
     .default('all')
@@ -89,7 +89,7 @@ const schema = z.object({
   allowSensitive: z
     .boolean()
     .default(false)
-    .describe('Show sensitive info (hostname, username, home directory). Redacted by default.'),
+    .describe('Show sensitive info (hostname, username, home)'),
 });
 
 /**
@@ -279,7 +279,7 @@ function formatEnvInfo(
 
 export const envInfoTool: UnifiedTool = {
   name: 'env-info',
-  description: 'Show environment info: Node/npm versions, PHP, Git, OS, hardware',
+  description: 'Show environment info: runtimes, languages, tools, OS, hardware',
   zodSchema: schema,
   skipContextShare: true,
   execute: async (args) => {

@@ -110,20 +110,20 @@ const REQUIRES_CONFIRMATION = [
 
 const schema = z.object({
   command: z.string().min(1).describe('Shell command to execute'),
-  cwd: z.string().optional().describe('Working directory (defaults to current directory)'),
+  cwd: z.string().optional().describe('Working directory'),
   // NOTE: timeout=0 means "no timeout" (infinite) for backward compatibility.
   timeout: z
     .number()
     .int()
     .min(0)
     .default(60000)
-    .describe('Timeout in milliseconds (0 = no timeout, default: 60 seconds)'),
+    .describe('Timeout ms (0=no timeout)'),
   shell: z
     .enum(['bash', 'sh', 'zsh', 'fish', 'powershell'])
     .default('bash')
     .describe('Shell to use'),
-  env: z.record(z.string(), z.string()).optional().describe('Additional environment variables'),
-  allowDangerous: z.boolean().default(false).describe('Allow potentially dangerous commands'),
+  env: z.record(z.string(), z.string()).optional().describe('Extra environment variables'),
+  allowDangerous: z.boolean().default(false).describe('Allow dangerous commands'),
 });
 
 function isShellExecEnabled(): boolean {
@@ -278,7 +278,7 @@ async function executeShellCommand(
 
 export const shellExecTool: UnifiedTool = {
   name: 'shell-exec',
-  description: 'Execute shell command safely with timeout and streaming output',
+  description: 'Execute shell command with timeout and streaming output',
   zodSchema: schema,
   execute: async (args, onProgress) => {
     // Disabled-by-default / admin-gated.

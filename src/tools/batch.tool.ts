@@ -58,8 +58,7 @@ interface OperationResult {
 
 export const batchTool: UnifiedTool<typeof schema> = {
   name: 'batch',
-  description:
-    'Execute multiple tool operations in parallel for efficiency. Max 10 operations per batch.',
+  description: 'Execute multiple tools in parallel. Max 10 per batch.',
   zodSchema: schema,
   skipContextShare: true, // Individual tools share their own context
   execute: async (args, onProgress) => {

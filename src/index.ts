@@ -53,7 +53,8 @@ import { initContext, initAgentMonitor, getSessionId } from './context/index.js'
 import { initAIClient } from './ai/index.js';
 import { registerBuiltinProviders, setProviderConfig } from './ai/providers/registry.js';
 import type { ProviderId } from './ai/providers/types.js';
-import { VERSION, type ServerConfig, startHttpServer, stopHttpServer } from './server/index.js';
+import { VERSION, type ServerConfig, startHttpServer, stopHttpServer, broadcastNotification } from './server/index.js';
+import { initToolsBroadcast } from './tools/registry.js';
 
 // Re-export for backwards compatibility
 export {
@@ -254,6 +255,9 @@ async function main(): Promise<void> {
 
   // Start HTTP server
   await startHttpServer(serverConfig.host, serverConfig.port);
+
+  // Enable runtime tool registration notifications
+  initToolsBroadcast(() => broadcastNotification('notifications/tools/list_changed'));
 }
 
 main().catch((error) => {

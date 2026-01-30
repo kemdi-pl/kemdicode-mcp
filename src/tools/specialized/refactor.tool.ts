@@ -42,7 +42,7 @@ const SCOPES: Record<string, string> = {
 };
 
 const schema = z.object({
-  files: z.string().describe('Files to refactor (use @path/file.php syntax)'),
+  files: z.string().describe('Files to refactor (@path/file syntax)'),
   goal: z
     .enum(['readability', 'performance', 'solid', 'laravel-patterns', 'dry'])
     .default('readability'),
@@ -51,7 +51,7 @@ const schema = z.object({
 
 export const refactorTool: UnifiedTool = {
   name: 'refactor',
-  description: 'Code refactoring - readability, performance, SOLID, Laravel patterns, DRY',
+  description: 'Code refactoring with configurable goal and scope',
   zodSchema: schema,
   prompt: { description: 'Refactor PHP/Laravel code' },
   execute: async (args, onProgress) => {

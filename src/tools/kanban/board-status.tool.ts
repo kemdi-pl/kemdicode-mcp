@@ -38,7 +38,7 @@ type BoardStatusArgs = z.infer<typeof schema>;
 
 export const boardStatusTool: UnifiedTool = {
   name: 'board-status',
-  description: 'Get Kanban board summary (task counts, agents, activity)',
+  description: 'Get Kanban board summary with task counts and activity',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

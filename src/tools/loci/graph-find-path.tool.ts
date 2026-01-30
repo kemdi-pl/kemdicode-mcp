@@ -33,7 +33,7 @@ import {
 
 const schema = z.object({
   fromNodeId: z.string().describe('Starting node ID'),
-  toNodeId: z.string().optional().describe('Target node ID (optional for error-to-solution)'),
+  toNodeId: z.string().optional().describe('Target node ID, optional for error-to-solution'),
   mode: z
     .enum(['shortest', 'error-to-solution', 'all'])
     .default('shortest')
@@ -44,15 +44,13 @@ const schema = z.object({
     .min(1)
     .max(10)
     .default(5)
-    .describe('Maximum paths to find (for "all" mode)'),
-  maxDepth: z.number().int().min(1).max(10).default(5).describe('Maximum path depth'),
+    .describe('Max paths for "all" mode'),
+  maxDepth: z.number().int().min(1).max(10).default(5).describe('Max path depth'),
 });
 
 export const graphFindPathTool: UnifiedTool<typeof schema> = {
   name: 'graph-find-path',
-  description:
-    'Find paths between nodes in the knowledge graph. ' +
-    'Use "error-to-solution" mode to find fixes for error nodes.',
+  description: 'Find paths between knowledge graph nodes. Use error-to-solution mode for fixes.',
   zodSchema: schema,
 
   execute: async (args) => {

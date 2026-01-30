@@ -22,7 +22,7 @@ import { executeAI, parseFiles, type AgentType } from '../../ai/index.js';
 import { getEnhancedContextString } from '../../utils/projectContext.enhanced.js';
 
 const schema = z.object({
-  files: z.string().describe('Main file to analyze (use @path/file.php syntax)'),
+  files: z.string().describe('Main file to analyze (@path/file syntax)'),
   depth: z
     .enum(['shallow', 'deep'])
     .default('shallow')
@@ -32,7 +32,7 @@ const schema = z.object({
 
 export const analyzeDepsTool: UnifiedTool = {
   name: 'analyze-deps',
-  description: 'Dependency analysis - what uses this file, what it uses, impact analysis',
+  description: 'Dependency analysis - uses, used-by, impact assessment',
   zodSchema: schema,
   prompt: { description: 'Analyze file dependencies' },
   execute: async (args, onProgress) => {

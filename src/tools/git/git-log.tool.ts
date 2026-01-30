@@ -30,33 +30,32 @@ import { UnifiedTool } from '../registry.js';
 import { execGit, validateGitRepo, parseFileList, formatGitError } from '../../utils/git-utils.js';
 
 const schema = z.object({
-  cwd: z.string().optional().describe('Working directory path (defaults to current directory)'),
+  cwd: z.string().optional().describe('Working directory'),
   format: z
     .enum(['oneline', 'short', 'medium', 'full', 'fuller', 'email', 'raw'])
     .default('medium')
-    .describe('Output format (oneline, short, medium, full, fuller, email, raw)'),
-  limit: z.number().min(1).max(1000).default(10).describe('Maximum number of commits to show'),
-  author: z.string().optional().describe('Filter by author name or email'),
+    .describe('Output format'),
+  limit: z.number().min(1).max(1000).default(10).describe('Max commits'),
+  author: z.string().optional().describe('Filter by author'),
   since: z
     .string()
     .optional()
-    .describe('Show commits after date (e.g., "2024-01-01", "2 weeks ago")'),
-  until: z.string().optional().describe('Show commits before date'),
-  grep: z.string().optional().describe('Filter commits by message pattern'),
-  files: z.string().optional().describe('Show commits affecting these files (space-separated)'),
-  all: z.boolean().default(false).describe('Show commits from all branches'),
-  graph: z.boolean().default(false).describe('Show ASCII graph of branch structure'),
-  stat: z.boolean().default(false).describe('Show file statistics for each commit'),
-  patch: z.boolean().default(false).describe('Show patch/diff for each commit'),
-  merges: z.boolean().default(true).describe('Include merge commits (set false to exclude)'),
-  firstParent: z.boolean().default(false).describe('Follow only first parent of merges'),
-  ref: z.string().optional().describe('Branch, tag, or commit ref to show history for'),
+    .describe('Commits after date'),
+  until: z.string().optional().describe('Commits before date'),
+  grep: z.string().optional().describe('Filter by message pattern'),
+  files: z.string().optional().describe('Files to filter, space-separated'),
+  all: z.boolean().default(false).describe('Show all branches'),
+  graph: z.boolean().default(false).describe('Show ASCII branch graph'),
+  stat: z.boolean().default(false).describe('Show file stats per commit'),
+  patch: z.boolean().default(false).describe('Show patch per commit'),
+  merges: z.boolean().default(true).describe('Include merge commits'),
+  firstParent: z.boolean().default(false).describe('Follow first parent only'),
+  ref: z.string().optional().describe('Branch, tag, or ref'),
 });
 
 export const gitLogTool: UnifiedTool = {
   name: 'git-log',
-  description:
-    'Show git commit history with format options, filters by author/date/message, and file history',
+  description: 'Show git commit history with filters and format options',
   zodSchema: schema,
   skipContextShare: true,
   execute: async (args) => {

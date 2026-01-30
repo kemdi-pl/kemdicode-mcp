@@ -35,14 +35,14 @@ const COVERAGE_PROMPTS: Record<string, string> = {
 };
 
 const schema = z.object({
-  files: z.string().describe('Files to test (use @path/file.php syntax)'),
+  files: z.string().describe('Files to test (@path/file syntax)'),
   type: z.enum(['unit', 'feature', 'both']).default('unit'),
   coverage: z.enum(['happy-path', 'edge-cases', 'full']).default('happy-path'),
 });
 
 export const writeTestsTool: UnifiedTool = {
   name: 'write-tests',
-  description: 'Generate PHPUnit tests for Laravel code (unit and feature tests)',
+  description: 'Generate PHPUnit tests for Laravel code',
   zodSchema: schema,
   prompt: { description: 'Generate tests for PHP/Laravel files' },
   execute: async (args, onProgress) => {

@@ -102,6 +102,8 @@ import {
   listMemoriesTool,
   deleteMemoryTool,
   editMemoryTool,
+  checkpointSaveTool,
+  checkpointRestoreTool,
 } from './memory/index.js';
 import {
   taskCreateTool,
@@ -239,6 +241,10 @@ registerTool(readMemoryTool);
 registerTool(listMemoriesTool);
 registerTool(deleteMemoryTool);
 registerTool(editMemoryTool);
+
+// Checkpoint tools
+registerTool(checkpointSaveTool);
+registerTool(checkpointRestoreTool);
 
 // Kanban task management tools
 registerTool(taskCreateTool);

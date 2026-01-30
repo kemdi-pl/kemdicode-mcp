@@ -31,15 +31,15 @@ import { checkRateLimit } from '../../utils/validation.js';
 import { listWorkspacesForSession, listAllWorkspaces } from '../../kanban/index.js';
 
 const schema = z.object({
-  sessionId: z.string().optional().describe('Session ID to list workspaces for (omit for all)'),
-  limit: z.number().min(1).max(100).default(50).describe('Maximum workspaces to return'),
+  sessionId: z.string().optional().describe('Session ID filter, omit for all'),
+  limit: z.number().min(1).max(100).default(50).describe('Max workspaces'),
 });
 
 type WorkspaceListArgs = z.infer<typeof schema>;
 
 export const workspaceListTool: UnifiedTool = {
   name: 'workspace-list',
-  description: 'List workspaces (for a session or all available)',
+  description: 'List workspaces for session or all available',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

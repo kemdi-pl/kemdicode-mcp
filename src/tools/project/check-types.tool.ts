@@ -61,13 +61,13 @@ interface ParsedError {
 }
 
 const schema = z.object({
-  cwd: z.string().optional().describe('Working directory (defaults to current directory)'),
+  cwd: z.string().optional().describe('Working directory'),
   checker: z
     .enum(['auto', 'typescript', 'phpstan'])
     .default('auto')
-    .describe('Type checker to use'),
-  timeout: z.number().default(120000).describe('Timeout in milliseconds (default: 2 minutes)'),
-  strict: z.boolean().default(false).describe('Enable strict mode (if supported)'),
+    .describe('Type checker'),
+  timeout: z.number().default(120000).describe('Timeout ms'),
+  strict: z.boolean().default(false).describe('Enable strict mode'),
 });
 
 /**
@@ -289,7 +289,7 @@ function formatErrors(errors: ParsedError[], checkerName: string): string {
 
 export const checkTypesTool: UnifiedTool = {
   name: 'check-types',
-  description: 'Run TypeScript (tsc --noEmit) or PHPStan type checking',
+  description: 'Run TypeScript/PHPStan type checking',
   zodSchema: schema,
   execute: async (args, onProgress) => {
     const cwd = getCwd(args.cwd as string | undefined);

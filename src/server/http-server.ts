@@ -31,6 +31,10 @@ import {
   getOrCreateTransport,
   deleteSessionConfig,
   getAllSessionConfigs,
+  getAllSessionServers,
+  getAllSessionActivity,
+  deleteSessionActivity,
+  getSessionActivity,
   generateSessionId,
 } from './session-server.js';
 import { VERSION } from './types.js';
@@ -143,6 +147,35 @@ export async function startHttpServer(host: string, port: number): Promise<Serve
       return;
     }
 
+    // Resume endpoint - last session activity for post-compaction recovery
+    if (url === '/resume' && req.method === 'GET') {
+      const sessions = getAllSessionConfigs();
+      const activities = getAllSessionActivity();
+
+      let latest: { sessionId: string; activity: { lastTool: string; lastToolArgs?: string; lastToolAt: number; toolCount: number }; config?: { cwd?: string } } | null = null;
+      for (const [sid, activity] of activities) {
+        if (!latest || activity.lastToolAt > latest.activity.lastToolAt) {
+          latest = { sessionId: sid, activity, config: sessions.get(sid) };
+        }
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        lastSession: latest ? {
+          sessionId: latest.sessionId,
+          cwd: latest.config?.cwd,
+          lastTool: latest.activity.lastTool,
+          lastToolArgs: latest.activity.lastToolArgs,
+          lastToolAt: new Date(latest.activity.lastToolAt).toISOString(),
+          toolCount: latest.activity.toolCount,
+          description: `Session ${latest.sessionId}, last tool: ${latest.activity.lastTool}${latest.activity.lastToolArgs ? ' (' + latest.activity.lastToolArgs + ')' : ''}`,
+        } : null,
+        activeSessions: sessions.size,
+      }));
+      finishRequest(200);
+      return;
+    }
+
     // Stream endpoint for long-running operations
     // GET /stream/:requestId - Subscribe to tool execution progress
     const streamMatch = url.match(/^\/stream\/([^/]+)$/);
@@ -204,6 +237,8 @@ export async function startHttpServer(host: string, port: number): Promise<Serve
         transport.onclose = () => {
           transports.delete(sseSessionId);
           deleteSessionConfig(sseSessionId);
+          deleteSessionActivity(sseSessionId);
+          getAllSessionServers().delete(sseSessionId);
           const interval = keepAliveIntervals.get(sseSessionId);
           if (interval) {
             clearInterval(interval);
@@ -224,6 +259,19 @@ export async function startHttpServer(host: string, port: number): Promise<Serve
 
       // Send initial connection event
       res.write(`event: endpoint\ndata: /message?sessionId=${sseSessionId}\n\n`);
+
+      // Send resume info if session has prior activity
+      const activity = getSessionActivity(sseSessionId);
+      if (activity) {
+        const resumeData = JSON.stringify({
+          sessionId: sseSessionId,
+          lastTool: activity.lastTool,
+          lastToolArgs: activity.lastToolArgs,
+          lastToolAt: new Date(activity.lastToolAt).toISOString(),
+          toolCount: activity.toolCount,
+        });
+        res.write(`event: resume\ndata: ${resumeData}\n\n`);
+      }
 
       // Keep connection alive
       const keepAlive = setInterval(() => {
@@ -268,6 +316,8 @@ export async function startHttpServer(host: string, port: number): Promise<Serve
       transport.onclose = () => {
         transports.delete(msgSessionId);
         deleteSessionConfig(msgSessionId);
+        deleteSessionActivity(msgSessionId);
+        getAllSessionServers().delete(msgSessionId);
         const interval = keepAliveIntervals.get(msgSessionId);
         if (interval) {
           clearInterval(interval);
@@ -303,6 +353,8 @@ export async function startHttpServer(host: string, port: number): Promise<Serve
               if (closedSessionId) {
                 transports.delete(closedSessionId);
                 deleteSessionConfig(closedSessionId);
+                deleteSessionActivity(closedSessionId);
+                getAllSessionServers().delete(closedSessionId);
                 Logger.sessionEvent('deleted', closedSessionId);
               }
             };
@@ -321,6 +373,8 @@ export async function startHttpServer(host: string, port: number): Promise<Serve
           await transport.close();
           transports.delete(mcpSessionId);
           deleteSessionConfig(mcpSessionId);
+          deleteSessionActivity(mcpSessionId);
+          getAllSessionServers().delete(mcpSessionId);
           Logger.sessionEvent('deleted', mcpSessionId, { source: 'explicit-delete' });
           res.writeHead(200);
           res.end(JSON.stringify({ status: 'closed', sessionId: mcpSessionId }));

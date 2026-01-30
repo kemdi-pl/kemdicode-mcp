@@ -5,12 +5,12 @@
 <h3 align="center">Model Context Protocol Server for AI-Powered Development</h3>
 
 <p align="center">
-  100+ tools &bull; 7 LLM providers &bull; multi-agent orchestration &bull; kanban &bull; project memory
+  103 tools &bull; 7 LLM providers &bull; multi-agent orchestration &bull; kanban &bull; project memory
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/kemdicode-mcp"><img src="https://img.shields.io/badge/npm-kemdicode--mcp-CB3837?style=flat-square&logo=npm&logoColor=white" alt="npm" /></a>
-  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.16.0-blue?style=flat-square" alt="Version" /></a>
+  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.17.0-blue?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License" /></a>
 </p>
 
@@ -28,6 +28,8 @@
 <details>
 <summary><strong>Table of Contents</strong></summary>
 
+- [What's New in 1.17.0](#whats-new-in-1170)
+- [Usage Examples](#usage-examples)
 - [Highlights](#highlights)
 - [Compatibility](#compatibility)
 - [Quick Start](#quick-start)
@@ -48,11 +50,76 @@
 
 ---
 
+## What's New in 1.17.0
+
+- **Checkpoint Save/Restore** &mdash; new tools `checkpoint-save` and `checkpoint-restore` for temporary state snapshots in Redis (7-day TTL). Save progress mid-task and restore later.
+- **Session Resume** &mdash; new `/resume` HTTP endpoint returns the last active session with tool history, enabling post-compaction recovery. SSE connections receive a `resume` event on reconnect.
+- **Runtime Tool Broadcast** &mdash; dynamically registered tools now trigger `notifications/tools/list_changed` to all connected MCP clients, so IDEs see new tools without reconnecting.
+- **Session CWD Injection** &mdash; file tools automatically inherit the session's working directory for correct relative path resolution in multi-session setups.
+- **Session Cleanup** &mdash; proper cleanup of activity tracking and server references on session close, preventing memory leaks in long-running servers.
+- **Compact Tool Descriptions** &mdash; reduced tool description sizes across all 103 tools to slow down context compaction in long sessions.
+
+---
+
+## Usage Examples
+
+### Using kemdiCode MCP tools from your AI agent prompt
+
+You don't call these tools directly &mdash; your AI agent (Claude Code, Cursor, etc.) invokes them when you describe what you need. Here are real prompts and what happens behind the scenes:
+
+**Code review before committing:**
+```
+You: "Review the auth module for security issues"
+→ Agent calls: code-review --files "@src/auth/**/*.ts" --focus "security"
+```
+
+**Fix a bug with AI assistance:**
+```
+You: "There's a race condition in the queue processor, find and fix it"
+→ Agent calls: fix-bug --description "race condition in queue processor" --files "@src/queue/"
+```
+
+**Save progress and restore later:**
+```
+You: "Save a checkpoint of the current refactoring state"
+→ Agent calls: checkpoint-save --name "auth-refactor-v2" --content "<state>" --tags '["refactor","auth"]'
+
+You: "Restore the auth refactoring checkpoint"
+→ Agent calls: checkpoint-restore --name "auth-refactor-v2"
+```
+
+**Multi-model comparison for architecture decisions:**
+```
+You: "Ask 3 models whether we should use event sourcing or CRUD for the order service"
+→ Agent calls: consensus-prompt \
+    --prompt "Event sourcing vs CRUD for an order management service with 10k orders/day" \
+    --boardModels '["o:gpt-5","a:claude-sonnet-4-5","g:gemini-3-pro"]' \
+    --ceoModel "a:claude-opus-4-5:4k"
+```
+
+**Project memory for persistent context:**
+```
+You: "Remember that we use JWT with RS256 for auth in this project"
+→ Agent calls: write-memory --name "auth-strategy" --content "JWT with RS256, keys in /etc/keys/" --tags '["auth","architecture"]'
+
+You: "What was our auth strategy?"
+→ Agent calls: read-memory --name "auth-strategy"
+```
+
+**Multi-agent task distribution:**
+```
+You: "Set up 3 agents: backend, frontend, QA. Backend works on the API, frontend on React components"
+→ Agent calls: agent-register → task-create → task-push-multi
+→ Agents coordinate via shared-thoughts and queue-message
+```
+
+---
+
 ## Highlights
 
 | Capability | Description |
 |:-----------|:------------|
-| **100+ MCP Tools** | Code review, refactoring, testing, git, file management, AST editing, memory, kanban |
+| **103 MCP Tools** | Code review, refactoring, testing, git, file management, AST editing, memory, checkpoints, kanban |
 | **7 LLM Providers** | Native SDKs for OpenAI (GPT-5), Anthropic (Claude 4.5), Gemini (Gemini 3) + OpenAI-compatible for Groq, DeepSeek, Ollama, OpenRouter |
 | **Multi-Agent** | Agents connect via HTTP, share context through Redis Pub/Sub, coordinate via kanban boards |
 | **Parallel Multi-Model** | Send one prompt to N models simultaneously; CEO-and-Board consensus pattern |
@@ -271,7 +338,7 @@ ai-config --action test
 
 ## Tool Reference
 
-> **101 tools** across 20 categories.
+> **103 tools** across 20 categories.
 
 | Category | # | Tools |
 |:---------|:-:|:------|
@@ -281,7 +348,7 @@ ai-config --action test
 | **Line Editing** | 4 | `insert-at-line` `delete-lines` `replace-lines` `replace-content` |
 | **Symbol Editing** | 3 | `insert-before-symbol` `insert-after-symbol` `rename-symbol` |
 | **Code Modification** | 5 | `fix-bug` `refactor` `auto-fix` `auto-fix-agent` `write-tests` |
-| **Project Memory** | 5 | `write-memory` `read-memory` `list-memories` `edit-memory` `delete-memory` |
+| **Project Memory** | 7 | `write-memory` `read-memory` `list-memories` `edit-memory` `delete-memory` `checkpoint-save` `checkpoint-restore` |
 | **Git** | 5 | `git-status` `git-diff` `git-log` `git-blame` `git-branch` |
 | **File Operations** | 5 | `file-read` `file-write` `file-search` `file-tree` `file-diff` |
 | **Project** | 5 | `project-info` `run-script` `run-tests` `run-lint` `check-types` |

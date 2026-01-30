@@ -39,10 +39,10 @@ const schema = z.object({
   scope: z
     .enum(['all', 'kemdicode', 'external', 'analysis', 'code'])
     .default('all')
-    .describe('Scope of thoughts to retrieve'),
-  limit: z.number().min(1).max(100).default(20).describe('Maximum number of entries to return'),
+    .describe('Scope: all, kemdicode, external, analysis, code'),
+  limit: z.number().min(1).max(100).default(20).describe('Max entries to return'),
   format: z.enum(['detailed', 'summary', 'timeline']).default('summary').describe('Output format'),
-  includeOutput: z.boolean().default(false).describe('Include full tool outputs (can be large)'),
+  includeOutput: z.boolean().default(false).describe('Include full outputs (can be large)'),
 });
 
 type SharedThoughtsArgs = z.infer<typeof schema>;
@@ -180,7 +180,7 @@ function formatDetailed(
 export const sharedThoughtsTool: UnifiedTool = {
   name: 'shared-thoughts',
   description:
-    'Read collective knowledge base from all agents in current session. Shows what all MCP agents have analyzed, learned, and produced. Use for multi-agent coordination and context sharing.',
+    'Read collective knowledge from all agents. Shows analyzed data for multi-agent coordination.',
   zodSchema: schema,
   skipContextShare: true, // Don't create infinite loop
 

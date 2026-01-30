@@ -4,7 +4,7 @@
 
 Model Context Protocol (MCP) server providing **100+ specialized tools** for code analysis, generation, git operations, file management, line/symbol editing, project memory, multi-board kanban with workspaces, recursive tool invocation, session monitoring, and multi-agent coordination.
 
-**Version:** 1.16.0
+**Version:** 1.17.0
 
 ## Architecture
 
@@ -144,7 +144,7 @@ src/
 | `auto-fix-agent` | Multi-agent fixing with OpenAI Agents SDK (diff patching) |
 | `write-tests` | Test generation |
 
-### Project Memory (5 tools)
+### Project Memory (7 tools)
 | Tool | Description |
 |------|-------------|
 | `write-memory` | Store named memory with tags and TTL |
@@ -152,6 +152,8 @@ src/
 | `list-memories` | List all project memories with filters |
 | `delete-memory` | Delete a memory entry |
 | `edit-memory` | Modify content and tags |
+| `checkpoint-save` | Save temporary state snapshot to Redis (7-day TTL) |
+| `checkpoint-restore` | Restore a previously saved checkpoint |
 
 ### Git Operations (5 tools)
 | Tool | Description |

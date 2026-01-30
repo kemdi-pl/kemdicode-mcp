@@ -33,15 +33,15 @@ const schema = z.object({
   type: z
     .enum(['context', 'directive', 'query'])
     .default('context')
-    .describe('Injection type: context (information), directive (instruction), query (question)'),
+    .describe('Injection type: context=info, directive=instruction, query=question'),
   content: z.string().min(1).describe('Content to inject'),
-  data: z.record(z.string(), z.unknown()).optional().describe('Optional structured data (JSON)'),
+  data: z.record(z.string(), z.unknown()).optional().describe('Structured data (JSON)'),
 });
 
 export const agentInjectTool: UnifiedTool<typeof schema> = {
   name: 'agent-inject',
   description:
-    "Inject context, directives, or queries into an agent's conversation. Use for real-time guidance: context=add information, directive=change behavior, query=ask question.",
+    "Inject context, directives, or queries into agent's conversation for real-time guidance.",
   zodSchema: schema,
   skipContextShare: true,
 

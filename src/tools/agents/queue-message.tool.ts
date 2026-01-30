@@ -73,7 +73,7 @@ interface QueueResult {
 export const queueMessageTool: UnifiedTool = {
   name: 'queue-message',
   description:
-    'Queue messages to 1-N agents. Two modes: (1) "messages" array for different messages per agent, or (2) "targetAgentIds" + "content" for broadcast.',
+    'Queue messages to agents. Use "messages" array or "targetAgentIds" + "content" for broadcast.',
   zodSchema: combinedSchema,
   skipContextShare: true,
 

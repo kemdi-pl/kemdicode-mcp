@@ -48,14 +48,14 @@ const BRACE_LANGUAGES = ['ts', 'php', 'go', 'rs'];
 const INDENT_LANGUAGES = ['py'];
 
 const schema = z.object({
-  symbol: z.string().min(1).describe('Symbol name to find'),
-  content: z.string().describe('Content to insert after the symbol block'),
-  path: z.string().optional().describe('File or directory to search in'),
+  symbol: z.string().min(1).describe('Symbol name'),
+  content: z.string().describe('Content to insert after symbol block'),
+  path: z.string().optional().describe('Search path'),
   language: z
     .enum(['ts', 'php', 'py', 'go', 'rs', 'auto'])
     .default('auto')
     .describe('Target language'),
-  createBackup: z.boolean().default(true).describe('Create backup before editing'),
+  createBackup: z.boolean().default(true).describe('Create backup'),
 });
 
 type InsertAfterSymbolArgs = z.infer<typeof schema>;
@@ -166,7 +166,7 @@ async function findSymbolBlockEnd(
 
 export const insertAfterSymbolTool: UnifiedTool = {
   name: 'insert-after-symbol',
-  description: 'Insert content after a symbol definition block (after closing brace/dedent)',
+  description: 'Insert content after symbol block end',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
@@ -221,6 +221,7 @@ export const insertAfterSymbolTool: UnifiedTool = {
           allowSymlinks: false,
           requireWithinProject: false,
           operation: 'write',
+          projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
         });
       } catch (validationError) {
         if (validationError instanceof ValidationError) {

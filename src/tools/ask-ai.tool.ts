@@ -34,7 +34,7 @@ const schema = z.object({
 
 export const askAITool: UnifiedTool = {
   name: 'ask-ai',
-  description: 'Execute AI with full options: model, agent, files, session continuity',
+  description: 'Execute AI with model, agent, files options.',
   zodSchema: schema,
   prompt: { description: 'Direct AI access' },
   execute: async (args, onProgress) => {

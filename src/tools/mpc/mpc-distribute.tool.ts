@@ -33,25 +33,22 @@ const schema = z.object({
   distributingAgentId: z
     .string()
     .optional()
-    .describe(
-      'Agent ID performing distribution (for authorization). Defaults to first assignment agent.'
-    ),
+    .describe('Distributing agent ID for auth'),
   assignments: z
     .array(
       z.object({
         shareIndex: z.number().int().min(1).describe('Share index (1-based)'),
-        agentId: z.string().describe('Agent ID to receive this share'),
+        agentId: z.string().describe('Receiving agent ID'),
       })
     )
     .min(1)
-    .describe('Array of share-to-agent assignments'),
+    .describe('Share-to-agent assignments'),
 });
 
 export const mpcDistributeTool: UnifiedTool<typeof schema> = {
   name: 'mpc-distribute',
   description:
-    'Distribute shares to agents. Each share is encrypted and stored securely. ' +
-    'Agents can later contribute their shares for reconstruction.',
+    'Distribute encrypted shares to agents for later reconstruction.',
   zodSchema: schema,
   skipContextShare: true,
 

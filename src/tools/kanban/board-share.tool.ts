@@ -31,20 +31,20 @@ import { checkRateLimit } from '../../utils/validation.js';
 import { shareBoard, hasPermission } from '../../kanban/index.js';
 
 const schema = z.object({
-  boardId: z.string().min(1).describe('Board ID to share'),
-  workspaceId: z.string().min(1).describe('Workspace ID to share with'),
+  boardId: z.string().min(1).describe('Board ID'),
+  workspaceId: z.string().min(1).describe('Target workspace ID'),
   visibility: z
     .enum(['workspace', 'public'])
     .default('workspace')
-    .describe('Visibility for workspace members'),
-  agentId: z.string().min(1).describe('Agent ID requesting the share (must have permission)'),
+    .describe('Visibility level'),
+  agentId: z.string().min(1).describe('Agent ID (must have permission)'),
 });
 
 type BoardShareArgs = z.infer<typeof schema>;
 
 export const boardShareTool: UnifiedTool = {
   name: 'board-share',
-  description: 'Share a board with a workspace for cross-session access',
+  description: 'Share board with workspace for cross-session access',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

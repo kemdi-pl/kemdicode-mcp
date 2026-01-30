@@ -31,15 +31,15 @@ import { checkRateLimit } from '../../utils/validation.js';
 import { leaveWorkspace } from '../../kanban/index.js';
 
 const schema = z.object({
-  workspaceId: z.string().min(1).describe('Workspace ID to leave'),
-  sessionId: z.string().min(1).describe('Session ID leaving the workspace'),
+  workspaceId: z.string().min(1).describe('Workspace ID'),
+  sessionId: z.string().min(1).describe('Session ID leaving'),
 });
 
 type WorkspaceLeaveArgs = z.infer<typeof schema>;
 
 export const workspaceLeaveTool: UnifiedTool = {
   name: 'workspace-leave',
-  description: 'Remove a session from a workspace',
+  description: 'Remove session from workspace',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

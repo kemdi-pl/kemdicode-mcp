@@ -31,23 +31,23 @@ import { checkRateLimit } from '../../utils/validation.js';
 import { createBoard, addBoardMember } from '../../kanban/index.js';
 
 const schema = z.object({
-  name: z.string().min(1).max(100).describe('Board name (e.g., "frontend", "backend")'),
+  name: z.string().min(1).max(100).describe('Board name'),
   description: z.string().max(500).optional().describe('Board description'),
-  sessionId: z.string().min(1).describe('Origin session ID'),
+  sessionId: z.string().min(1).describe('Session ID'),
   workspaceId: z.string().optional().describe('Workspace ID for cross-session sharing'),
   visibility: z
     .enum(['private', 'workspace', 'public'])
     .default('private')
-    .describe('Board visibility level'),
-  createdBy: z.string().min(1).describe('Agent ID creating the board'),
-  labels: z.array(z.string()).optional().describe('Board-level labels'),
+    .describe('Visibility level'),
+  createdBy: z.string().min(1).describe('Creator agent ID'),
+  labels: z.array(z.string()).optional().describe('Board labels'),
 });
 
 type BoardCreateArgs = z.infer<typeof schema>;
 
 export const boardCreateTool: UnifiedTool = {
   name: 'board-create',
-  description: 'Create a new Kanban board in a session or workspace',
+  description: 'Create Kanban board in session or workspace',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

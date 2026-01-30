@@ -36,24 +36,26 @@ import {
 import { validateEditRequest, formatEditError } from './edit-shared.js';
 
 const schema = z.object({
-  path: z.string().min(1).describe('File path to edit'),
-  startLine: z.number().int().positive().describe('First line to delete (1-based, inclusive)'),
-  endLine: z.number().int().positive().describe('Last line to delete (1-based, inclusive)'),
-  createBackup: z.boolean().default(true).describe('Create .bak backup before editing'),
+  path: z.string().min(1).describe('File path'),
+  startLine: z.number().int().positive().describe('First line to delete (1-based)'),
+  endLine: z.number().int().positive().describe('Last line to delete (1-based)'),
+  createBackup: z.boolean().default(true).describe('Create .bak backup'),
 });
 
 type DeleteLinesArgs = z.infer<typeof schema>;
 
 export const deleteLinesTool: UnifiedTool = {
   name: 'delete-lines',
-  description: 'Delete a range of lines from a file',
+  description: 'Delete line range from file',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
     const { path: inputPath, startLine, endLine, createBackup } = args as DeleteLinesArgs;
 
     // Common validation: rate limit + path
-    const validation = await validateEditRequest('delete-lines', inputPath);
+    const validation = await validateEditRequest('delete-lines', inputPath, {
+      projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
+    });
     if (!validation.ok) return validation.errorResponse;
     const { validatedPath } = validation;
 

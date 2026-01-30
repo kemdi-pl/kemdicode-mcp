@@ -56,6 +56,7 @@ export async function validateEditRequest(
   options: {
     contentLength?: number;
     operation?: 'read' | 'write';
+    projectRoot?: string;
   } = {}
 ): Promise<EarlyValidationResult> {
   const { contentLength, operation = 'write' } = options;
@@ -93,6 +94,7 @@ export async function validateEditRequest(
       requireWithinProject: false,
       allowReadFromBlocked: false,
       operation,
+      projectRoot: options.projectRoot,
     });
     return { ok: true, validatedPath };
   } catch (validationError) {

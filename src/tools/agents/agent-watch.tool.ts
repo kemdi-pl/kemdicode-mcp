@@ -45,7 +45,7 @@ const schema = z.object({
 export const agentWatchTool: UnifiedTool = {
   name: 'agent-watch',
   description:
-    'Monitor agent conversations in real-time. Shows active agents, recent messages, and pending alerts. Subscribes to Redis Pub/Sub for live updates.',
+    'Monitor agent conversations in real-time. Shows agents, messages, alerts.',
   zodSchema: schema,
   skipContextShare: true,
 

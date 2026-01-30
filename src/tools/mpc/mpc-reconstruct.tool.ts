@@ -30,18 +30,17 @@ import { getMpcStore, reconstructSecret, verifyMpcAuthorization } from '../../mp
 const schema = z.object({
   secretId: z.string().describe('Secret ID to reconstruct'),
   sessionId: z.string().describe('Session ID'),
-  requestingAgentId: z.string().describe('Agent ID requesting reconstruction'),
+  requestingAgentId: z.string().describe('Requesting agent ID'),
   agentIds: z
     .array(z.string())
     .optional()
-    .describe('Specific agent IDs to collect shares from (defaults to all holders)'),
+    .describe('Agent IDs to collect shares from'),
 });
 
 export const mpcReconstructTool: UnifiedTool<typeof schema> = {
   name: 'mpc-reconstruct',
   description:
-    'Reconstruct a secret from shares. Requires at least threshold number of shares ' +
-    'from the agents holding them. Only supervisor/coordinator roles can reconstruct.',
+    'Reconstruct secret from shares. Requires threshold shares. Supervisor/coordinator only.',
   zodSchema: schema,
   skipContextShare: true, // Security: don't share reconstructed secrets
 

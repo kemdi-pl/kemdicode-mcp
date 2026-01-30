@@ -319,7 +319,7 @@ function renderActivity(overview: SessionOverview, limit: number): string {
 export const monitorTool: UnifiedTool = {
   name: 'monitor',
   description:
-    'Comprehensive session monitoring tool. Views: overview (summary), agents (detailed status), tasks (kanban boards), hierarchy (tree structure), activity (recent events).',
+    'Session monitoring. Views: overview, agents, tasks, hierarchy, activity.',
   zodSchema: schema,
   skipContextShare: true,
 

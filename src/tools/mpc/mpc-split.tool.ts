@@ -27,35 +27,34 @@ import { UnifiedTool } from '../registry.js';
 import { splitSecret, getMpcStore, verifyMpcAuthorization } from '../../mpc/index.js';
 
 const schema = z.object({
-  secret: z.string().min(1).describe('The secret to split into shares'),
+  secret: z.string().min(1).describe('Secret to split'),
   totalShares: z
     .number()
     .int()
     .min(2)
     .max(255)
-    .describe('Total number of shares to create (2-255)'),
+    .describe('Total shares to create'),
   threshold: z
     .number()
     .int()
     .min(2)
     .max(255)
-    .describe('Minimum shares needed to reconstruct (2-255, must be <= totalShares)'),
-  sessionId: z.string().describe('Session ID for this secret'),
-  creatorAgentId: z.string().describe('Agent ID of the creator'),
-  label: z.string().optional().describe('Human-readable label for the secret'),
-  ttl: z.number().int().positive().optional().describe('Time-to-live in seconds'),
+    .describe('Min shares to reconstruct (must be <= totalShares)'),
+  sessionId: z.string().describe('Session ID'),
+  creatorAgentId: z.string().describe('Creator agent ID'),
+  label: z.string().optional().describe('Secret label'),
+  ttl: z.number().int().positive().optional().describe('TTL in seconds'),
   secretType: z
     .enum(['api-key', 'password', 'private-key', 'generic'])
     .default('generic')
-    .describe('Type of secret for categorization'),
-  tags: z.array(z.string()).optional().describe('Tags for categorization'),
+    .describe('Secret type'),
+  tags: z.array(z.string()).optional().describe('Categorization tags'),
 });
 
 export const mpcSplitTool: UnifiedTool<typeof schema> = {
   name: 'mpc-split',
   description:
-    'Split a secret into n shares with threshold t using Shamir Secret Sharing. ' +
-    'At least t shares are required to reconstruct the original secret.',
+    'Split secret into n shares with threshold t via Shamir Secret Sharing. Requires t shares to reconstruct.',
   zodSchema: schema,
   skipContextShare: true, // Security: don't share secrets to context
 

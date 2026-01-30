@@ -31,21 +31,21 @@ import { checkRateLimit } from '../../utils/validation.js';
 import { addBoardMember, hasPermission, isBoardMember, BoardRole } from '../../kanban/index.js';
 
 const schema = z.object({
-  boardId: z.string().min(1).describe('Board ID to invite to'),
-  agentId: z.string().min(1).describe('Agent ID to invite'),
-  sessionId: z.string().min(1).describe("Invited agent's session ID"),
+  boardId: z.string().min(1).describe('Board ID'),
+  agentId: z.string().min(1).describe('Agent to invite'),
+  sessionId: z.string().min(1).describe('Invited agent session ID'),
   role: z
     .enum(['admin', 'member', 'viewer'])
     .default('member')
-    .describe('Role to assign (owner cannot be invited)'),
-  invitingAgentId: z.string().min(1).describe('Agent ID sending the invite'),
+    .describe('Role (owner cannot be invited)'),
+  invitingAgentId: z.string().min(1).describe('Inviting agent ID'),
 });
 
 type BoardInviteArgs = z.infer<typeof schema>;
 
 export const boardInviteTool: UnifiedTool = {
   name: 'board-invite',
-  description: 'Invite an agent to a board with a specified role',
+  description: 'Invite agent to board with role',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

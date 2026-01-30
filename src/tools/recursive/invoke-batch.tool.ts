@@ -32,22 +32,22 @@ import { checkRateLimit } from '../../utils/validation.js';
 import { invokeBatch, DEFAULT_POLICY } from '../../recursive/index.js';
 
 const operationSchema = z.object({
-  toolName: z.string().min(1).describe('Tool name'),
+  toolName: z.string().min(1).describe('Tool name to execute'),
   args: z.record(z.string(), z.unknown()).describe('Tool arguments'),
-  id: z.string().optional().describe('Operation ID for tracking'),
+  id: z.string().optional().describe('Operation ID for result tracking'),
 });
 
 const schema = z.object({
-  operations: z.array(operationSchema).min(1).max(10).describe('Operations to execute (1-10)'),
+  operations: z.array(operationSchema).min(1).max(10).describe('Operations to execute'),
   agentId: z.string().min(1).describe('Agent ID'),
   sessionId: z.string().min(1).describe('Session ID'),
-  parallel: z.boolean().default(true).describe('Execute in parallel (true) or sequential (false)'),
+  parallel: z.boolean().default(true).describe('Parallel or sequential execution'),
   stopOnError: z.boolean().default(false).describe('Stop on first error (sequential only)'),
 });
 
 export const invokeBatchTool: UnifiedTool = {
   name: 'invoke-batch',
-  description: 'Invoke multiple tools in a batch (parallel or sequential execution)',
+  description: 'Batch invoke multiple tools (parallel or sequential)',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

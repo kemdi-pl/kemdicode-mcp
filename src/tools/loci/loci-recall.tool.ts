@@ -27,17 +27,15 @@ import { UnifiedTool } from '../registry.js';
 import { getLociManager, LOCI_TEMPLATES } from '../../loci/index.js';
 
 const schema = z.object({
-  lociId: z.string().optional().describe('Specific loci ID to recall from'),
+  lociId: z.string().optional().describe('Loci ID to recall from'),
   lociName: z.string().optional().describe('Loci name (alternative to ID)'),
   sessionId: z.string().describe('Session ID'),
-  walkAll: z.boolean().default(false).describe('Walk all loci in the palace'),
+  walkAll: z.boolean().default(false).describe('Walk all loci in palace'),
 });
 
 export const lociRecallTool: UnifiedTool<typeof schema> = {
   name: 'loci-recall',
-  description:
-    'Recall memories from a loci in the memory palace. ' +
-    'Use vivid associations to trigger memory recall.',
+  description: 'Recall memories from memory palace loci using vivid associations.',
   zodSchema: schema,
 
   execute: async (args) => {

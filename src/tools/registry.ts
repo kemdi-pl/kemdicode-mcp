@@ -329,7 +329,31 @@ export function getToolRegistry(): readonly UnifiedTool[] {
  * registerTool(myCustomTool);
  * ```
  */
-export const registerTool = (tool: UnifiedTool): void => registryManager.register(tool);
+/**
+ * Notify connected MCP clients that the tool list has changed.
+ * Lazy-imported to avoid circular dependency with server module.
+ */
+let broadcastToolsChanged: (() => Promise<void>) | null = null;
+
+export const registerTool = (tool: UnifiedTool): void => {
+  const isNew = !registryManager.exists(tool.name);
+  registryManager.register(tool);
+
+  // Broadcast to connected clients if this is a newly registered tool (not during startup)
+  if (isNew && broadcastToolsChanged) {
+    broadcastToolsChanged().catch((err: unknown) => {
+      Logger.warn(`Failed to broadcast tools/list_changed: ${err instanceof Error ? err.message : String(err)}`);
+    });
+  }
+};
+
+/**
+ * Initialize the tools changed broadcast function.
+ * Called after server startup to enable runtime tool registration notifications.
+ */
+export function initToolsBroadcast(broadcastFn: () => Promise<void>): void {
+  broadcastToolsChanged = broadcastFn;
+}
 
 /**
  * Check if a tool exists in the registry

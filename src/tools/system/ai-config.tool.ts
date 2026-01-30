@@ -33,26 +33,22 @@ import { initAIClient, testConnection as testAIConnection } from '../../ai/index
 const schema = z.object({
   action: z
     .enum(['get', 'set', 'set-key', 'list-providers', 'test'])
-    .describe(
-      'Action: get (show current), set (update settings), set-key (set API key securely), list-providers (show available), test (test connection)'
-    ),
+    .describe('Action to perform'),
   apiBaseUrl: z
     .string()
     .url()
     .optional()
-    .describe(
-      'API base URL (e.g., https://api.openai.com/v1, https://integrate.api.nvidia.com/v1)'
-    ),
+    .describe('API base URL'),
   primaryModel: z
     .string()
     .optional()
-    .describe('Primary model ID (e.g., gpt-4o, moonshotai/kimi-k2.5)'),
-  fallbackModel: z.string().optional().describe('Fallback model ID for quota errors'),
-  apiKey: z.string().optional().describe('API key (use set-key action for secure storage)'),
+    .describe('Primary model ID'),
+  fallbackModel: z.string().optional().describe('Fallback model ID'),
+  apiKey: z.string().optional().describe('API key'),
   provider: z
     .string()
     .optional()
-    .describe('Provider name for presets (openai, nvidia, anthropic, openrouter, local)'),
+    .describe('Provider preset name'),
 });
 
 /**
@@ -247,8 +243,7 @@ async function testConnectionHandler(): Promise<string> {
  */
 export const aiConfigTool: UnifiedTool = {
   name: 'ai-config',
-  description:
-    'Manage AI provider settings (API URL, model, API key). Saves to .kemdicode-mcp.json. Actions: get, set, set-key, list-providers, test. Providers: openai, nvidia, anthropic, openrouter, local',
+  description: 'Manage AI provider settings (URL, model, key). Saves to .kemdicode-mcp.json',
   zodSchema: schema,
   prompt: {
     description: 'Configure AI provider settings (API URL, model, API key)',

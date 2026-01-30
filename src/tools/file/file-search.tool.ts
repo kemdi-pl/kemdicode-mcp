@@ -46,47 +46,47 @@ const SEARCH_TIMEOUT = 30_000;
 
 const schema = z.object({
   pattern: z.string().min(1).describe('Search pattern (regex supported)'),
-  path: z.string().default('.').describe('Directory or file to search in'),
-  type: z.string().optional().describe('File type filter (e.g., "ts", "py", "js")'),
+  path: z.string().default('.').describe('Search path'),
+  type: z.string().optional().describe('File type filter'),
   glob: z
     .string()
     .optional()
-    .describe('Glob pattern to filter files (e.g., "*.ts", "src/**/*.js")'),
-  ignoreCase: z.boolean().default(false).describe('Case-insensitive search'),
-  wholeWord: z.boolean().default(false).describe('Match whole words only'),
+    .describe('Glob pattern to filter files'),
+  ignoreCase: z.boolean().default(false).describe('Case-insensitive'),
+  wholeWord: z.boolean().default(false).describe('Whole words only'),
   contextBefore: z
     .number()
     .int()
     .min(0)
     .max(10)
     .default(0)
-    .describe('Lines of context before match (-B)'),
+    .describe('Context lines before'),
   contextAfter: z
     .number()
     .int()
     .min(0)
     .max(10)
     .default(0)
-    .describe('Lines of context after match (-A)'),
+    .describe('Context lines after'),
   context: z
     .number()
     .int()
     .min(0)
     .max(10)
     .optional()
-    .describe('Lines of context before and after (-C)'),
+    .describe('Context lines before and after'),
   maxMatches: z
     .number()
     .int()
     .positive()
     .default(MAX_MATCHES)
-    .describe('Maximum number of matches'),
-  hidden: z.boolean().default(false).describe('Search hidden files and directories'),
-  followSymlinks: z.boolean().default(false).describe('Follow symbolic links'),
-  fixedStrings: z.boolean().default(false).describe('Treat pattern as literal string, not regex'),
+    .describe('Max matches'),
+  hidden: z.boolean().default(false).describe('Search hidden files'),
+  followSymlinks: z.boolean().default(false).describe('Follow symlinks'),
+  fixedStrings: z.boolean().default(false).describe('Literal string, not regex'),
   invertMatch: z.boolean().default(false).describe('Show non-matching lines'),
-  filesWithMatches: z.boolean().default(false).describe('Only show file names with matches'),
-  count: z.boolean().default(false).describe('Only show count of matches per file'),
+  filesWithMatches: z.boolean().default(false).describe('Show only file names'),
+  count: z.boolean().default(false).describe('Show match count per file'),
 });
 
 type FileSearchArgs = z.infer<typeof schema>;
@@ -255,8 +255,7 @@ function logSecurityEvent(eventType: string, details: Record<string, unknown>): 
 
 export const fileSearchTool: UnifiedTool = {
   name: 'file-search',
-  description:
-    'Fast file content search using ripgrep with regex, file type filters, and context lines',
+  description: 'Ripgrep file search with regex, type filters, and context',
   zodSchema: schema,
   skipContextShare: true, // Search results may be large
 
@@ -321,6 +320,7 @@ export const fileSearchTool: UnifiedTool = {
         requireWithinProject: false, // Allow searching any accessible directory
         allowReadFromBlocked: true, // Allow reading from more places for search
         operation: 'search',
+        projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
       });
     } catch (validationError) {
       if (validationError instanceof ValidationError) {

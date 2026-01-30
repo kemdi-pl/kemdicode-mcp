@@ -34,16 +34,16 @@ import { fromNodeError, formatErrorResponse } from '../../utils/errors.js';
 import { validatePath, ValidationError, checkRateLimit } from '../../utils/validation.js';
 
 const schema = z.object({
-  path: z.string().min(1).describe('File path to write'),
-  content: z.string().describe('Content to write to the file'),
-  createBackup: z.boolean().default(true).describe('Create .bak backup of existing file'),
-  createDirs: z.boolean().default(true).describe('Create parent directories if they do not exist'),
-  append: z.boolean().default(false).describe('Append to file instead of overwriting'),
+  path: z.string().min(1).describe('File path'),
+  content: z.string().describe('Content to write'),
+  createBackup: z.boolean().default(true).describe('Create .bak backup'),
+  createDirs: z.boolean().default(true).describe('Create parent dirs'),
+  append: z.boolean().default(false).describe('Append instead of overwrite'),
   encoding: z
     .enum(['utf-8', 'utf-16', 'ascii', 'latin1'])
     .default('utf-8')
-    .describe('File encoding'),
-  mode: z.string().optional().describe('File permissions (e.g., "0644")'),
+    .describe('Encoding'),
+  mode: z.string().optional().describe('File permissions'),
 });
 
 type FileWriteArgs = z.infer<typeof schema>;
@@ -99,7 +99,7 @@ const MAX_CONTENT_SIZE = 10 * 1024 * 1024;
 
 export const fileWriteTool: UnifiedTool = {
   name: 'file-write',
-  description: 'Write file with automatic backup, directory creation, and append mode',
+  description: 'Write file with backup, dir creation, and append mode',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
@@ -141,6 +141,7 @@ export const fileWriteTool: UnifiedTool = {
         requireWithinProject: false, // Allow writing anywhere (except system dirs)
         allowReadFromBlocked: false, // Strict mode for writes
         operation: 'write',
+        projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
       });
     } catch (validationError) {
       if (validationError instanceof ValidationError) {

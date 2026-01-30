@@ -80,14 +80,14 @@ const PACKAGE_MANAGERS: PackageManager[] = [
 ];
 
 const schema = z.object({
-  script: z.string().min(1).describe('Script name to execute (e.g., "build", "test", "dev")'),
-  cwd: z.string().optional().describe('Working directory (defaults to current directory)'),
-  args: z.string().optional().describe('Additional arguments to pass to the script'),
-  timeout: z.number().default(300000).describe('Timeout in milliseconds (default: 5 minutes)'),
+  script: z.string().min(1).describe('Script name to execute'),
+  cwd: z.string().optional().describe('Working directory'),
+  args: z.string().optional().describe('Extra arguments for script'),
+  timeout: z.number().default(300000).describe('Timeout ms'),
   packageManager: z
     .enum(['auto', 'npm', 'yarn', 'pnpm', 'composer'])
     .default('auto')
-    .describe('Package manager to use'),
+    .describe('Package manager'),
 });
 
 /**
@@ -150,7 +150,7 @@ async function executeScript(
 
 export const runScriptTool: UnifiedTool = {
   name: 'run-script',
-  description: 'Execute npm/yarn/pnpm/composer scripts with streaming output',
+  description: 'Execute npm/yarn/pnpm/composer scripts with streaming',
   zodSchema: schema,
   execute: async (args, onProgress) => {
     const script = String(args.script);

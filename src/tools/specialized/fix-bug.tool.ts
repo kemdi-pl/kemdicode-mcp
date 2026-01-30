@@ -23,15 +23,15 @@ import { getEnhancedContextString } from '../../utils/projectContext.enhanced.js
 import { recordSuggestion } from '../../context/feedback-loop.js';
 
 const schema = z.object({
-  files: z.string().describe('Files with the bug (use @path/file.php syntax)'),
-  description: z.string().describe('Bug description - what happens vs what should happen'),
+  files: z.string().describe('Files with the bug (@path/file syntax)'),
+  description: z.string().describe('What happens vs expected behavior'),
   errorLog: z.string().optional().describe('Stack trace or error log'),
   steps: z.string().optional().describe('Steps to reproduce'),
 });
 
 export const fixBugTool: UnifiedTool = {
   name: 'fix-bug',
-  description: 'Bug analysis and fix - root cause analysis, fix proposal, prevention',
+  description: 'Bug analysis and fix - root cause, fix proposal, prevention',
   zodSchema: schema,
   prompt: { description: 'Find and fix bugs in PHP/Laravel code' },
   execute: async (args, onProgress) => {

@@ -64,15 +64,15 @@ interface TestResults {
 }
 
 const schema = z.object({
-  cwd: z.string().optional().describe('Working directory (defaults to current directory)'),
+  cwd: z.string().optional().describe('Working directory'),
   framework: z
     .enum(['auto', 'jest', 'vitest', 'mocha', 'phpunit', 'pytest', 'go'])
     .default('auto')
-    .describe('Test framework to use'),
+    .describe('Test framework'),
   filter: z.string().optional().describe('Filter tests by name pattern'),
   coverage: z.boolean().default(false).describe('Generate coverage report'),
-  timeout: z.number().default(300000).describe('Timeout in milliseconds (default: 5 minutes)'),
-  watch: z.boolean().default(false).describe('Run in watch mode (if supported)'),
+  timeout: z.number().default(300000).describe('Timeout ms'),
+  watch: z.boolean().default(false).describe('Watch mode'),
 });
 
 /**
@@ -409,7 +409,7 @@ function formatResults(output: string, results: TestResults, frameworkName: stri
 
 export const runTestsTool: UnifiedTool = {
   name: 'run-tests',
-  description: 'Run tests with Jest, Vitest, PHPUnit, pytest, or Go test',
+  description: 'Run tests (Jest, Vitest, PHPUnit, pytest, Go)',
   zodSchema: schema,
   execute: async (args, onProgress) => {
     const cwd = getCwd(args.cwd as string | undefined);

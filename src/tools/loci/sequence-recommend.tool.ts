@@ -29,15 +29,13 @@ import { getSequenceTracker } from '../../loci/index.js';
 const schema = z.object({
   agentId: z.string().describe('Agent ID'),
   sessionId: z.string().describe('Session ID'),
-  showPatterns: z.boolean().default(false).describe('Show learned patterns'),
-  showTransitions: z.boolean().default(false).describe('Show transition statistics'),
+  showPatterns: z.boolean().default(false).describe('Include learned patterns'),
+  showTransitions: z.boolean().default(false).describe('Include transition stats'),
 });
 
 export const sequenceRecommendTool: UnifiedTool<typeof schema> = {
   name: 'sequence-recommend',
-  description:
-    'Get tool recommendations based on learned execution patterns. ' +
-    'Uses historical data to suggest the most effective next tool.',
+  description: 'Get tool recommendations based on learned execution patterns.',
   zodSchema: schema,
 
   execute: async (args) => {

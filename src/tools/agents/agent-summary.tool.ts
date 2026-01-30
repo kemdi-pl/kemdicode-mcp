@@ -54,8 +54,7 @@ interface SummaryResult {
 
 export const agentSummaryTool: UnifiedTool = {
   name: 'agent-summary',
-  description:
-    'Report agent activity for 1-N agents. Pass summaries array (1-20) to update progress and status.',
+  description: 'Report agent activity (1-20). Update progress and status.',
   zodSchema: schema,
   skipContextShare: true,
 

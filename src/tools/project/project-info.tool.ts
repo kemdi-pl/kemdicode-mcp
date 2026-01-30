@@ -64,9 +64,9 @@ interface ProjectInfo {
 }
 
 const schema = z.object({
-  cwd: z.string().optional().describe('Project directory (defaults to current working directory)'),
-  includeDevDeps: z.boolean().default(true).describe('Include development dependencies'),
-  includeScripts: z.boolean().default(true).describe('Include available scripts'),
+  cwd: z.string().optional().describe('Project directory'),
+  includeDevDeps: z.boolean().default(true).describe('Include dev dependencies'),
+  includeScripts: z.boolean().default(true).describe('Include scripts'),
 });
 
 /**
@@ -413,8 +413,7 @@ function formatProjectInfo(info: ProjectInfo, includeScripts: boolean): string {
 
 export const projectInfoTool: UnifiedTool = {
   name: 'project-info',
-  description:
-    'Get project metadata (name, version, dependencies) from package.json/composer.json/Cargo.toml',
+  description: 'Get project metadata from package.json/composer.json/Cargo.toml',
   zodSchema: schema,
   skipContextShare: true,
   execute: async (args) => {

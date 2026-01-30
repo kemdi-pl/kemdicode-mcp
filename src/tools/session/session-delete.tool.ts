@@ -30,14 +30,13 @@ import { getCurrentSessionId, clearCurrentSession } from '../../context/integrat
 
 const schema = z.object({
   sessionId: z.string().describe('Session ID to delete'),
-  clearContext: z.boolean().default(false).describe('Also clear all context data for this session'),
-  force: z.boolean().default(false).describe('Skip confirmation (required if session has agents)'),
+  clearContext: z.boolean().default(false).describe('Clear context data too'),
+  force: z.boolean().default(false).describe('Skip confirmation'),
 });
 
 export const sessionDeleteTool: UnifiedTool<typeof schema> = {
   name: 'session-delete',
-  description:
-    'Delete a session. Use with caution - this removes session configuration and optionally all context data.',
+  description: 'Delete session and optionally its context data',
   zodSchema: schema,
   skipContextShare: true,
 

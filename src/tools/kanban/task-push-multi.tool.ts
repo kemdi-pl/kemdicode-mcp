@@ -34,35 +34,35 @@ import { getTask, createTask, assignTask, TaskPriority } from '../../kanban/inde
 /** Target agent specification */
 const targetAgentSchema = z.object({
   agentId: z.string().min(1).describe('Target agent ID'),
-  sessionId: z.string().min(1).describe("Target agent's session ID"),
+  sessionId: z.string().min(1).describe('Target agent session ID'),
 });
 
 const schema = z.object({
-  taskId: z.string().optional().describe('Existing task ID to push (for assign/notify modes)'),
+  taskId: z.string().optional().describe('Existing task ID (required for assign/notify)'),
   taskData: z
     .object({
       title: z.string().min(1).max(200).describe('Task title'),
-      description: z.string().optional().describe('Task description'),
+      description: z.string().optional().describe('Description'),
       priority: z.enum(['critical', 'high', 'normal', 'low']).default('normal'),
       labels: z.array(z.string()).optional(),
       relatedFiles: z.array(z.string()).optional(),
       estimatedMinutes: z.number().positive().optional(),
     })
     .optional()
-    .describe('Task data for clone mode (creates new tasks)'),
+    .describe('Task data for clone mode'),
   targetAgents: z
     .array(targetAgentSchema)
     .min(1)
     .max(20)
-    .describe('Target agents to receive the task'),
+    .describe('Target agents (1-20)'),
   mode: z
     .enum(['assign', 'clone', 'notify'])
     .describe(
-      'Push mode: assign (assign single task to one agent), clone (create copies for each agent), notify (alert agents about task)'
+      'assign=single task to one agent, clone=copy per agent, notify=alert only'
     ),
-  supervisorId: z.string().min(1).describe('Supervisor agent ID making the push'),
-  sessionId: z.string().min(1).describe("Supervisor's session ID"),
-  boardId: z.string().optional().describe('Board ID for new tasks (clone mode)'),
+  supervisorId: z.string().min(1).describe('Supervisor agent ID'),
+  sessionId: z.string().min(1).describe('Supervisor session ID'),
+  boardId: z.string().optional().describe('Board ID for clone mode'),
 });
 
 type TaskPushMultiArgs = z.infer<typeof schema>;
@@ -91,7 +91,7 @@ async function notifyAgents(
 
 export const taskPushMultiTool: UnifiedTool = {
   name: 'task-push-multi',
-  description: 'Push a task to multiple agents (assign single task, clone for each, or notify all)',
+  description: 'Push task to multiple agents (assign/clone/notify)',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

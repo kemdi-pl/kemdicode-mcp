@@ -54,8 +54,7 @@ interface RegisteredAgent {
 
 export const agentRegisterTool: UnifiedTool = {
   name: 'agent-register',
-  description:
-    'Register 1-N agents at once. Pass an array of agent definitions (1-20). Returns all agent IDs.',
+  description: 'Register agents (1-20). Returns agent IDs.',
   zodSchema: schema,
   skipContextShare: true,
 

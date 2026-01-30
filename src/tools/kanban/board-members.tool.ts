@@ -38,20 +38,20 @@ import {
 
 const schema = z.object({
   boardId: z.string().min(1).describe('Board ID'),
-  action: z.enum(['list', 'update-role', 'remove']).default('list').describe('Action to perform'),
-  targetAgentId: z.string().optional().describe('Agent ID to modify (for update-role/remove)'),
+  action: z.enum(['list', 'update-role', 'remove']).default('list').describe('Action'),
+  targetAgentId: z.string().optional().describe('Agent to modify (for update-role/remove)'),
   newRole: z
     .enum(['owner', 'admin', 'member', 'viewer'])
     .optional()
     .describe('New role (for update-role)'),
-  requestingAgentId: z.string().min(1).describe('Agent ID making the request'),
+  requestingAgentId: z.string().min(1).describe('Requesting agent ID'),
 });
 
 type BoardMembersArgs = z.infer<typeof schema>;
 
 export const boardMembersTool: UnifiedTool = {
   name: 'board-members',
-  description: 'List and manage board membership (roles and permissions)',
+  description: 'Manage board membership and roles',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

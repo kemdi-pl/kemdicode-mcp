@@ -35,32 +35,32 @@ import {
 } from '../../utils/git-utils.js';
 
 const schema = z.object({
-  file: z.string().min(1).describe('File path to blame (required)'),
-  cwd: z.string().optional().describe('Working directory path (defaults to current directory)'),
-  lineStart: z.number().min(1).optional().describe('Start line number for range'),
-  lineEnd: z.number().min(1).optional().describe('End line number for range'),
-  showEmail: z.boolean().default(false).describe('Show author email instead of name'),
-  showDate: z.boolean().default(true).describe('Show commit date'),
+  file: z.string().min(1).describe('File path to blame'),
+  cwd: z.string().optional().describe('Working directory'),
+  lineStart: z.number().min(1).optional().describe('Start line'),
+  lineEnd: z.number().min(1).optional().describe('End line'),
+  showEmail: z.boolean().default(false).describe('Show email instead of name'),
+  showDate: z.boolean().default(true).describe('Show date'),
   dateFormat: z
     .enum(['relative', 'local', 'iso', 'short', 'human'])
     .default('short')
-    .describe('Date format (relative, local, iso, short, human)'),
-  ignoreWhitespace: z.boolean().default(false).describe('Ignore whitespace changes'),
+    .describe('Date format'),
+  ignoreWhitespace: z.boolean().default(false).describe('Ignore whitespace'),
   ignoreRevs: z
     .string()
     .optional()
-    .describe('Ignore commits from this file (e.g., .git-blame-ignore-revs)'),
+    .describe('Ignore-revs file path'),
   showMovement: z
     .boolean()
     .default(false)
-    .describe('Show line movement from other files (-C -C -C)'),
-  rev: z.string().optional().describe('Blame at specific revision (commit SHA or ref)'),
-  porcelain: z.boolean().default(false).describe('Machine-readable output format'),
+    .describe('Detect line movement across files'),
+  rev: z.string().optional().describe('Blame at specific revision'),
+  porcelain: z.boolean().default(false).describe('Machine-readable output'),
 });
 
 export const gitBlameTool: UnifiedTool = {
   name: 'git-blame',
-  description: 'Show line-by-line git history for a file with author, date, and commit info',
+  description: 'Line-by-line git blame with author and commit info',
   zodSchema: schema,
   skipContextShare: true,
   execute: async (args) => {

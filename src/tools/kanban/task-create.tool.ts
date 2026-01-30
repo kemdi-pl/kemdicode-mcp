@@ -32,22 +32,22 @@ import { createTask, TaskPriority } from '../../kanban/index.js';
 
 const taskSchema = z.object({
   title: z.string().min(1).max(200).describe('Task title'),
-  description: z.string().optional().describe('Detailed task description'),
+  description: z.string().optional().describe('Task description'),
   priority: z
     .enum(['critical', 'high', 'normal', 'low'])
     .default('normal')
-    .describe('Task priority'),
-  boardId: z.string().optional().describe('Board ID (uses default board if not specified)'),
-  blockedBy: z.array(z.string()).optional().describe('Task IDs that block this task'),
+    .describe('Priority level'),
+  boardId: z.string().optional().describe('Board ID (default board if omitted)'),
+  blockedBy: z.array(z.string()).optional().describe('Blocking task IDs'),
   relatedFiles: z.array(z.string()).optional().describe('Related file paths'),
-  labels: z.array(z.string()).optional().describe('Task labels for categorization'),
-  estimatedMinutes: z.number().positive().optional().describe('Estimated time in minutes'),
+  labels: z.array(z.string()).optional().describe('Labels for categorization'),
+  estimatedMinutes: z.number().positive().optional().describe('Time estimate in minutes'),
 });
 
 const schema = z.object({
-  tasks: z.array(taskSchema).min(1).max(20).describe('Array of tasks to create (1-20)'),
-  sessionId: z.string().min(1).describe('Session ID for all tasks'),
-  createdBy: z.string().min(1).describe('Agent ID creating the tasks'),
+  tasks: z.array(taskSchema).min(1).max(20).describe('Tasks to create (1-20)'),
+  sessionId: z.string().min(1).describe('Session ID'),
+  createdBy: z.string().min(1).describe('Creator agent ID'),
 });
 
 type TaskCreateArgs = z.infer<typeof schema>;
@@ -63,8 +63,7 @@ interface CreateResult {
 
 export const taskCreateTool: UnifiedTool = {
   name: 'task-create',
-  description:
-    'Create 1-N tasks on the Kanban board. Pass tasks array (1-20) to create multiple tasks at once.',
+  description: 'Batch create 1-20 tasks on Kanban board',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

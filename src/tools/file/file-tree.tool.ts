@@ -118,32 +118,32 @@ const DEFAULT_IGNORE_PATTERNS = [
 ];
 
 const schema = z.object({
-  path: z.string().default('.').describe('Directory path to list'),
+  path: z.string().default('.').describe('Directory path'),
   maxDepth: z
     .number()
     .int()
     .min(1)
     .max(20)
     .default(DEFAULT_MAX_DEPTH)
-    .describe('Maximum depth to traverse'),
-  showHidden: z.boolean().default(false).describe('Include hidden files (starting with .)'),
+    .describe('Max depth'),
+  showHidden: z.boolean().default(false).describe('Include hidden files'),
   showSize: z.boolean().default(false).describe('Include file sizes'),
-  showIcons: z.boolean().default(true).describe('Show file type icons'),
-  ignorePatterns: z.array(z.string()).optional().describe('Patterns to ignore (glob-style)'),
+  showIcons: z.boolean().default(true).describe('Show type icons'),
+  ignorePatterns: z.array(z.string()).optional().describe('Glob patterns to ignore'),
   includePatterns: z
     .array(z.string())
     .optional()
-    .describe('Only include files matching these patterns'),
-  gitignore: z.boolean().default(true).describe('Respect .gitignore rules'),
-  dirsOnly: z.boolean().default(false).describe('Show only directories'),
-  filesOnly: z.boolean().default(false).describe('Show only files'),
-  sortBy: z.enum(['name', 'size', 'modified', 'type']).default('name').describe('Sort entries by'),
+    .describe('Only include matching patterns'),
+  gitignore: z.boolean().default(true).describe('Respect .gitignore'),
+  dirsOnly: z.boolean().default(false).describe('Directories only'),
+  filesOnly: z.boolean().default(false).describe('Files only'),
+  sortBy: z.enum(['name', 'size', 'modified', 'type']).default('name').describe('Sort by'),
   maxEntries: z
     .number()
     .int()
     .min(-1)
     .default(MAX_ENTRIES)
-    .describe('Maximum entries to return (-1 for default)')
+    .describe('Max entries')
 });
 
 type FileTreeArgs = z.infer<typeof schema>;
@@ -396,8 +396,7 @@ function formatTreeString(entry: TreeEntry, prefix = '', isLast = true, visited 
 
 export const fileTreeTool: UnifiedTool<typeof schema> = {
   name: 'file-tree',
-  description:
-    'Generate directory tree with depth limits, ignore patterns, file icons, and size info',
+  description: 'Generate directory tree with depth, icons, and size info',
   zodSchema: schema,
   skipContextShare: true, // Tree output may be large
 
@@ -419,6 +418,7 @@ export const fileTreeTool: UnifiedTool<typeof schema> = {
         allowSymlinks: false,
         requireWithinProject: true,
         operation: 'read',
+        projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
       });
 
       // Build ignore patterns

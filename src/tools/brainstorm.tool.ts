@@ -30,20 +30,20 @@ const METHODOLOGIES: Record<string, string> = {
 };
 
 const schema = z.object({
-  prompt: z.string().min(1).describe('Brainstorming challenge or question'),
+  prompt: z.string().min(1).describe('Challenge or question'),
   model: z.string().optional().describe('Model override'),
   methodology: z
     .enum(['divergent', 'convergent', 'scamper', 'design-thinking', 'lateral', 'auto'])
     .default('auto'),
-  domain: z.string().optional().describe('Domain context (e.g., software, business, creative)'),
-  constraints: z.string().optional().describe('Known limitations or requirements'),
-  ideaCount: z.number().int().positive().default(12).describe('Target number of ideas'),
+  domain: z.string().optional().describe('Domain context'),
+  constraints: z.string().optional().describe('Known limitations'),
+  ideaCount: z.number().int().positive().default(12).describe('Target idea count'),
   includeAnalysis: z.boolean().default(true).describe('Include feasibility/impact analysis'),
 });
 
 export const brainstormTool: UnifiedTool = {
   name: 'brainstorm',
-  description: 'Generate ideas with creative frameworks (SCAMPER, Design Thinking, etc.)',
+  description: 'Generate ideas with creative frameworks (SCAMPER, Design Thinking)',
   zodSchema: schema,
   prompt: { description: 'Creative ideation with methodology-driven approach' },
   execute: async (args, onProgress) => {

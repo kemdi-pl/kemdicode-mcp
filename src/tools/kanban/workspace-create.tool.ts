@@ -33,19 +33,19 @@ import { createWorkspace } from '../../kanban/index.js';
 const schema = z.object({
   name: z.string().min(1).max(100).describe('Workspace name'),
   description: z.string().max(500).optional().describe('Workspace description'),
-  ownerSessionId: z.string().min(1).describe('Session ID of the workspace creator'),
-  ownerId: z.string().min(1).describe('Agent ID of the workspace creator'),
+  ownerSessionId: z.string().min(1).describe('Creator session ID'),
+  ownerId: z.string().min(1).describe('Creator agent ID'),
   initialMemberSessions: z
     .array(z.string())
     .optional()
-    .describe('Additional session IDs to invite immediately'),
+    .describe('Session IDs to invite immediately'),
 });
 
 type WorkspaceCreateArgs = z.infer<typeof schema>;
 
 export const workspaceCreateTool: UnifiedTool = {
   name: 'workspace-create',
-  description: 'Create a new workspace for cross-session board sharing',
+  description: 'Create workspace for cross-session board sharing',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

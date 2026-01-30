@@ -34,13 +34,13 @@ const FOCUS_MAP: Record<string, string> = {
 };
 
 const schema = z.object({
-  files: z.string().describe('Files to fix (use @path/file.php syntax)'),
+  files: z.string().describe('Files to fix (@path/file syntax)'),
   focus: z.enum(['security', 'performance', 'quality', 'all']).default('all'),
   severity: z
     .enum(['critical', 'all'])
     .default('critical')
-    .describe('critical = only urgent fixes'),
-  dryRun: z.boolean().default(false).describe('true = show changes without applying'),
+    .describe('critical = urgent fixes only'),
+  dryRun: z.boolean().default(false).describe('Preview changes without applying'),
 });
 
 interface FixEdit {
@@ -120,8 +120,7 @@ function parseAIEdits(response: string): FixEdit[] {
 
 export const autoFixTool: UnifiedTool = {
   name: 'auto-fix',
-  description:
-    'Automatic code fixes - security, performance, quality. Can apply changes or show dry-run.',
+  description: 'Automatic code fixes with apply or dry-run mode',
   zodSchema: schema,
   prompt: { description: 'Auto-fix code issues' },
   execute: async (args, onProgress) => {

@@ -30,21 +30,20 @@ import { UnifiedTool } from '../registry.js';
 import { execGit, validateGitRepo, formatGitError } from '../../utils/git-utils.js';
 
 const schema = z.object({
-  cwd: z.string().optional().describe('Working directory path (defaults to current directory)'),
-  short: z.boolean().default(false).describe('Show short format output'),
-  branch: z.boolean().default(true).describe('Show branch and tracking info'),
-  showStash: z.boolean().default(false).describe('Show stash information'),
+  cwd: z.string().optional().describe('Working directory'),
+  short: z.boolean().default(false).describe('Short format'),
+  branch: z.boolean().default(true).describe('Show branch info'),
+  showStash: z.boolean().default(false).describe('Show stash info'),
   ignored: z.boolean().default(false).describe('Show ignored files'),
   untracked: z
     .enum(['no', 'normal', 'all'])
     .default('normal')
-    .describe('Show untracked files (no, normal, all)'),
+    .describe('Untracked files mode'),
 });
 
 export const gitStatusTool: UnifiedTool = {
   name: 'git-status',
-  description:
-    'Get current git repository status including changed files, staged, untracked, and branch info',
+  description: 'Git repo status: changed, staged, untracked files and branch',
   zodSchema: schema,
   skipContextShare: true, // Git tools are utility tools, skip context sharing
   execute: async (args) => {

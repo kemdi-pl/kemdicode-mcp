@@ -32,20 +32,20 @@ import { checkRateLimit } from '../../utils/validation.js';
 import { invokeTool, checkSafety, DEFAULT_POLICY } from '../../recursive/index.js';
 
 const schema = z.object({
-  toolName: z.string().min(1).describe('Name of the tool to invoke'),
-  args: z.record(z.string(), z.unknown()).describe('Arguments to pass to the tool'),
-  agentId: z.string().min(1).describe('Agent ID making the invocation'),
+  toolName: z.string().min(1).describe('Tool name to invoke'),
+  args: z.record(z.string(), z.unknown()).describe('Tool arguments'),
+  agentId: z.string().min(1).describe('Agent ID'),
   sessionId: z.string().min(1).describe('Session ID'),
-  reason: z.string().optional().describe('Reason for invoking this tool'),
+  reason: z.string().optional().describe('Invocation reason'),
   dryRun: z
     .boolean()
     .default(false)
-    .describe('Check if invocation would be allowed without executing'),
+    .describe('Check permission without executing'),
 });
 
 export const invokeToolTool: UnifiedTool = {
   name: 'invoke-tool',
-  description: 'Invoke another MCP tool from within an agent context (recursive tool usage)',
+  description: 'Invoke MCP tool from agent context (recursive invocation)',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

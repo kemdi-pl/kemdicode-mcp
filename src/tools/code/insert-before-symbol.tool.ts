@@ -37,21 +37,21 @@ import {
 } from './symbol-search.js';
 
 const schema = z.object({
-  symbol: z.string().min(1).describe('Symbol name to find'),
-  content: z.string().describe('Content to insert before the symbol'),
-  path: z.string().optional().describe('File or directory to search in'),
+  symbol: z.string().min(1).describe('Symbol name'),
+  content: z.string().describe('Content to insert before symbol'),
+  path: z.string().optional().describe('Search path'),
   language: z
     .enum(['ts', 'php', 'py', 'go', 'rs', 'auto'])
     .default('auto')
     .describe('Target language'),
-  createBackup: z.boolean().default(true).describe('Create backup before editing'),
+  createBackup: z.boolean().default(true).describe('Create backup'),
 });
 
 type InsertBeforeSymbolArgs = z.infer<typeof schema>;
 
 export const insertBeforeSymbolTool: UnifiedTool = {
   name: 'insert-before-symbol',
-  description: 'Insert content before a symbol definition (class, function, etc.)',
+  description: 'Insert content before symbol definition',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
@@ -106,6 +106,7 @@ export const insertBeforeSymbolTool: UnifiedTool = {
           allowSymlinks: false,
           requireWithinProject: false,
           operation: 'write',
+          projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
         });
       } catch (validationError) {
         if (validationError instanceof ValidationError) {

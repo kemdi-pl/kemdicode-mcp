@@ -59,11 +59,11 @@ function getProjectId(): string {
 }
 
 const schema = z.object({
-  name: z.string().min(1).describe('Memory name to edit'),
-  content: z.string().optional().describe('New content (replaces existing)'),
-  appendContent: z.string().optional().describe('Content to append to existing'),
-  prependContent: z.string().optional().describe('Content to prepend to existing'),
-  tags: z.array(z.string()).optional().describe('New tags (replaces existing)'),
+  name: z.string().min(1).describe('Memory name'),
+  content: z.string().optional().describe('Replacement content'),
+  appendContent: z.string().optional().describe('Content to append'),
+  prependContent: z.string().optional().describe('Content to prepend'),
+  tags: z.array(z.string()).optional().describe('Replacement tags'),
   addTags: z.array(z.string()).optional().describe('Tags to add'),
   removeTags: z.array(z.string()).optional().describe('Tags to remove'),
 });
@@ -72,7 +72,7 @@ type EditMemoryArgs = z.infer<typeof schema>;
 
 export const editMemoryTool: UnifiedTool = {
   name: 'edit-memory',
-  description: 'Edit an existing memory (update content, append, modify tags)',
+  description: 'Edit existing memory content or tags',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

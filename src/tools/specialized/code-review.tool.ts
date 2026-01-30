@@ -35,11 +35,11 @@ const FOCUS_PROMPTS: Record<string, string> = {
 };
 
 const schema = z.object({
-  files: z.string().describe('Files to review (use @path/file syntax)'),
+  files: z.string().describe('Files to review (@path/file syntax)'),
   focus: z.enum(['security', 'performance', 'quality', 'all']).default('all'),
-  severity: z.enum(['critical', 'all']).default('all').describe('critical = only urgent issues'),
-  concise: z.boolean().default(false).describe('Short descriptions, no verbose explanations'),
-  withDeps: z.boolean().default(false).describe('Analyze dependencies (imports, DI)'),
+  severity: z.enum(['critical', 'all']).default('all').describe('critical = urgent issues only'),
+  concise: z.boolean().default(false).describe('Short descriptions only'),
+  withDeps: z.boolean().default(false).describe('Analyze imports and DI'),
   continueSession: z.boolean().default(false).describe('Continue last session'),
 });
 

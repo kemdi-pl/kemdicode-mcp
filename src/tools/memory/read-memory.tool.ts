@@ -54,14 +54,14 @@ function getProjectId(): string {
 }
 
 const schema = z.object({
-  name: z.string().min(1).describe('Memory name to retrieve'),
+  name: z.string().min(1).describe('Memory name'),
 });
 
 type ReadMemoryArgs = z.infer<typeof schema>;
 
 export const readMemoryTool: UnifiedTool = {
   name: 'read-memory',
-  description: 'Retrieve a named memory from the current project',
+  description: 'Retrieve named memory from current project',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

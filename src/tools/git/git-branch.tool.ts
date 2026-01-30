@@ -36,27 +36,27 @@ import {
 } from '../../utils/git-utils.js';
 
 const schema = z.object({
-  cwd: z.string().optional().describe('Working directory path (defaults to current directory)'),
+  cwd: z.string().optional().describe('Working directory'),
   action: z
     .enum(['list', 'create', 'delete', 'rename', 'current'])
     .default('list')
-    .describe('Action: list, create, delete, rename, or current'),
+    .describe('Action to perform'),
   name: z.string().optional().describe('Branch name (required for create/delete/rename)'),
-  newName: z.string().optional().describe('New branch name (required for rename)'),
-  all: z.boolean().default(false).describe('List all branches including remotes'),
-  remotes: z.boolean().default(false).describe('List only remote branches'),
-  verbose: z.boolean().default(false).describe('Show commit message and tracking info'),
-  merged: z.boolean().optional().describe('List only merged branches (with list action)'),
-  noMerged: z.boolean().optional().describe('List only unmerged branches (with list action)'),
-  force: z.boolean().default(false).describe('Force delete even if not merged'),
-  startPoint: z.string().optional().describe('Start point for new branch (commit SHA or ref)'),
-  track: z.boolean().default(true).describe('Set up tracking for new branch'),
-  showCurrent: z.boolean().default(true).describe('Highlight current branch in list'),
+  newName: z.string().optional().describe('New name (required for rename)'),
+  all: z.boolean().default(false).describe('Include remote branches'),
+  remotes: z.boolean().default(false).describe('Remote branches only'),
+  verbose: z.boolean().default(false).describe('Show tracking info'),
+  merged: z.boolean().optional().describe('Only merged branches'),
+  noMerged: z.boolean().optional().describe('Only unmerged branches'),
+  force: z.boolean().default(false).describe('Force delete'),
+  startPoint: z.string().optional().describe('Start point for new branch'),
+  track: z.boolean().default(true).describe('Set up tracking'),
+  showCurrent: z.boolean().default(true).describe('Highlight current branch'),
 });
 
 export const gitBranchTool: UnifiedTool = {
   name: 'git-branch',
-  description: 'List, create, delete, or rename git branches with tracking info',
+  description: 'Manage git branches: list, create, delete, rename',
   zodSchema: schema,
   skipContextShare: true,
   execute: async (args) => {

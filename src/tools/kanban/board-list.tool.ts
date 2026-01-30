@@ -36,19 +36,19 @@ import {
 } from '../../kanban/index.js';
 
 const schema = z.object({
-  sessionId: z.string().min(1).describe('Session ID to list boards for'),
-  workspaceId: z.string().optional().describe('Filter by specific workspace'),
+  sessionId: z.string().min(1).describe('Session ID'),
+  workspaceId: z.string().optional().describe('Filter by workspace'),
   includeWorkspaces: z
     .boolean()
     .default(true)
-    .describe('Include boards from workspaces the session belongs to'),
+    .describe('Include workspace boards'),
 });
 
 type BoardListArgs = z.infer<typeof schema>;
 
 export const boardListTool: UnifiedTool = {
   name: 'board-list',
-  description: 'List Kanban boards accessible to a session',
+  description: 'List accessible Kanban boards for session',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

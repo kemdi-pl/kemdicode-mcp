@@ -36,14 +36,14 @@ import {
 import { validateEditRequest, formatEditError } from './edit-shared.js';
 
 const schema = z.object({
-  path: z.string().min(1).describe('File path to edit'),
-  search: z.string().min(1).describe('Text or regex pattern to search for'),
-  replace: z.string().describe('Replacement text (supports $1, $2 for regex groups)'),
-  isRegex: z.boolean().default(false).describe('Treat search as regex pattern'),
-  replaceAll: z.boolean().default(true).describe('Replace all occurrences (false = first only)'),
+  path: z.string().min(1).describe('File path'),
+  search: z.string().min(1).describe('Search text or regex pattern'),
+  replace: z.string().describe('Replacement text (supports $1, $2 for regex)'),
+  isRegex: z.boolean().default(false).describe('Treat search as regex'),
+  replaceAll: z.boolean().default(true).describe('Replace all occurrences'),
   caseSensitive: z.boolean().default(true).describe('Case-sensitive matching'),
-  createBackup: z.boolean().default(true).describe('Create .bak backup before editing'),
-  dryRun: z.boolean().default(false).describe('Preview changes without applying'),
+  createBackup: z.boolean().default(true).describe('Create .bak backup'),
+  dryRun: z.boolean().default(false).describe('Preview without applying'),
 });
 
 type ReplaceContentArgs = z.infer<typeof schema>;
@@ -136,7 +136,7 @@ function truncateLine(line: string, maxLength: number = 100): string {
 
 export const replaceContentTool: UnifiedTool = {
   name: 'replace-content',
-  description: 'Find and replace text or patterns in a file (supports regex)',
+  description: 'Find and replace text/patterns in file, supports regex and dry-run',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
@@ -171,6 +171,7 @@ export const replaceContentTool: UnifiedTool = {
     // Common validation: rate limit + path
     const validation = await validateEditRequest('replace-content', inputPath, {
       operation: dryRun ? 'read' : 'write',
+      projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
     });
     if (!validation.ok) return validation.errorResponse;
     const { validatedPath } = validation;

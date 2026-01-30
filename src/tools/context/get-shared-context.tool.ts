@@ -34,14 +34,14 @@ import {
 import { ServerIdentifier } from '../../context/types.js';
 
 const schema = z.object({
-  from_server: z.string().optional().describe('Filter by source MCP server ID'),
+  from_server: z.string().optional().describe('Filter by source server ID'),
   tool_name: z.string().optional().describe('Filter by tool name'),
-  limit: z.number().min(1).max(50).default(10).describe('Max entries to return'),
+  limit: z.number().min(1).max(50).default(10).describe('Max entries'),
 });
 
 export const getSharedContextTool: UnifiedTool = {
   name: 'get-shared-context',
-  description: 'Get context shared by other MCP servers (database info, API docs, model info)',
+  description: 'Get context shared by other MCP servers',
   zodSchema: schema,
   skipContextShare: true, // Don't share this tool's output
   execute: async (args) => {

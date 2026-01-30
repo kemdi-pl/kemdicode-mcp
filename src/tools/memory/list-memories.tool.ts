@@ -66,16 +66,16 @@ function getProjectId(): string {
 }
 
 const schema = z.object({
-  tag: z.string().optional().describe('Filter memories by tag'),
-  limit: z.number().min(1).max(100).default(50).describe('Maximum memories to list'),
-  includeContent: z.boolean().default(false).describe('Include memory content (can be large)'),
+  tag: z.string().optional().describe('Filter by tag'),
+  limit: z.number().min(1).max(100).default(50).describe('Max memories to list'),
+  includeContent: z.boolean().default(false).describe('Include content (can be large)'),
 });
 
 type ListMemoriesArgs = z.infer<typeof schema>;
 
 export const listMemoriesTool: UnifiedTool = {
   name: 'list-memories',
-  description: 'List all memories for the current project',
+  description: 'List all memories for current project',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

@@ -140,12 +140,12 @@ const EXT_TO_LANG: Record<string, string> = {
 };
 
 const schema = z.object({
-  file: z.string().describe('File path to analyze'),
+  file: z.string().describe('File path'),
   types: z
     .string()
     .optional()
-    .describe('Filter by symbol types (comma-separated: class,function,method)'),
-  includePrivate: z.boolean().default(true).describe('Include private/protected symbols'),
+    .describe('Filter by types (comma-separated)'),
+  includePrivate: z.boolean().default(true).describe('Include private/protected'),
 });
 
 /**
@@ -413,7 +413,7 @@ function formatModifiers(sym: SymbolInfo): string {
 
 export const findSymbolsTool: UnifiedTool = {
   name: 'find-symbols',
-  description: 'List all symbols (classes, functions, methods, constants) in a file',
+  description: 'List all symbols in file',
   zodSchema: schema,
   skipContextShare: true, // Code navigation doesn't need sharing
 

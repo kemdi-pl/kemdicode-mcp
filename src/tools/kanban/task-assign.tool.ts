@@ -31,8 +31,8 @@ import { checkRateLimit } from '../../utils/validation.js';
 import { assignTask } from '../../kanban/index.js';
 
 const assignmentSchema = z.object({
-  taskId: z.string().min(1).describe('Task ID to assign'),
-  assigneeId: z.string().min(1).describe('Agent ID to assign the task to'),
+  taskId: z.string().min(1).describe('Task ID'),
+  assigneeId: z.string().min(1).describe('Target agent ID'),
 });
 
 const schema = z.object({
@@ -40,8 +40,8 @@ const schema = z.object({
     .array(assignmentSchema)
     .min(1)
     .max(20)
-    .describe('Array of task assignments (1-20)'),
-  supervisorId: z.string().min(1).describe('Supervisor agent ID making the assignments'),
+    .describe('Task assignments (1-20)'),
+  supervisorId: z.string().min(1).describe('Supervisor agent ID'),
 });
 
 type TaskAssignArgs = z.infer<typeof schema>;
@@ -56,8 +56,7 @@ interface AssignResult {
 
 export const taskAssignTool: UnifiedTool = {
   name: 'task-assign',
-  description:
-    'Assign 1-N tasks to agents at once. Pass assignments array (1-20) with taskId and assigneeId.',
+  description: 'Batch assign 1-20 tasks to agents',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {

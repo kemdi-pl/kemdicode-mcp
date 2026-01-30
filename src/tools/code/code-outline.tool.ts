@@ -59,9 +59,9 @@ const EXT_TO_LANG: Record<string, string> = {
 };
 
 const schema = z.object({
-  file: z.string().describe('File path to generate outline for'),
-  depth: z.number().default(2).describe('Maximum depth of outline (1-5)'),
-  showSignatures: z.boolean().default(true).describe('Show function/method signatures'),
+  file: z.string().describe('File path'),
+  depth: z.number().default(2).describe('Outline depth (1-5)'),
+  showSignatures: z.boolean().default(true).describe('Show signatures'),
   showLineNumbers: z.boolean().default(true).describe('Show line numbers'),
 });
 
@@ -855,7 +855,7 @@ function detectLanguage(filePath: string): string {
 
 export const codeOutlineTool: UnifiedTool = {
   name: 'code-outline',
-  description: 'Generate hierarchical structure outline of a file (classes, methods, functions)',
+  description: 'Generate file structure outline (classes, methods, functions)',
   zodSchema: schema,
   skipContextShare: true, // Code navigation doesn't need sharing
 

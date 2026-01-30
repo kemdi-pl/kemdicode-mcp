@@ -34,14 +34,14 @@ const AUDIENCE_PROMPTS: Record<string, string> = {
 };
 
 const schema = z.object({
-  files: z.string().describe('Files to explain (use @path/file.php syntax)'),
+  files: z.string().describe('Files to explain (@path/file syntax)'),
   depth: z.enum(['quick', 'detailed', 'deep']).default('detailed'),
   audience: z.enum(['junior', 'senior', 'non-tech']).default('senior'),
 });
 
 export const explainCodeTool: UnifiedTool = {
   name: 'explain-code',
-  description: 'Code explanation from quick overview to deep analysis',
+  description: 'Code explanation at configurable depth and audience level',
   zodSchema: schema,
   prompt: { description: 'Explain PHP/Laravel code' },
   execute: async (args, onProgress) => {

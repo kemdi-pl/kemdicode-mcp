@@ -43,7 +43,7 @@ const schema = z.object({
 export const sessionListTool: UnifiedTool<typeof schema> = {
   name: 'session-list',
   description:
-    'List all active sessions with their models, CWD, and activity status. Use for managing multiple AI sessions.',
+    'List active sessions with models, CWD, and status. Use for managing AI sessions.',
   zodSchema: schema,
   skipContextShare: true,
 

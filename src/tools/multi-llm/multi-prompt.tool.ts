@@ -12,19 +12,17 @@ import { buildAgentMessages, type AgentType } from '../../ai/agents.js';
 import { loadAndFormatFiles, parseFiles } from '../../ai/file-context.js';
 
 const schema = z.object({
-  prompt: z.string().min(1).describe('Prompt to send to all models'),
+  prompt: z.string().min(1).describe('Prompt for all models'),
   models: z
     .array(z.string().min(1))
     .min(2)
     .max(10)
-    .describe(
-      'Model specs with provider prefix (e.g., ["openai:gpt-4o", "a:claude-sonnet-4-20250514", "g:gemini-2.5-pro"])'
-    ),
+    .describe('Model specs (provider:model syntax)'),
   agent: z
     .enum(['plan', 'build', 'explore', 'general'])
     .default('general')
     .describe('Agent type for system prompt'),
-  files: z.string().optional().describe('Files to attach (@path syntax, space-separated)'),
+  files: z.string().optional().describe('Files to attach (@path syntax)'),
   temperature: z.number().min(0).max(2).optional().describe('Temperature override'),
   maxTokens: z.number().int().min(1).optional().describe('Max tokens per model'),
 });
@@ -101,9 +99,7 @@ async function execute(args: Record<string, unknown>): Promise<string> {
 export const multiPromptTool: UnifiedTool = {
   name: 'multi-prompt',
   description:
-    'Send the same prompt to multiple LLM models in parallel. ' +
-    'Use provider:model syntax (e.g., openai:gpt-4o, a:claude-sonnet-4-20250514, g:gemini-2.5-pro). ' +
-    'Supports thinking tokens: o:o3:high, a:claude-sonnet-4-20250514:4k, g:gemini-2.5-flash:8k',
+    'Send same prompt to N models in parallel. provider:model syntax. Supports thinking tokens.',
   zodSchema: schema,
   execute,
 };

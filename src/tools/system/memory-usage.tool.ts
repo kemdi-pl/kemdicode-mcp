@@ -65,11 +65,11 @@ interface MemoryStats {
 }
 
 const schema = z.object({
-  detailed: z.boolean().default(false).describe('Show detailed V8 heap statistics'),
+  detailed: z.boolean().default(false).describe('Show detailed V8 heap stats'),
   gc: z
     .boolean()
     .default(false)
-    .describe('Force garbage collection before measuring (if available)'),
+    .describe('Force GC before measuring'),
 });
 
 /**
@@ -256,7 +256,7 @@ function formatMemoryStats(stats: MemoryStats, detailed: boolean): string {
 
 export const memoryUsageTool: UnifiedTool = {
   name: 'memory-usage',
-  description: 'Show memory usage: process heap, system memory, V8 stats',
+  description: 'Show process heap, system memory, V8 stats',
   zodSchema: schema,
   skipContextShare: true,
   execute: async (args) => {

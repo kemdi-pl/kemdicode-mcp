@@ -50,14 +50,14 @@ interface Linter {
 }
 
 const schema = z.object({
-  cwd: z.string().optional().describe('Working directory (defaults to current directory)'),
+  cwd: z.string().optional().describe('Working directory'),
   linter: z
     .enum(['auto', 'eslint', 'phpcs', 'phpstan', 'prettier'])
     .default('auto')
     .describe('Linter to use'),
-  fix: z.boolean().default(false).describe('Auto-fix issues (if supported)'),
-  files: z.string().optional().describe('Specific files/directories to lint'),
-  timeout: z.number().default(120000).describe('Timeout in milliseconds (default: 2 minutes)'),
+  fix: z.boolean().default(false).describe('Auto-fix issues'),
+  files: z.string().optional().describe('Files/directories to lint'),
+  timeout: z.number().default(120000).describe('Timeout ms'),
 });
 
 /**
@@ -303,7 +303,7 @@ async function executeLinter(
 
 export const runLintTool: UnifiedTool = {
   name: 'run-lint',
-  description: 'Run ESLint, PHPCS, PHPStan, or Prettier with formatted output',
+  description: 'Run ESLint/PHPCS/PHPStan/Prettier with formatted output',
   zodSchema: schema,
   execute: async (args, onProgress) => {
     const cwd = getCwd(args.cwd as string | undefined);

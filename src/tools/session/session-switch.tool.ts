@@ -28,15 +28,14 @@ import { getSessionManager } from '../../session/manager.js';
 import { setCurrentSession, getCurrentSessionId } from '../../context/integration.js';
 
 const schema = z.object({
-  sessionId: z.string().describe('Session ID to switch to'),
-  updateModel: z.string().optional().describe('Update model for this session'),
-  updateFallback: z.string().optional().describe('Update fallback model'),
+  sessionId: z.string().describe('Target session ID'),
+  updateModel: z.string().optional().describe('New model for session'),
+  updateFallback: z.string().optional().describe('New fallback model'),
 });
 
 export const sessionSwitchTool: UnifiedTool<typeof schema> = {
   name: 'session-switch',
-  description:
-    'Switch to a different session or update the model for current session. Use to change AI model context.',
+  description: 'Switch session or update session model',
   zodSchema: schema,
   skipContextShare: true,
 

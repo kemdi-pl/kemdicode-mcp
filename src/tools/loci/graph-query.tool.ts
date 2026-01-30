@@ -32,10 +32,10 @@ const schema = z.object({
     .enum(['file', 'error', 'solution', 'tool', 'concept', 'context', 'loci', 'pattern', 'agent'])
     .optional()
     .describe('Filter by node type'),
-  tags: z.array(z.string()).optional().describe('Filter by tags (any match)'),
-  labelContains: z.string().optional().describe('Filter by label containing text'),
-  minWeight: z.number().min(0).max(1).optional().describe('Minimum weight threshold'),
-  limit: z.number().int().min(1).max(100).default(20).describe('Maximum results'),
+  tags: z.array(z.string()).optional().describe('Filter by tags'),
+  labelContains: z.string().optional().describe('Label substring filter'),
+  minWeight: z.number().min(0).max(1).optional().describe('Min weight threshold'),
+  limit: z.number().int().min(1).max(100).default(20).describe('Max results'),
   sortBy: z
     .enum(['weight', 'createdAt', 'accessCount', 'lastAccessedAt'])
     .default('weight')
@@ -45,7 +45,7 @@ const schema = z.object({
 
 export const graphQueryTool: UnifiedTool<typeof schema> = {
   name: 'graph-query',
-  description: 'Query nodes in the knowledge graph with filters for type, tags, and weight.',
+  description: 'Query knowledge graph nodes by type, tags, weight.',
   zodSchema: schema,
 
   execute: async (args) => {

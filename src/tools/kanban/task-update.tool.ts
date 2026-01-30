@@ -31,28 +31,28 @@ import { checkRateLimit } from '../../utils/validation.js';
 import { updateTask, getTask, TaskStatus, TaskPriority } from '../../kanban/index.js';
 
 const updateSchema = z.object({
-  taskId: z.string().min(1).describe('Task ID to update'),
-  title: z.string().min(1).max(200).optional().describe('New task title'),
-  description: z.string().optional().describe('New task description'),
+  taskId: z.string().min(1).describe('Task ID'),
+  title: z.string().min(1).max(200).optional().describe('New title'),
+  description: z.string().optional().describe('New description'),
   status: z
     .enum(['backlog', 'in_progress', 'review', 'done'])
     .optional()
-    .describe('New task status'),
-  priority: z.enum(['critical', 'high', 'normal', 'low']).optional().describe('New task priority'),
+    .describe('New status'),
+  priority: z.enum(['critical', 'high', 'normal', 'low']).optional().describe('New priority'),
   blockedBy: z
     .array(z.string())
     .optional()
-    .describe('Updated blocking task IDs (replaces existing)'),
-  addBlockedBy: z.array(z.string()).optional().describe('Task IDs to add to blockedBy list'),
-  addBlocks: z.array(z.string()).optional().describe('Task IDs that this task blocks'),
-  relatedFiles: z.array(z.string()).optional().describe('Updated related files'),
-  labels: z.array(z.string()).optional().describe('Updated labels'),
-  estimatedMinutes: z.number().positive().optional().describe('Updated time estimate'),
+    .describe('Blocking task IDs (replaces existing)'),
+  addBlockedBy: z.array(z.string()).optional().describe('Task IDs to add to blockedBy'),
+  addBlocks: z.array(z.string()).optional().describe('Task IDs this task blocks'),
+  relatedFiles: z.array(z.string()).optional().describe('Related files'),
+  labels: z.array(z.string()).optional().describe('Labels'),
+  estimatedMinutes: z.number().positive().optional().describe('Time estimate in minutes'),
 });
 
 const schema = z.object({
-  updates: z.array(updateSchema).min(1).max(20).describe('Array of task updates (1-20)'),
-  agentId: z.string().min(1).describe('Agent ID making the updates'),
+  updates: z.array(updateSchema).min(1).max(20).describe('Task updates (1-20)'),
+  agentId: z.string().min(1).describe('Agent ID'),
 });
 
 type TaskUpdateArgs = z.infer<typeof schema>;
@@ -67,8 +67,7 @@ interface UpdateResult {
 
 export const taskUpdateTool: UnifiedTool = {
   name: 'task-update',
-  description:
-    'Update 1-N tasks at once. Pass updates array (1-20) with taskId and fields to change.',
+  description: 'Batch update 1-20 tasks with taskId and fields to change',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
