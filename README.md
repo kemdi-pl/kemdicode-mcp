@@ -367,44 +367,193 @@ ai-config --action test
 
 ## Architecture
 
+### System Overview
+
 ```
-                    ┌──────────────────────────────────────┐
-                    │       kemdiCode MCP  (HTTP :3100)    │
-                    └──────┬──────────────┬────────────────┘
-                           │              │
-               ┌───────────▼──┐    ┌──────▼────────┐
-               │  Claude Code │    │  Cursor / IDE  │
-               └───────────┬──┘    └──────┬────────┘
-                           │              │
-               ┌───────────▼──────────────▼────────┐
-               │       Provider Registry            │
-               │  OpenAI │ Anthropic │ Gemini │ ... │
-               └───────────────────┬───────────────┘
-                                   │
-               ┌───────────────────▼───────────────┐
-               │            Redis (DB 2)            │
-               │  context · agents · kanban · pubsub│
-               └───────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        IDE / AI Agent Layer                             │
+│                                                                         │
+│   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌───────────┐  │
+│   │  Claude Code  │  │    Cursor    │  │   KiroCode   │  │  RooCode  │  │
+│   └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └─────┬─────┘  │
+│          │                 │                 │                 │         │
+└──────────┼─────────────────┼─────────────────┼─────────────────┼─────────┘
+           │   SSE + JSON-RPC (MCP Protocol)   │                 │
+           └─────────────────┼─────────────────┘                 │
+                             ▼                                   │
+┌────────────────────────────────────────────────────────────────┐│
+│                kemdiCode MCP Server (HTTP :3100)               ││
+│  ┌───────────────────────────────────────────────────────────┐ ││
+│  │                    Session Manager                        │◄┘│
+│  │  • Per-client sessions with CWD isolation                 │  │
+│  │  • Activity tracking (last tool, args, timestamp)         │  │
+│  │  • /resume endpoint for post-compaction recovery          │  │
+│  │  • SSE keep-alive + resume events on reconnect            │  │
+│  └───────────────────────┬───────────────────────────────────┘  │
+│                          ▼                                      │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                   Tool Registry (103 tools)               │  │
+│  │                                                           │  │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐ │  │
+│  │  │Code      │ │File &    │ │Git       │ │Multi-Agent   │ │  │
+│  │  │Analysis  │ │Editing   │ │Operations│ │Coordination  │ │  │
+│  │  │(8 tools) │ │(12 tools)│ │(5 tools) │ │(13 tools)    │ │  │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────────┘ │  │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐ │  │
+│  │  │AI Agents │ │Kanban    │ │Project   │ │Memory &      │ │  │
+│  │  │& LLM    │ │& Boards  │ │Management│ │Checkpoints   │ │  │
+│  │  │(6 tools) │ │(16 tools)│ │(5 tools) │ │(7 tools)     │ │  │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────────┘ │  │
+│  │  • Runtime registration with tools/list_changed broadcast │  │
+│  │  • Zod schema validation + auto JSON Schema generation    │  │
+│  └───────────────────────┬───────────────────────────────────┘  │
+│                          ▼                                      │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │               Provider Registry (7 providers)             │  │
+│  │                                                           │  │
+│  │  ┌─────────┐ ┌──────────┐ ┌────────┐ ┌────────────────┐  │  │
+│  │  │ OpenAI  │ │Anthropic │ │ Gemini │ │ OpenAI-compat  │  │  │
+│  │  │ (native)│ │ (native) │ │(native)│ │ Groq DeepSeek  │  │  │
+│  │  │         │ │          │ │        │ │ Ollama OpenRtr  │  │  │
+│  │  └─────────┘ └──────────┘ └────────┘ └────────────────┘  │  │
+│  │  • Lazy init on first use • Hot-reload without restart    │  │
+│  │  • Unified thinking tokens: effort / budget / budget      │  │
+│  │  • Model spec syntax: provider:model:thinking             │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                  Tree-sitter AST Engine                    │  │
+│  │  • WASM parsers for 19 languages                          │  │
+│  │  • Symbol navigation, rename, insert before/after         │  │
+│  │  • Indentation detection + context-aware editing           │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │               Runtime Abstraction Layer                    │  │
+│  │  • Auto-detects Bun vs Node.js at startup                 │  │
+│  │  • Unified HTTP server (Bun.serve / node:http)            │  │
+│  │  • Unified process spawning (Bun.spawn / child_process)   │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────────┐
+│                      Redis (DB 2)                              │
+│                                                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
+│  │ Context      │  │ Agents       │  │ Kanban               │  │
+│  │ mcp:context: │  │ mcp:agents:  │  │ mcp:kanban:          │  │
+│  │ mcp:memory:  │  │ mcp:queue:   │  │  workspace:<id>      │  │
+│  │ mcp:checkpoint│ │ mcp:messages:│  │  board:<id>           │  │
+│  └──────────────┘  └──────────────┘  │  task:<id>            │  │
+│                                      └──────────────────────┘  │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ Pub/Sub Channels                                        │   │
+│  │ mcp:channel:broadcast  mcp:channel:inject:<agentId>     │   │
+│  │ mcp:channel:alerts     mcp:channel:thoughts             │   │
+│  └─────────────────────────────────────────────────────────┘   │
+└────────────────────────────────────────────────────────────────┘
 ```
+
+### Request Lifecycle
+
+```
+Client (IDE)                    kemdiCode MCP                     Redis / LLM
+     │                               │                                │
+     │── GET /sse ──────────────────►│                                │
+     │◄── SSE: endpoint + resume ───│  create session, track activity │
+     │                               │                                │
+     │── POST /message ────────────►│                                │
+     │   { tool: "code-review" }     │                                │
+     │                               │── validate (Zod) ────────────►│
+     │                               │── execute tool ──────────────►│
+     │                               │   ├─ share result to Redis    │
+     │                               │   └─ record session activity  │
+     │◄── SSE: result ─────────────│                                │
+     │                               │                                │
+     │── POST /message ────────────►│                                │
+     │   { tool: "ask-ai" }          │── route to provider ────────►│
+     │                               │◄── LLM response ────────────│
+     │◄── SSE: result ─────────────│                                │
+```
+
+### Source Tree
 
 ```
 src/
-├── index.ts               # HTTP server, SSE, MCP protocol
+├── index.ts                 # Entry point, CLI args, server bootstrap
+├── constants.ts             # Error messages, timeouts, limits
+├── server/
+│   ├── http-server.ts       # HTTP routes: /sse, /message, /resume, /stream
+│   ├── session-server.ts    # MCP Server per session, CWD injection, activity tracking
+│   ├── types.ts             # ServerConfig, VERSION
+│   └── index.ts             # Public API exports
 ├── ai/
-│   ├── client.ts          # Unified completion API
-│   ├── model-spec.ts      # provider:model:thinking parser
-│   ├── providers/         # OpenAI, Anthropic, Gemini, OpenAI-compat
-│   ├── agents.ts          # Agent system prompts (plan, build, explore)
-│   └── file-context.ts    # File attachment handling
-├── runtime/               # Bun / Node.js abstraction
-├── config/                # Typed config with Zod validation
-├── context/               # Redis Pub/Sub, agent monitor, feedback loop
-├── kanban/                # Tasks, boards, workspaces, membership
-├── recursive/             # Safe recursive tool invocation (depth 2)
-├── session/               # Session lifecycle
-├── tree-sitter/           # WASM-based AST parsing (19 languages)
-├── tools/                 # 20 tool categories (100+ tools)
-└── utils/                 # Cache, validation, logging, errors
+│   ├── client.ts            # Completion router (multi-provider + fallback)
+│   ├── execute.ts           # High-level AI execution with agent prompts
+│   ├── agents.ts            # Agent configs: plan, build, explore
+│   ├── model-spec.ts        # Parser for provider:model:thinking syntax
+│   ├── file-context.ts      # File attachment → prompt injection
+│   └── providers/
+│       ├── types.ts          # LLMProvider interface, ProviderId, ThinkingConfig
+│       ├── registry.ts       # Provider registry with lazy initialization
+│       ├── openai.provider.ts        # OpenAI (reasoning_effort)
+│       ├── anthropic.provider.ts     # Anthropic (thinking budget)
+│       ├── gemini.provider.ts        # Google GenAI (thinking budget)
+│       └── openai-compat.provider.ts # Groq, DeepSeek, Ollama, OpenRouter
+├── runtime/
+│   ├── index.ts             # isBun / isNode detection
+│   ├── http.ts              # Bun.serve ↔ node:http
+│   ├── process.ts           # Bun.spawn ↔ child_process
+│   └── crypto.ts            # Crypto utilities
+├── context/
+│   ├── agent-monitor.ts     # Redis Pub/Sub for agent lifecycle
+│   ├── storage.ts           # Redis-based shared context (DB 2)
+│   ├── feedback-loop.ts     # Learning from iteration results
+│   └── iteration-tracker.ts # Track fix attempts per issue
+├── kanban/
+│   ├── kanban-store.ts      # Task CRUD with Redis persistence
+│   ├── workspace-store.ts   # Workspace operations
+│   ├── board-store.ts       # Board management
+│   ├── membership-store.ts  # Role-based access (owner/admin/member/viewer)
+│   └── migration.ts         # Lazy migration to multi-board schema
+├── recursive/
+│   └── tool-invoker.ts      # Safe tool calls: max depth 2, rate-limited
+├── tree-sitter/
+│   ├── parser-manager.ts    # WASM parser lifecycle (19 languages)
+│   └── types.ts             # Language mappings, symbol types
+├── session/
+│   ├── manager.ts           # Session create/destroy lifecycle
+│   └── cwd-resolver.ts      # Project path resolution priority
+├── tools/                   # 20 categories, 103 tools
+│   ├── registry.ts          # UnifiedTool interface, Zod → JSON Schema, broadcast
+│   ├── index.ts             # Tool registration
+│   ├── agents/              # 9 tools: register, watch, alert, inject, monitor...
+│   ├── code/                # 8 tools: find-definition, rename-symbol, outline...
+│   ├── context/             # 4 tools: shared-thoughts, feedback, shared-context
+│   ├── edit/                # 4 tools: insert-at-line, delete/replace-lines
+│   ├── file/                # 5 tools: read, write, search, tree, diff
+│   ├── git/                 # 5 tools: status, diff, log, blame, branch
+│   ├── kanban/              # 16 tools: tasks, boards, workspaces
+│   ├── memory/              # 7 tools: CRUD + checkpoint-save/restore
+│   ├── multi-llm/           # 2 tools: multi-prompt, consensus-prompt
+│   ├── project/             # 5 tools: info, scripts, tests, lint, types
+│   ├── recursive/           # 3 tools: invoke-tool, invoke-batch, log
+│   ├── specialized/         # 8 tools: code-review, fix-bug, refactor, write-tests
+│   ├── session/             # 5 tools: CRUD + switch
+│   ├── system/              # 10 tools: shell, env, memory, ai-config, ping
+│   ├── loci/                # 4 tools: graph-query, find-path, recall, recommend
+│   ├── mpc/                 # 4 tools: split, distribute, reconstruct, status
+│   └── rl/                  # 2 tools: reward-stats, dopamine-log
+└── utils/
+    ├── commandExecutor.ts   # Process spawning with timeout + kill
+    ├── file-utils.ts        # Read/write with encoding detection
+    ├── edit-utils.ts        # Line-based editing helpers
+    ├── git-utils.ts         # Git command builders
+    ├── cache.ts             # In-memory TTL cache
+    ├── validation.ts        # Rate limiting, input sanitization
+    ├── errors.ts            # Typed error classes
+    └── logger.ts            # Structured logging
 ```
 
 ---
