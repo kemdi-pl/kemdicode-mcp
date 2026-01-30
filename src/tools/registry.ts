@@ -143,6 +143,32 @@ export type ToolExecutor<T = ToolArguments> = (
  * };
  * ```
  */
+/** Tool category for discovery and grouping */
+export type ToolCategory =
+  | 'code'
+  | 'edit'
+  | 'file'
+  | 'git'
+  | 'kanban'
+  | 'context'
+  | 'agents'
+  | 'project'
+  | 'system'
+  | 'specialized'
+  | 'recursive'
+  | 'multi-llm'
+  | 'memory';
+
+/** Tool metadata for discovery, categorization and search */
+export interface ToolMetadata {
+  /** Tool category for grouping */
+  category: ToolCategory;
+  /** Searchable tags */
+  tags?: string[];
+  /** Whether this tool is long-running (useful for progress reporting) */
+  longRunning?: boolean;
+}
+
 export interface UnifiedTool<TSchema extends ZodSchema = ZodSchema> {
   /** Unique tool name (used in MCP protocol) */
   name: string;
@@ -154,6 +180,8 @@ export interface UnifiedTool<TSchema extends ZodSchema = ZodSchema> {
   prompt?: { description: string };
   /** Set to true to skip auto-sharing context for this tool */
   skipContextShare?: boolean;
+  /** Tool metadata for discovery and categorization */
+  metadata?: ToolMetadata;
   /**
    * Tool execution function
    * When TSchema is explicitly provided, args is typed as z.infer<TSchema>
@@ -279,6 +307,29 @@ class ToolRegistryManager {
    */
   getAll(): readonly UnifiedTool[] {
     return this.tools;
+  }
+
+  /**
+   * Search tools by category, tag, or name substring
+   */
+  search(query: { category?: ToolCategory; tag?: string; name?: string }): readonly UnifiedTool[] {
+    return this.tools.filter((tool) => {
+      if (query.category && tool.metadata?.category !== query.category) return false;
+      if (query.tag && !tool.metadata?.tags?.includes(query.tag)) return false;
+      if (query.name && !tool.name.includes(query.name)) return false;
+      return true;
+    });
+  }
+
+  /**
+   * Get all unique categories from registered tools
+   */
+  getCategories(): ToolCategory[] {
+    const categories = new Set<ToolCategory>();
+    for (const tool of this.tools) {
+      if (tool.metadata?.category) categories.add(tool.metadata.category);
+    }
+    return Array.from(categories);
   }
 
   /**

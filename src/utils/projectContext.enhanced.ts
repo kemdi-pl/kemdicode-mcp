@@ -31,7 +31,7 @@
  * @module utils/projectContext.enhanced
  */
 
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { Logger } from './logger.js';
@@ -117,6 +117,20 @@ function getCached<T>(key: string, generator: () => T): T {
   const data = generator();
   localCache.set(fullKey, data);
   return data;
+}
+
+function safeFind(args: string[], timeout?: number): string {
+  const effectiveTimeout = timeout ?? config.get('timeouts').safeExec;
+  try {
+    return execFileSync('find', args, {
+      cwd: PROJECT_ROOT,
+      encoding: 'utf-8',
+      timeout: effectiveTimeout,
+      stdio: ['pipe', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return '';
+  }
 }
 
 function safeExec(command: string, timeout?: number): string {
@@ -209,17 +223,16 @@ function detectLanguage(): string {
     for (const [file, lang] of checks) {
       if (file.includes('*')) {
         const pattern = file.replace('*', '');
-        const files = safeExec(
-          `find "${PROJECT_ROOT}" -maxdepth 2 -name "*${pattern}" 2>/dev/null | head -1`
-        );
-        if (files) return lang;
+        const result = safeFind([PROJECT_ROOT, '-maxdepth', '2', '-name', `*${pattern}`, '-print', '-quit']);
+        if (result) return lang;
       } else if (existsSync(join(PROJECT_ROOT, file))) {
         return lang;
       }
     }
 
     // Check by file extensions
-    const jsCount = safeExec(`find "${PROJECT_ROOT}" -maxdepth 3 -name "*.js" 2>/dev/null | wc -l`);
+    const jsFiles = safeFind([PROJECT_ROOT, '-maxdepth', '3', '-name', '*.js', '-print', '-quit']);
+    const jsCount = jsFiles ? '1' : '0';
     if (parseInt(jsCount) > 0) return 'JavaScript';
 
     return 'Unknown';

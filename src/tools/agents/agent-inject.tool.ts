@@ -26,6 +26,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getAgentMonitor } from '../../context/agent-monitor.js';
+import { sanitizeTerminalOutput, wrapText } from '../../utils/format-helpers.js';
 
 const schema = z.object({
   agentId: z.string().describe('Target agent ID'),
@@ -100,17 +101,23 @@ export const agentInjectTool: UnifiedTool<typeof schema> = {
       query: '❓',
     }[type];
 
+    const safeAgentId = sanitizeTerminalOutput(agentId);
+    const safeAgentName = sanitizeTerminalOutput(agent.name);
+    const safeStatus = sanitizeTerminalOutput(agent.status);
+    const safeSessionId = sanitizeTerminalOutput(sessionId);
+    const safeContent = sanitizeTerminalOutput(formattedContent);
+
     const lines = [
       '╔══════════════════════════════════════════════════════════════════╗',
       `║ ${typeIcon} ${type.toUpperCase()} INJECTED`.padEnd(66) + '║',
       '╠══════════════════════════════════════════════════════════════════╣',
-      `║ Agent:   ${agentId.padEnd(55)} ║`,
-      `║ Name:    ${agent.name.padEnd(55)} ║`,
-      `║ Status:  ${agent.status.padEnd(55)} ║`,
-      `║ Session: ${sessionId.padEnd(55)} ║`,
+      `║ Agent:   ${safeAgentId.padEnd(55)} ║`,
+      `║ Name:    ${safeAgentName.padEnd(55)} ║`,
+      `║ Status:  ${safeStatus.padEnd(55)} ║`,
+      `║ Session: ${safeSessionId.padEnd(55)} ║`,
       '╠──────────────────────────────────────────────────────────────────╣',
       `║ Content:`.padEnd(67) + '║',
-      ...wrapText(formattedContent, 63).map((line) => `║   ${line.padEnd(62)} ║`),
+      ...wrapText(safeContent, 63).map((line) => `║   ${line.padEnd(62)} ║`),
     ];
 
     if (data && Object.keys(data).length > 0) {
@@ -128,20 +135,3 @@ export const agentInjectTool: UnifiedTool<typeof schema> = {
   },
 };
 
-function wrapText(text: string, maxWidth: number): string[] {
-  const words = text.split(' ');
-  const lines: string[] = [];
-  let currentLine = '';
-
-  for (const word of words) {
-    if (currentLine.length + word.length + 1 <= maxWidth) {
-      currentLine += (currentLine ? ' ' : '') + word;
-    } else {
-      if (currentLine) lines.push(currentLine);
-      currentLine = word;
-    }
-  }
-  if (currentLine) lines.push(currentLine);
-
-  return lines.length > 0 ? lines : [''];
-}

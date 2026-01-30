@@ -30,28 +30,32 @@ import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { createBoard, addBoardMember } from '../../kanban/index.js';
 
-const schema = z.object({
+const boardItemSchema = z.object({
   name: z.string().min(1).max(100).describe('Board name'),
   description: z.string().max(500).optional().describe('Board description'),
-  sessionId: z.string().min(1).describe('Session ID'),
   workspaceId: z.string().optional().describe('Workspace ID for cross-session sharing'),
   visibility: z
     .enum(['private', 'workspace', 'public'])
     .default('private')
     .describe('Visibility level'),
-  createdBy: z.string().min(1).describe('Creator agent ID'),
   labels: z.array(z.string()).optional().describe('Board labels'),
+});
+
+const schema = z.object({
+  boards: z.array(boardItemSchema).min(1).max(10).describe('Boards to create (1-10)'),
+  sessionId: z.string().min(1).describe('Session ID'),
+  createdBy: z.string().min(1).describe('Creator agent ID'),
 });
 
 type BoardCreateArgs = z.infer<typeof schema>;
 
 export const boardCreateTool: UnifiedTool = {
   name: 'board-create',
-  description: 'Create Kanban board in session or workspace',
+  description: 'Create 1-10 Kanban boards. Returns board IDs.',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
-    const input = args as BoardCreateArgs;
+    const { boards, sessionId, createdBy } = args as unknown as BoardCreateArgs;
 
     if (!checkRateLimit('kanban-operations', { maxRequests: 100, windowMs: 60000 })) {
       return JSON.stringify({
@@ -61,44 +65,53 @@ export const boardCreateTool: UnifiedTool = {
       });
     }
 
-    try {
-      const board = await createBoard({
-        name: input.name,
-        description: input.description,
-        sessionId: input.sessionId,
-        workspaceId: input.workspaceId,
-        visibility: input.visibility,
-        createdBy: input.createdBy,
-        labels: input.labels,
-      });
+    const results = await Promise.all(
+      boards.map(async (item) => {
+        try {
+          const board = await createBoard({
+            name: item.name,
+            description: item.description,
+            sessionId,
+            workspaceId: item.workspaceId,
+            visibility: item.visibility,
+            createdBy,
+            labels: item.labels,
+          });
 
-      // Add creator as owner
-      await addBoardMember(board.id, input.createdBy, input.sessionId, 'owner');
+          await addBoardMember(board.id, createdBy, sessionId, 'owner');
 
-      Logger.debug(`board-create: created board ${board.id}: ${board.name}`);
+          Logger.debug(`board-create: created board ${board.id}: ${board.name}`);
 
-      return JSON.stringify({
-        success: true,
-        board: {
-          id: board.id,
-          name: board.name,
-          description: board.description,
-          sessionId: board.sessionId,
-          workspaceId: board.workspaceId,
-          visibility: board.visibility,
-          createdBy: board.createdBy,
-          createdAt: board.createdAt,
-        },
-      });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`board-create error: ${errorMessage}`);
+          return {
+            id: board.id,
+            name: board.name,
+            description: board.description,
+            workspaceId: board.workspaceId,
+            visibility: board.visibility,
+            createdAt: board.createdAt,
+            success: true,
+          };
+        } catch (error) {
+          return {
+            name: item.name,
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      })
+    );
 
-      return JSON.stringify({
-        success: false,
-        error: errorMessage,
-        code: 'CREATE_ERROR',
-      });
-    }
+    const successful = results.filter((r) => r.success);
+    const failed = results.filter((r) => !r.success);
+
+    return JSON.stringify({
+      success: failed.length === 0,
+      sessionId,
+      createdBy,
+      created: successful.length,
+      failed: failed.length,
+      boards: results,
+      boardIds: successful.map((r) => r.id),
+    });
   },
 };

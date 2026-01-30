@@ -25,31 +25,10 @@
  */
 
 import { z } from 'zod';
-import { getSharedRedis } from '../../infrastructure/redis/connection.js';
-import { createHash } from 'crypto';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
-
-/** Checkpoint entry structure */
-interface Checkpoint {
-  name: string;
-  projectId: string;
-  content: string;
-  createdAt: number;
-  updatedAt: number;
-  tags: string[];
-}
-
-/** Redis key prefix for checkpoints */
-const CHECKPOINT_PREFIX = 'mcp:checkpoint:';
-
-const getRedis = getSharedRedis;
-
-function getProjectId(): string {
-  const cwd = process.cwd();
-  return createHash('sha256').update(cwd).digest('hex').slice(0, 16);
-}
+import { type Checkpoint, CHECKPOINT_PREFIX, getRedis, getProjectId } from './shared.js';
 
 const schema = z.object({
   name: z.string().min(1).describe('Checkpoint name'),

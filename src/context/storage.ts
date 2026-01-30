@@ -281,11 +281,28 @@ export class ContextStorage {
 
       const entries: McpContextEntry[] = [];
 
+      if (entryIds.length === 0) return entries;
+
+      // Batch fetch all entries using pipeline (eliminates N+1 queries)
+      const pipeline = this.redis.pipeline();
       for (const id of entryIds) {
+        const key = `${REDIS_KEYS.CONTEXT}${query.sessionId}:${id}`;
+        pipeline.get(key);
+      }
+      const pipelineResults = await pipeline.exec();
+
+      for (let i = 0; i < entryIds.length; i++) {
         if (entries.length >= limit) break;
 
-        const entry = await this.getContext(query.sessionId, id);
-        if (!entry) continue;
+        const [err, data] = (pipelineResults?.[i] ?? [null, null]) as [Error | null, string | null];
+        if (err || !data) continue;
+
+        let entry: McpContextEntry;
+        try {
+          entry = JSON.parse(data);
+        } catch {
+          continue;
+        }
 
         // Apply filters
         if (query.serverId && entry.serverId !== query.serverId) continue;

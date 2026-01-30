@@ -25,21 +25,16 @@
  */
 
 import { z } from 'zod';
-import { getSharedRedis } from '../../infrastructure/redis/connection.js';
-import { createHash } from 'crypto';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
-
-/** Memory entry structure */
-interface ProjectMemory {
-  name: string;
-  projectId: string;
-  content: string;
-  createdAt: number;
-  updatedAt: number;
-  tags: string[];
-}
+import {
+  type ProjectMemory,
+  MEMORY_PREFIX,
+  MEMORY_INDEX_PREFIX,
+  getRedis,
+  getProjectId,
+} from './shared.js';
 
 /** Memory summary for listing */
 interface MemorySummary {
@@ -49,20 +44,6 @@ interface MemorySummary {
   createdAt: number;
   updatedAt: number;
   ttlDays: number | null;
-}
-
-/** Redis key prefix for memories */
-const MEMORY_PREFIX = 'mcp:memory:';
-const MEMORY_INDEX_PREFIX = 'mcp:memory:index:';
-
-const getRedis = getSharedRedis;
-
-/**
- * Generate project ID from current working directory
- */
-function getProjectId(): string {
-  const cwd = process.cwd();
-  return createHash('sha256').update(cwd).digest('hex').slice(0, 16);
 }
 
 const schema = z.object({
@@ -109,51 +90,76 @@ export const listMemoriesTool: UnifiedTool = {
         });
       }
 
-      // Fetch memory details
+      // Fetch all memory data + TTLs in two pipeline batches (avoid N+1)
+      const memoryKeys = names.map((name) => `${MEMORY_PREFIX}${projectId}:${name}`);
+
+      const getPipeline = client.pipeline();
+      for (const key of memoryKeys) {
+        getPipeline.get(key);
+      }
+      const getResults = await getPipeline.exec();
+
+      const ttlPipeline = client.pipeline();
+      for (const key of memoryKeys) {
+        ttlPipeline.ttl(key);
+      }
+      const ttlResults = await ttlPipeline.exec();
+
       const memories: MemorySummary[] = [];
       const memoriesWithContent: (MemorySummary & { content?: string })[] = [];
+      const staleNames: string[] = [];
 
-      for (const name of names) {
+      for (let i = 0; i < names.length; i++) {
         if (memories.length >= limit) break;
 
-        const memoryKey = `${MEMORY_PREFIX}${projectId}:${name}`;
-        const data = await client.get(memoryKey);
+        const [getErr, data] = (getResults?.[i] ?? [null, null]) as [Error | null, string | null];
+        const [ttlErr, ttl] = (ttlResults?.[i] ?? [null, -1]) as [Error | null, number];
 
-        if (data) {
-          try {
-            const memory = JSON.parse(data) as ProjectMemory;
-
-            // Filter by tag if specified
-            if (tag && !memory.tags.includes(tag)) {
-              continue;
-            }
-
-            const ttl = await client.ttl(memoryKey);
-            const summary: MemorySummary = {
-              name: memory.name,
-              contentLength: memory.content.length,
-              tags: memory.tags,
-              createdAt: memory.createdAt,
-              updatedAt: memory.updatedAt,
-              ttlDays: ttl > 0 ? Math.round(ttl / 86400) : null,
-            };
-
-            memories.push(summary);
-
-            if (includeContent) {
-              memoriesWithContent.push({
-                ...summary,
-                content: memory.content,
-              });
-            }
-          } catch {
-            // Skip corrupted entries
-            Logger.warn(`list-memories: skipping corrupted entry '${name}'`);
-          }
-        } else {
-          // Memory expired or deleted, remove from index
-          await client.srem(indexKey, name);
+        if (getErr || !data) {
+          // Memory expired or deleted, mark for index cleanup
+          staleNames.push(names[i]);
+          continue;
         }
+
+        try {
+          const memory = JSON.parse(data) as ProjectMemory;
+
+          // Filter by tag if specified
+          if (tag && !memory.tags.includes(tag)) {
+            continue;
+          }
+
+          const ttlValue = ttlErr ? null : ttl;
+          const summary: MemorySummary = {
+            name: memory.name,
+            contentLength: memory.content.length,
+            tags: memory.tags,
+            createdAt: memory.createdAt,
+            updatedAt: memory.updatedAt,
+            ttlDays: ttlValue && ttlValue > 0 ? Math.round(ttlValue / 86400) : null,
+          };
+
+          memories.push(summary);
+
+          if (includeContent) {
+            memoriesWithContent.push({
+              ...summary,
+              content: memory.content,
+            });
+          }
+        } catch {
+          // Skip corrupted entries
+          Logger.warn(`list-memories: skipping corrupted entry '${names[i]}'`);
+        }
+      }
+
+      // Cleanup stale index entries
+      if (staleNames.length > 0) {
+        const cleanupPipeline = client.pipeline();
+        for (const name of staleNames) {
+          cleanupPipeline.srem(indexKey, name);
+        }
+        await cleanupPipeline.exec();
       }
 
       // Sort by updatedAt descending

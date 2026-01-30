@@ -28,91 +28,80 @@ import { getSessionManager } from '../../session/manager.js';
 import { getContextStorage } from '../../context/storage.js';
 import { getCurrentSessionId, clearCurrentSession } from '../../context/integration.js';
 
-const schema = z.object({
+const deleteItemSchema = z.object({
   sessionId: z.string().describe('Session ID to delete'),
   clearContext: z.boolean().default(false).describe('Clear context data too'),
+});
+
+const schema = z.object({
+  sessions: z.array(deleteItemSchema).min(1).max(10).describe('Sessions to delete (1-10)'),
   force: z.boolean().default(false).describe('Skip confirmation'),
 });
 
 export const sessionDeleteTool: UnifiedTool<typeof schema> = {
   name: 'session-delete',
-  description: 'Delete session and optionally its context data',
+  description: 'Delete 1-10 sessions and optionally their context data.',
   zodSchema: schema,
   skipContextShare: true,
 
   execute: async (args) => {
-    const { sessionId, clearContext } = args;
+    const { sessions } = args;
     const manager = getSessionManager();
 
-    // Check if session exists
-    const session = await manager.getSession(sessionId);
+    const results = await Promise.all(
+      sessions.map(async (item) => {
+        try {
+          const session = await manager.getSession(item.sessionId);
+          if (!session) {
+            return { sessionId: item.sessionId, success: false, error: 'Session not found' };
+          }
 
-    if (!session) {
-      return `❌ Session not found: ${sessionId}`;
-    }
+          const currentId = getCurrentSessionId();
+          const isCurrent = currentId === item.sessionId;
 
-    // Check if this is current session
-    const currentId = getCurrentSessionId();
-    const isCurrent = currentId === sessionId;
+          let contextCleared = false;
+          if (item.clearContext) {
+            const storage = getContextStorage();
+            if (storage.isConnected()) {
+              await storage.clearSession(item.sessionId);
+              contextCleared = true;
+            }
+          }
 
-    let contextCleared = false;
+          const deleted = await manager.deleteSession(item.sessionId);
+          if (!deleted) {
+            return { sessionId: item.sessionId, success: false, error: 'Failed to delete' };
+          }
 
-    // Clear context if requested
-    if (clearContext) {
-      const storage = getContextStorage();
-      if (storage.isConnected()) {
-        // Delete all context entries for this session
-        await storage.clearSession(sessionId);
-        contextCleared = true;
-      }
-    }
+          if (isCurrent) {
+            clearCurrentSession();
+          }
 
-    // Delete the session
-    const deleted = await manager.deleteSession(sessionId);
-
-    if (!deleted) {
-      return `❌ Failed to delete session: ${sessionId}`;
-    }
-
-    // If this was current session, clear it
-    if (isCurrent) {
-      clearCurrentSession();
-    }
-
-    const lines: string[] = [
-      '╔══════════════════════════════════════════════════════════════════╗',
-      '║ 🗑️  SESSION DELETED                                             ║',
-      '╠══════════════════════════════════════════════════════════════════╣',
-      `║ 🆔 ID:        ${sessionId.padEnd(54)} ║`,
-      `║ 🤖 Model:     ${(session.model || 'N/A').padEnd(54)} ║`,
-    ];
-
-    if (isCurrent) {
-      lines.push('║ ⚠️  This was the current session - context reset.'.padEnd(67) + '║');
-    }
-
-    if (clearContext) {
-      lines.push(
-        `║ 🧹 Context:   ${contextCleared ? 'Cleared' : 'Failed to clear'}`.padEnd(67) + '║'
-      );
-    }
-
-    lines.push(
-      '╠──────────────────────────────────────────────────────────────────╣',
-      '║ Remaining sessions:'.padEnd(67) + '║'
+          return {
+            sessionId: item.sessionId,
+            model: session.model || 'N/A',
+            success: true,
+            wasCurrent: isCurrent,
+            contextCleared: item.clearContext ? contextCleared : undefined,
+          };
+        } catch (error) {
+          return {
+            sessionId: item.sessionId,
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      })
     );
 
-    const remaining = await manager.listSessions({ limit: 5 });
-    if (remaining.length > 0) {
-      for (const s of remaining) {
-        lines.push(`║   • ${s.sessionId} (${s.model || 'no model'})`.slice(0, 67).padEnd(67) + '║');
-      }
-    } else {
-      lines.push('║   (none)'.padEnd(67) + '║');
-    }
+    const successful = results.filter((r) => r.success);
+    const failed = results.filter((r) => !r.success);
 
-    lines.push('╚══════════════════════════════════════════════════════════════════╝');
-
-    return lines.join('\n');
+    return JSON.stringify({
+      success: failed.length === 0,
+      deleted: successful.length,
+      failed: failed.length,
+      results,
+    });
   },
 };

@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/kemdicode-mcp"><img src="https://img.shields.io/badge/npm-kemdicode--mcp-CB3837?style=flat-square&logo=npm&logoColor=white" alt="npm" /></a>
-  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.18.0-blue?style=flat-square" alt="Version" /></a>
+  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.19.0-blue?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License" /></a>
 </p>
 
@@ -28,7 +28,7 @@
 <details>
 <summary><strong>Table of Contents</strong></summary>
 
-- [What's New in 1.18.0](#whats-new-in-1170)
+- [What's New in 1.19.0](#whats-new-in-1190)
 - [Usage Examples](#usage-examples)
 - [Highlights](#highlights)
 - [Compatibility](#compatibility)
@@ -50,7 +50,20 @@
 
 ---
 
-## What's New in 1.18.0
+## What's New in 1.19.0
+
+- **Batch/Multi-Item Support for 14 Tools** &mdash; all single-item tools now accept arrays for parallel batch operations: `board-create` (1-10), `board-share` (1-10), `board-invite` (1-20), `board-members` (1-20 ops), `workspace-create` (1-5), `write-memory` (1-20), `read-memory` (1-20), `delete-memory` (1-20), `edit-memory` (1-10), `file-read` (1-20), `file-write` (1-20), `file-diff` (1-10 pairs), `session-create` (1-10), `session-delete` (1-10). All return per-item success/failure with structured results.
+- **Memory Tools: Redis Pipeline Optimization** &mdash; `read-memory` and `delete-memory` batch operations use Redis pipelines instead of sequential queries, eliminating N+1 performance issues.
+- **5 Critical Bug Fixes** &mdash; memory leak in `sessionHistory` Map (LRU eviction), recursion context restoration in `tool-invoker`, Pub/Sub handler leak in `agent-monitor`, Redis connection leak in kanban subscriber, race condition in `claimTask` blocker validation.
+- **5 Performance Improvements** &mdash; session write-back throttling (dirty flag + 5min threshold), kanban `listTasks` N+1 → Redis pipeline, context `queryContext` N+1 → pipeline, rate-limit map cleanup timer, shared Redis connection pooling.
+- **2 Security Fixes** &mdash; hardcoded salt fallback removed (now throws on missing `SECURE_STORAGE_SALT`), command injection risk in `projectContext.enhanced.ts` fixed (switched to `execFile`).
+- **Template Injection Prevention** &mdash; `consensus-prompt` fixed reversed `replaceAll` order to prevent user prompt from injecting `{board_responses}` placeholder. CEO `maxTokens` capped at 32K.
+- **ANSI Escape Injection Protection** &mdash; new `sanitizeTerminalOutput()` utility applied to `agent-alert` and `agent-inject` to prevent terminal escape sequence injection via user-controlled strings.
+- **Shared Memory Module** &mdash; extracted duplicated types, constants, and helpers from 7 memory tools into `src/tools/memory/shared.ts`, eliminating 6x duplication.
+- **Shared Format Helpers** &mdash; new `src/utils/format-helpers.ts` with `sanitizeTerminalOutput()`, `wrapText()`, `priorityIcon()`, `statusIcon()` shared across agent tools.
+- **Input Validation Hardening** &mdash; prototype pollution prevention in `agent-register` metadata keys, octal mode regex validation in `file-write`, ref flag injection prevention in `git-log`, content size limits (1MB) in `queue-message`.
+
+### What was in 1.18.0
 
 - **Checkpoint Save/Restore** &mdash; new tools `checkpoint-save` and `checkpoint-restore` for temporary state snapshots in Redis (7-day TTL). Save progress mid-task and restore later.
 - **Session Resume** &mdash; new `/resume` HTTP endpoint returns the last active session with tool history, enabling post-compaction recovery. SSE connections receive a `resume` event on reconnect.

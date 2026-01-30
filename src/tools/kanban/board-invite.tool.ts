@@ -30,14 +30,18 @@ import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { addBoardMember, hasPermission, isBoardMember, BoardRole } from '../../kanban/index.js';
 
-const schema = z.object({
+const inviteItemSchema = z.object({
   boardId: z.string().min(1).describe('Board ID'),
   agentId: z.string().min(1).describe('Agent to invite'),
-  sessionId: z.string().min(1).describe('Invited agent session ID'),
   role: z
     .enum(['admin', 'member', 'viewer'])
     .default('member')
     .describe('Role (owner cannot be invited)'),
+});
+
+const schema = z.object({
+  invites: z.array(inviteItemSchema).min(1).max(20).describe('Invitations to send (1-20)'),
+  sessionId: z.string().min(1).describe('Invited agents session ID'),
   invitingAgentId: z.string().min(1).describe('Inviting agent ID'),
 });
 
@@ -45,11 +49,11 @@ type BoardInviteArgs = z.infer<typeof schema>;
 
 export const boardInviteTool: UnifiedTool = {
   name: 'board-invite',
-  description: 'Invite agent to board with role',
+  description: 'Invite 1-20 agents to boards with roles. Returns results.',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
-    const input = args as BoardInviteArgs;
+    const { invites, sessionId, invitingAgentId } = args as BoardInviteArgs;
 
     if (!checkRateLimit('kanban-operations', { maxRequests: 100, windowMs: 60000 })) {
       return JSON.stringify({
@@ -59,63 +63,73 @@ export const boardInviteTool: UnifiedTool = {
       });
     }
 
-    try {
-      // Check inviter permission
-      const canInvite = await hasPermission(
-        input.boardId,
-        input.invitingAgentId,
-        'canInviteMembers'
-      );
-      if (!canInvite) {
-        return JSON.stringify({
-          success: false,
-          error: 'Agent does not have permission to invite members',
-          code: 'PERMISSION_DENIED',
-        });
-      }
+    const results = await Promise.all(
+      invites.map(async (item) => {
+        try {
+          const canInvite = await hasPermission(
+            item.boardId,
+            invitingAgentId,
+            'canInviteMembers'
+          );
+          if (!canInvite) {
+            return {
+              boardId: item.boardId,
+              agentId: item.agentId,
+              success: false,
+              error: 'Permission denied',
+              code: 'PERMISSION_DENIED',
+            };
+          }
 
-      // Check if already a member
-      const alreadyMember = await isBoardMember(input.boardId, input.agentId);
-      if (alreadyMember) {
-        return JSON.stringify({
-          success: false,
-          error: 'Agent is already a member of this board',
-          code: 'ALREADY_MEMBER',
-        });
-      }
+          const alreadyMember = await isBoardMember(item.boardId, item.agentId);
+          if (alreadyMember) {
+            return {
+              boardId: item.boardId,
+              agentId: item.agentId,
+              success: false,
+              error: 'Already a member',
+              code: 'ALREADY_MEMBER',
+            };
+          }
 
-      const membership = await addBoardMember(
-        input.boardId,
-        input.agentId,
-        input.sessionId,
-        input.role as BoardRole,
-        input.invitingAgentId
-      );
+          const membership = await addBoardMember(
+            item.boardId,
+            item.agentId,
+            sessionId,
+            item.role as BoardRole,
+            invitingAgentId
+          );
 
-      Logger.debug(
-        `board-invite: invited ${input.agentId} to board ${input.boardId} as ${input.role}`
-      );
+          Logger.debug(
+            `board-invite: invited ${item.agentId} to board ${item.boardId} as ${item.role}`
+          );
 
-      return JSON.stringify({
-        success: true,
-        membership: {
-          boardId: membership.boardId,
-          agentId: membership.agentId,
-          sessionId: membership.sessionId,
-          role: membership.role,
-          invitedBy: membership.invitedBy,
-          joinedAt: membership.joinedAt,
-        },
-      });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`board-invite error: ${errorMessage}`);
+          return {
+            boardId: membership.boardId,
+            agentId: membership.agentId,
+            role: membership.role,
+            joinedAt: membership.joinedAt,
+            success: true,
+          };
+        } catch (error) {
+          return {
+            boardId: item.boardId,
+            agentId: item.agentId,
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      })
+    );
 
-      return JSON.stringify({
-        success: false,
-        error: errorMessage,
-        code: 'INVITE_ERROR',
-      });
-    }
+    const successful = results.filter((r) => r.success);
+    const failed = results.filter((r) => !r.success);
+
+    return JSON.stringify({
+      success: failed.length === 0,
+      invited: successful.length,
+      failed: failed.length,
+      results,
+    });
   },
 };

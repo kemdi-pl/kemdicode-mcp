@@ -25,49 +25,25 @@
  */
 
 import { z } from 'zod';
-import { getSharedRedis } from '../../infrastructure/redis/connection.js';
-import { createHash } from 'crypto';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
-
-/** Memory entry structure */
-interface ProjectMemory {
-  name: string;
-  projectId: string;
-  content: string;
-  createdAt: number;
-  updatedAt: number;
-  tags: string[];
-}
-
-/** Redis key prefix for memories */
-const MEMORY_PREFIX = 'mcp:memory:';
-
-const getRedis = getSharedRedis;
-/**
- * Generate project ID from current working directory
- */
-function getProjectId(): string {
-  const cwd = process.cwd();
-  return createHash('sha256').update(cwd).digest('hex').slice(0, 16);
-}
+import { type ProjectMemory, MEMORY_PREFIX, getRedis, getProjectId } from './shared.js';
 
 const schema = z.object({
-  name: z.string().min(1).describe('Memory name'),
+  names: z.array(z.string().min(1)).min(1).max(20).describe('Memory names to retrieve (1-20)'),
 });
 
 type ReadMemoryArgs = z.infer<typeof schema>;
 
 export const readMemoryTool: UnifiedTool = {
   name: 'read-memory',
-  description: 'Retrieve named memory from current project',
+  description: 'Retrieve 1-20 named memories from current project.',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
-    const { name } = args as ReadMemoryArgs;
+    const { names } = args as ReadMemoryArgs;
 
-    // Rate limit check
     if (!checkRateLimit('memory-operations', { maxRequests: 200, windowMs: 60000 })) {
       return JSON.stringify({
         success: false,
@@ -77,38 +53,60 @@ export const readMemoryTool: UnifiedTool = {
     }
 
     const projectId = getProjectId();
-    const memoryKey = `${MEMORY_PREFIX}${projectId}:${name}`;
 
     try {
       const client = await getRedis();
 
-      const data = await client.get(memoryKey);
-      if (!data) {
-        return JSON.stringify({
-          success: false,
-          error: `Memory '${name}' not found`,
-          code: 'MEMORY_NOT_FOUND',
-          name,
-          projectId,
-        });
+      // Pipeline: fetch all memories at once
+      const getPipeline = client.pipeline();
+      const ttlPipeline = client.pipeline();
+      for (const name of names) {
+        const memoryKey = `${MEMORY_PREFIX}${projectId}:${name}`;
+        getPipeline.get(memoryKey);
+        ttlPipeline.ttl(memoryKey);
       }
 
-      const memory = JSON.parse(data) as ProjectMemory;
-      const ttl = await client.ttl(memoryKey);
+      const getResults = await getPipeline.exec();
+      const ttlResults = await ttlPipeline.exec();
 
-      Logger.debug(`read-memory: retrieved '${name}' for project ${projectId}`);
+      const results = names.map((name, i) => {
+        const data = getResults?.[i]?.[1] as string | null;
+        const ttl = (ttlResults?.[i]?.[1] as number) ?? -1;
+
+        if (!data) {
+          return {
+            name,
+            success: false,
+            error: `Memory '${name}' not found`,
+            code: 'MEMORY_NOT_FOUND',
+          };
+        }
+
+        const memory = JSON.parse(data) as ProjectMemory;
+        Logger.debug(`read-memory: retrieved '${name}' for project ${projectId}`);
+
+        return {
+          name: memory.name,
+          success: true,
+          content: memory.content,
+          contentLength: memory.content.length,
+          tags: memory.tags,
+          createdAt: memory.createdAt,
+          updatedAt: memory.updatedAt,
+          ttlSeconds: ttl > 0 ? ttl : null,
+          ttlDays: ttl > 0 ? Math.round(ttl / 86400) : null,
+        };
+      });
+
+      const successful = results.filter((r) => r.success);
+      const failed = results.filter((r) => !r.success);
 
       return JSON.stringify({
-        success: true,
-        name: memory.name,
-        projectId: memory.projectId,
-        content: memory.content,
-        contentLength: memory.content.length,
-        tags: memory.tags,
-        createdAt: memory.createdAt,
-        updatedAt: memory.updatedAt,
-        ttlSeconds: ttl > 0 ? ttl : null,
-        ttlDays: ttl > 0 ? Math.round(ttl / 86400) : null,
+        success: failed.length === 0,
+        projectId,
+        found: successful.length,
+        notFound: failed.length,
+        results,
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

@@ -30,7 +30,7 @@ import type { MessagePriority } from '../../context/types.js';
 
 const messageSchema = z.object({
   targetAgentId: z.string().min(1).describe('Target agent ID'),
-  content: z.string().min(1).describe('Message content'),
+  content: z.string().min(1).max(1048576).describe('Message content (max 1MB)'),
   priority: z
     .enum(['low', 'normal', 'high', 'critical'])
     .default('normal')
@@ -49,7 +49,7 @@ const schema = z.object({
 // Alternative: broadcast same message to multiple agents
 const broadcastSchema = z.object({
   targetAgentIds: z.array(z.string().min(1)).min(1).max(20).describe('Target agent IDs'),
-  content: z.string().min(1).describe('Message content (same for all)'),
+  content: z.string().min(1).max(1048576).describe('Message content (same for all, max 1MB)'),
   priority: z.enum(['low', 'normal', 'high', 'critical']).default('normal'),
   sessionId: z.string().min(1).describe('Session ID'),
   fromAgentId: z.string().default('supervisor'),

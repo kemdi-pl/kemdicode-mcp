@@ -35,7 +35,10 @@ const agentSchema = z.object({
     .default('worker')
     .describe('Agent role'),
   model: z.string().optional().describe('Model being used'),
-  metadata: z.record(z.string(), z.unknown()).optional().describe('Additional metadata'),
+  metadata: z.record(
+    z.string().regex(/^(?!__proto__|constructor|prototype$)/, 'Reserved key name'),
+    z.unknown()
+  ).optional().describe('Additional metadata'),
 });
 
 const schema = z.object({

@@ -37,9 +37,13 @@ const DIFF_TIMEOUT = 30_000;
 /** Maximum file size to diff (10MB) */
 const MAX_DIFF_SIZE = 10 * 1024 * 1024;
 
-const schema = z.object({
+const diffPairSchema = z.object({
   file1: z.string().min(1).describe('Original file path'),
   file2: z.string().min(1).describe('Modified file path'),
+});
+
+const schema = z.object({
+  pairs: z.array(diffPairSchema).min(1).max(10).describe('File pairs to diff (1-10)'),
   format: z
     .enum(['unified', 'git', 'side-by-side', 'context'])
     .default('unified')
@@ -52,7 +56,7 @@ const schema = z.object({
   colorize: z.boolean().default(false).describe('ANSI color output'),
 });
 
-type FileDiffArgs = z.infer<typeof schema>;
+type FileDiffArgs = z.infer<typeof schema> & { file1?: string; file2?: string };
 
 interface DiffHunk {
   oldStart: number;
@@ -158,7 +162,9 @@ function buildDiffArgs(args: FileDiffArgs): string[] {
     diffArgs.push('--color=always');
   }
 
-  diffArgs.push(args.file1, args.file2);
+  if (args.file1 && args.file2) {
+    diffArgs.push(args.file1, args.file2);
+  }
 
   return diffArgs;
 }
@@ -347,90 +353,104 @@ async function executeDiff(args: FileDiffArgs): Promise<{ stdout: string; identi
 
 export const fileDiffTool: UnifiedTool = {
   name: 'file-diff',
-  description: 'Compare two files with unified or git diff format',
+  description: 'Compare 1-10 file pairs with unified or git diff format.',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
-    const diffArgs = args as FileDiffArgs;
-    const result: DiffResult = {
-      success: false,
-      file1: diffArgs.file1,
-      file2: diffArgs.file2,
-    };
+    const { pairs, ...diffOptions } = args as FileDiffArgs;
+    const sessionCwd = (args as Record<string, unknown>)._sessionCwd as string | undefined;
 
-    try {
-      // Validate both paths for security (path traversal protection)
-      let validatedPath1: string;
-      let validatedPath2: string;
-      try {
-        validatedPath1 = await validatePath(diffArgs.file1, {
-          allowSymlinks: false,
-          requireWithinProject: true,
-          allowReadFromBlocked: false,
-          operation: 'read',
-          projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
-        });
-        validatedPath2 = await validatePath(diffArgs.file2, {
-          allowSymlinks: false,
-          requireWithinProject: true,
-          allowReadFromBlocked: false,
-          operation: 'read',
-          projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
-        });
-      } catch (validationError) {
-        if (validationError instanceof ValidationError) {
-          result.error = `Path validation failed: ${validationError.message}`;
-        } else {
-          result.error = `Path validation failed: ${(validationError as Error).message}`;
+    const results = await Promise.all(
+      pairs.map(async (pair) => {
+        const result: DiffResult = {
+          success: false,
+          file1: pair.file1,
+          file2: pair.file2,
+        };
+
+        try {
+          let validatedPath1: string;
+          let validatedPath2: string;
+          try {
+            validatedPath1 = await validatePath(pair.file1, {
+              allowSymlinks: false,
+              requireWithinProject: true,
+              allowReadFromBlocked: false,
+              operation: 'read',
+              projectRoot: sessionCwd,
+            });
+            validatedPath2 = await validatePath(pair.file2, {
+              allowSymlinks: false,
+              requireWithinProject: true,
+              allowReadFromBlocked: false,
+              operation: 'read',
+              projectRoot: sessionCwd,
+            });
+          } catch (validationError) {
+            if (validationError instanceof ValidationError) {
+              result.error = `Path validation failed: ${validationError.message}`;
+            } else {
+              result.error = `Path validation failed: ${(validationError as Error).message}`;
+            }
+            return result;
+          }
+
+          const [validation1, validation2] = await Promise.all([
+            validateFile(validatedPath1),
+            validateFile(validatedPath2),
+          ]);
+
+          if (!validation1.valid) {
+            result.error = validation1.error;
+            return result;
+          }
+          if (!validation2.valid) {
+            result.error = validation2.error;
+            return result;
+          }
+
+          const diffArgs: FileDiffArgs = {
+            ...diffOptions,
+            pairs: [],
+            file1: validatedPath1,
+            file2: validatedPath2,
+          };
+
+          const { stdout, identical } = await executeDiff(diffArgs);
+
+          result.success = true;
+          result.identical = identical;
+
+          if (identical) {
+            result.stats = { additions: 0, deletions: 0, changes: 0 };
+            return result;
+          }
+
+          result.rawDiff = stdout;
+
+          if (diffOptions.format === 'unified' || diffOptions.format === 'git') {
+            result.hunks = parseUnifiedDiff(stdout);
+            result.stats = calculateStats(result.hunks);
+          }
+
+          return result;
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          Logger.error(`file-diff error: ${errorMessage}`);
+          result.error = errorMessage;
+          return result;
         }
-        return JSON.stringify(result);
-      }
+      })
+    );
 
-      // Validate both files (existence, size)
-      const [validation1, validation2] = await Promise.all([
-        validateFile(validatedPath1),
-        validateFile(validatedPath2),
-      ]);
+    const successful = results.filter((r) => r.success);
+    const failed = results.filter((r) => !r.success);
 
-      if (!validation1.valid) {
-        result.error = validation1.error;
-        return JSON.stringify(result);
-      }
-
-      if (!validation2.valid) {
-        result.error = validation2.error;
-        return JSON.stringify(result);
-      }
-
-      // Execute diff with validated paths
-      const { stdout, identical } = await executeDiff({
-        ...diffArgs,
-        file1: validatedPath1,
-        file2: validatedPath2,
-      });
-
-      result.success = true;
-      result.identical = identical;
-
-      if (identical) {
-        result.stats = { additions: 0, deletions: 0, changes: 0 };
-        return JSON.stringify(result);
-      }
-
-      result.rawDiff = stdout;
-
-      // Parse hunks for structured output
-      if (diffArgs.format === 'unified' || diffArgs.format === 'git') {
-        result.hunks = parseUnifiedDiff(stdout);
-        result.stats = calculateStats(result.hunks);
-      }
-
-      return JSON.stringify(result);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`file-diff error: ${errorMessage}`);
-      result.error = errorMessage;
-      return JSON.stringify(result);
-    }
+    return JSON.stringify({
+      success: failed.length === 0,
+      compared: successful.length,
+      failed: failed.length,
+      results,
+    });
   },
 };

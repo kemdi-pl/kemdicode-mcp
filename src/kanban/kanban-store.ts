@@ -389,21 +389,13 @@ export async function claimTask(taskId: string, agentId: string): Promise<Kanban
     throw new Error(`Task already assigned to ${task.assignee}`);
   }
 
-  // Check blocking tasks (requires reading other tasks - cannot be atomic)
-  if (task.blockedBy.length > 0) {
-    for (const blockerId of task.blockedBy) {
-      const blocker = await getTask(blockerId);
-      if (blocker && blocker.status !== 'done') {
-        throw new Error(`Task blocked by ${blockerId} (${blocker.title})`);
-      }
-    }
-  }
-
   const now = Date.now();
   const startedAt = task.startedAt || now;
 
-  // Atomically claim the task only if assignee hasn't changed
-  // Using HSETNX pattern: claim only if assignee field is empty or equals current agent
+  // Build list of blocker task keys for Lua script
+  const blockerKeys = task.blockedBy.map((id) => KANBAN_KEYS.task(id));
+
+  // Atomically claim the task: check blockers + assignee + update in one script
   const luaScript = `
     local taskKey = KEYS[1]
     local byAgentKey = KEYS[2]
@@ -414,33 +406,45 @@ export async function claimTask(taskId: string, agentId: string): Promise<Kanban
     local now = ARGV[3]
     local startedAt = ARGV[4]
     local sessionId = ARGV[5]
-    
+    local blockerCount = tonumber(ARGV[6])
+
+    -- Atomically check blocking tasks
+    for i = 1, blockerCount do
+      local blockerKey = ARGV[6 + i]
+      local blockerStatus = redis.call('hget', blockerKey, 'status')
+      if blockerStatus and blockerStatus ~= 'done' then
+        local blockerTitle = redis.call('hget', blockerKey, 'title') or 'unknown'
+        local blockerId = redis.call('hget', blockerKey, 'id') or 'unknown'
+        return {-2, blockerId, blockerTitle}
+      end
+    end
+
     -- Check current assignee atomically
     local currentAssignee = redis.call('hget', taskKey, 'assignee')
-    
+
     -- If already assigned to someone else, return error code
     if currentAssignee and currentAssignee ~= '' and currentAssignee ~= agentId then
       return {-1, currentAssignee}
     end
-    
+
     -- If already assigned to this agent, return success (idempotent)
     if currentAssignee == agentId then
       return {1}
     end
-    
+
     -- Atomically update task fields
     redis.call('hset', taskKey, 'assignee', agentId)
     redis.call('hset', taskKey, 'status', 'in_progress')
     redis.call('hset', taskKey, 'updatedAt', now)
     redis.call('hset', taskKey, 'startedAt', startedAt)
-    
+
     -- Update agent index
     redis.call('sadd', byAgentKey, taskId)
-    
+
     -- Update status indices
     redis.call('srem', oldStatusKey, taskId)
     redis.call('sadd', newStatusKey, taskId)
-    
+
     return {0}
   `;
 
@@ -460,12 +464,21 @@ export async function claimTask(taskId: string, agentId: string): Promise<Kanban
     taskId,
     now.toString(),
     startedAt.toString(),
-    task.sessionId
-  )) as [number, string?];
+    task.sessionId,
+    blockerKeys.length.toString(),
+    ...blockerKeys
+  )) as [number, string?, string?];
 
   const statusCode = result[0];
 
   // Handle results
+  if (statusCode === -2) {
+    // Task is blocked by an incomplete task
+    const blockerId = result[1] as string;
+    const blockerTitle = result[2] as string;
+    throw new Error(`Task blocked by ${blockerId} (${blockerTitle})`);
+  }
+
   if (statusCode === -1) {
     // Task was assigned to someone else during our check
     const otherAssignee = result[1] as string;
@@ -582,13 +595,44 @@ export async function listTasks(
   // Get all task IDs for session (sorted by priority)
   const taskIds = await client.zrevrange(KANBAN_KEYS.tasks(sessionId), 0, limit * 2);
 
+  if (taskIds.length === 0) return [];
+
+  // Batch fetch all tasks using pipeline (eliminates N+1 queries)
+  const pipeline = client.pipeline();
+  for (const taskId of taskIds) {
+    pipeline.hgetall(KANBAN_KEYS.task(taskId));
+  }
+  const pipelineResults = await pipeline.exec();
+
   const tasks: KanbanTask[] = [];
 
-  for (const taskId of taskIds) {
+  for (let i = 0; i < taskIds.length; i++) {
     if (tasks.length >= limit) break;
 
-    const task = await getTask(taskId);
-    if (!task) continue;
+    const [err, data] = (pipelineResults?.[i] ?? [null, null]) as [Error | null, Record<string, string> | null];
+    if (err || !data || Object.keys(data).length === 0) continue;
+
+    const task: KanbanTask = {
+      id: data.id,
+      sessionId: data.sessionId,
+      boardId: data.boardId || undefined,
+      title: data.title,
+      description: data.description || undefined,
+      status: data.status as TaskStatus,
+      priority: data.priority as TaskPriority,
+      assignee: data.assignee || undefined,
+      createdBy: data.createdBy,
+      blockedBy: safeParseJsonArray(data.blockedBy),
+      blocks: safeParseJsonArray(data.blocks),
+      relatedFiles: safeParseJsonArray(data.relatedFiles),
+      labels: safeParseJsonArray(data.labels),
+      createdAt: safeParseInt(data.createdAt, 0),
+      updatedAt: safeParseInt(data.updatedAt, 0),
+      startedAt: data.startedAt ? safeParseInt(data.startedAt) : undefined,
+      completedAt: data.completedAt ? safeParseInt(data.completedAt) : undefined,
+      estimatedMinutes: data.estimatedMinutes ? safeParseInt(data.estimatedMinutes) : undefined,
+      actualMinutes: data.actualMinutes ? safeParseInt(data.actualMinutes) : undefined,
+    };
 
     // Apply filters
     if (filter) {
@@ -834,92 +878,68 @@ async function emitEvent(event: TaskEvent): Promise<void> {
  * unsubscribe();
  * ```
  */
-export function subscribeToEvents(callback: (event: TaskEvent) => void): () => void {
-  let subscriber: Redis | null = null;
-  let isCleanedUp = false;
-  let cleanupTimeout: NodeJS.Timeout | null = null;
+// Singleton subscriber to prevent connection leaks
+let sharedEventSubscriber: Redis | null = null;
+let _sharedEventSubscriberReady = false;
+const eventCallbacks = new Set<(event: TaskEvent) => void>();
 
-  const cleanup = async (): Promise<void> => {
-    if (isCleanedUp || !subscriber) return;
-    isCleanedUp = true;
-
-    if (cleanupTimeout) {
-      clearTimeout(cleanupTimeout);
-      cleanupTimeout = null;
-    }
-
-    try {
-      await subscriber.unsubscribe(KANBAN_KEYS.channel);
-    } catch (error) {
-      Logger.debug(`kanban: unsubscribe error during cleanup: ${error}`);
-    }
-
-    try {
-      subscriber.disconnect();
-    } catch (error) {
-      Logger.debug(`kanban: disconnect error during cleanup: ${error}`);
-    }
-  };
-
-  const forceCleanup = (): void => {
-    if (subscriber && !isCleanedUp) {
-      Logger.warn('kanban: forcing Redis subscriber cleanup after timeout');
-      try {
-        subscriber.disconnect();
-      } catch {
-        // Ignore errors during forced cleanup
-      }
-      isCleanedUp = true;
-    }
-  };
+function ensureSharedSubscriber(): void {
+  if (sharedEventSubscriber) return;
 
   try {
-    subscriber = new Redis({
+    sharedEventSubscriber = new Redis({
       host: process.env.REDIS_HOST || '127.0.0.1',
       port: parseInt(process.env.REDIS_PORT || '6379'),
       password: process.env.REDIS_PASSWORD || undefined,
       db: 2,
     });
 
-    // Set up error handler before any async operations
-    subscriber.on('error', (error: Error) => {
-      Logger.error(`kanban: Redis subscriber error: ${error}`);
-      void cleanup();
+    sharedEventSubscriber.on('error', (error: Error) => {
+      Logger.error(`kanban: shared Redis subscriber error: ${error}`);
     });
 
-    // Subscribe with error handling
-    subscriber.subscribe(KANBAN_KEYS.channel, (error: Error | null | undefined) => {
+    sharedEventSubscriber.subscribe(KANBAN_KEYS.channel, (error: Error | null | undefined) => {
       if (error) {
         Logger.error(`kanban: failed to subscribe to channel: ${error}`);
-        void cleanup();
         return;
       }
+      _sharedEventSubscriberReady = true;
     });
 
-    subscriber.on('message', (_channel: string, message: string) => {
+    sharedEventSubscriber.on('message', (_channel: string, message: string) => {
       try {
         const event = JSON.parse(message) as TaskEvent;
-        callback(event);
+        eventCallbacks.forEach((cb) => cb(event));
       } catch (error) {
         Logger.error(`kanban: failed to parse event: ${error}`);
       }
     });
-
-    // Set up forced cleanup timeout (30 seconds)
-    cleanupTimeout = setTimeout(forceCleanup, 30000);
-
-    return () => {
-      void cleanup();
-    };
   } catch (error) {
-    Logger.error(`kanban: failed to create Redis subscriber: ${error}`);
-    void cleanup();
-
-    // Return no-op unsubscribe function
-    return () => {
-      // No-op - already cleaned up or failed to initialize
-    };
+    Logger.error(`kanban: failed to create shared Redis subscriber: ${error}`);
+    sharedEventSubscriber = null;
   }
+}
+
+function cleanupSharedSubscriber(): void {
+  if (eventCallbacks.size > 0 || !sharedEventSubscriber) return;
+
+  try {
+    sharedEventSubscriber.disconnect();
+  } catch {
+    // Ignore disconnect errors
+  }
+  sharedEventSubscriber = null;
+  _sharedEventSubscriberReady = false;
+}
+
+export function subscribeToEvents(callback: (event: TaskEvent) => void): () => void {
+  ensureSharedSubscriber();
+  eventCallbacks.add(callback);
+
+  return () => {
+    eventCallbacks.delete(callback);
+    cleanupSharedSubscriber();
+  };
 }
 
 /**

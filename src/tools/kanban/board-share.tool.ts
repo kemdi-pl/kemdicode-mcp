@@ -30,13 +30,17 @@ import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { shareBoard, hasPermission } from '../../kanban/index.js';
 
-const schema = z.object({
+const shareItemSchema = z.object({
   boardId: z.string().min(1).describe('Board ID'),
   workspaceId: z.string().min(1).describe('Target workspace ID'),
   visibility: z
     .enum(['workspace', 'public'])
     .default('workspace')
     .describe('Visibility level'),
+});
+
+const schema = z.object({
+  shares: z.array(shareItemSchema).min(1).max(10).describe('Shares to create (1-10)'),
   agentId: z.string().min(1).describe('Agent ID (must have permission)'),
 });
 
@@ -44,11 +48,11 @@ type BoardShareArgs = z.infer<typeof schema>;
 
 export const boardShareTool: UnifiedTool = {
   name: 'board-share',
-  description: 'Share board with workspace for cross-session access',
+  description: 'Share 1-10 boards with workspaces. Returns results.',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
-    const input = args as BoardShareArgs;
+    const { shares, agentId } = args as BoardShareArgs;
 
     if (!checkRateLimit('kanban-operations', { maxRequests: 100, windowMs: 60000 })) {
       return JSON.stringify({
@@ -58,49 +62,58 @@ export const boardShareTool: UnifiedTool = {
       });
     }
 
-    try {
-      // Check permission
-      const canManage = await hasPermission(input.boardId, input.agentId, 'canManageBoard');
-      if (!canManage) {
-        return JSON.stringify({
-          success: false,
-          error: 'Agent does not have permission to manage this board',
-          code: 'PERMISSION_DENIED',
-        });
-      }
+    const results = await Promise.all(
+      shares.map(async (item) => {
+        try {
+          const canManage = await hasPermission(item.boardId, agentId, 'canManageBoard');
+          if (!canManage) {
+            return {
+              boardId: item.boardId,
+              success: false,
+              error: 'Permission denied',
+              code: 'PERMISSION_DENIED',
+            };
+          }
 
-      const board = await shareBoard(input.boardId, input.workspaceId, input.visibility);
+          const board = await shareBoard(item.boardId, item.workspaceId, item.visibility);
+          if (!board) {
+            return {
+              boardId: item.boardId,
+              success: false,
+              error: 'Board not found',
+              code: 'NOT_FOUND',
+            };
+          }
 
-      if (!board) {
-        return JSON.stringify({
-          success: false,
-          error: 'Board not found',
-          code: 'NOT_FOUND',
-        });
-      }
+          Logger.debug(
+            `board-share: shared board ${item.boardId} with workspace ${item.workspaceId}`
+          );
 
-      Logger.debug(
-        `board-share: shared board ${input.boardId} with workspace ${input.workspaceId}`
-      );
+          return {
+            boardId: board.id,
+            name: board.name,
+            workspaceId: board.workspaceId,
+            visibility: board.visibility,
+            success: true,
+          };
+        } catch (error) {
+          return {
+            boardId: item.boardId,
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      })
+    );
 
-      return JSON.stringify({
-        success: true,
-        board: {
-          id: board.id,
-          name: board.name,
-          workspaceId: board.workspaceId,
-          visibility: board.visibility,
-        },
-      });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`board-share error: ${errorMessage}`);
+    const successful = results.filter((r) => r.success);
+    const failed = results.filter((r) => !r.success);
 
-      return JSON.stringify({
-        success: false,
-        error: errorMessage,
-        code: 'SHARE_ERROR',
-      });
-    }
+    return JSON.stringify({
+      success: failed.length === 0,
+      shared: successful.length,
+      failed: failed.length,
+      results,
+    });
   },
 };

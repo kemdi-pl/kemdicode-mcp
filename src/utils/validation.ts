@@ -690,13 +690,12 @@ export function checkRateLimit(
   state.requests.push(now);
   rateLimitStates.set(key, state);
 
-  // Evict stale entries if map grows too large
-  if (rateLimitStates.size > MAX_RATE_LIMIT_KEYS) {
+  // Evict stale entries periodically (every 100 calls or when map grows too large)
+  if (rateLimitStates.size > MAX_RATE_LIMIT_KEYS || rateLimitStates.size % 100 === 0) {
     for (const [k, v] of rateLimitStates) {
       if (v.requests.length === 0 || now - v.requests[v.requests.length - 1] > config.windowMs) {
         rateLimitStates.delete(k);
       }
-      if (rateLimitStates.size <= MAX_RATE_LIMIT_KEYS) break;
     }
   }
 

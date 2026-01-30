@@ -4,7 +4,7 @@
 
 Model Context Protocol (MCP) server providing **100+ specialized tools** for code analysis, generation, git operations, file management, line/symbol editing, project memory, multi-board kanban with workspaces, recursive tool invocation, session monitoring, and multi-agent coordination.
 
-**Version:** 1.18.0
+**Version:** 1.19.0
 
 ## Architecture
 

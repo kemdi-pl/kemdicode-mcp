@@ -30,8 +30,18 @@ export class SecureStorage {
   private static readonly MAX_SECRETS = 500;
 
   constructor(password: string, salt?: string) {
-    const actualSalt = salt || process.env.SECURE_STORAGE_SALT || 'kemdicode-mcp-salt';
-    this.masterKey = scryptSync(password, actualSalt, KEY_LENGTH);
+    const actualSalt = salt || process.env.SECURE_STORAGE_SALT;
+    if (!actualSalt) {
+      // Generate random salt per instance if not configured (ephemeral - not persisted)
+      const ephemeralSalt = randomBytes(16).toString('hex');
+      console.warn(
+        '[SecureStorage] No salt configured. Using ephemeral salt (secrets will not survive restart). ' +
+        'Set SECURE_STORAGE_SALT env var for persistence. Generate with: openssl rand -hex 32'
+      );
+      this.masterKey = scryptSync(password, ephemeralSalt, KEY_LENGTH);
+    } else {
+      this.masterKey = scryptSync(password, actualSalt, KEY_LENGTH);
+    }
   }
 
   /**

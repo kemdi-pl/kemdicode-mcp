@@ -88,18 +88,23 @@ const BINARY_EXTENSIONS = new Set([
   '.a',
 ]);
 
-const schema = z.object({
+const fileItemSchema = z.object({
   path: z.string().min(1).describe('File path to read'),
   startLine: z.number().int().positive().optional().describe('Start line (1-based)'),
   endLine: z.number().int().positive().optional().describe('End line (1-based, inclusive)'),
+});
+
+const schema = z.object({
+  files: z.array(fileItemSchema).min(1).max(20).describe('Files to read (1-20)'),
   encoding: z
     .enum(['utf-8', 'utf-16', 'ascii', 'latin1', 'base64'])
     .default('utf-8')
     .describe('Encoding'),
-  maxSize: z.number().int().positive().optional().describe('Max bytes to read'),
+  maxSize: z.number().int().positive().optional().describe('Max bytes per file'),
 });
 
 type FileReadArgs = z.infer<typeof schema>;
+type FileItem = z.infer<typeof fileItemSchema>;
 
 /**
  * Detect if a file is binary based on extension and content sampling
@@ -148,17 +153,115 @@ function detectEncoding(buffer: Buffer): string {
   return 'utf-8'; // Default
 }
 
+/**
+ * Read a single file and return structured result
+ */
+async function readSingleFile(
+  item: FileItem,
+  encoding: string,
+  maxBytes: number,
+  sessionCwd?: string
+): Promise<Record<string, unknown>> {
+  const inputPath = item.path;
+  try {
+    let validatedPath: string;
+    try {
+      validatedPath = await validatePath(inputPath, {
+        allowSymlinks: false,
+        requireWithinProject: false,
+        allowReadFromBlocked: true,
+        operation: 'read',
+        projectRoot: sessionCwd,
+      });
+    } catch (validationError) {
+      if (validationError instanceof ValidationError) {
+        Logger.warn(`file-read security validation failed: ${validationError.message}`);
+        return { success: false, error: validationError.message, code: (validationError as ValidationError).code, path: inputPath };
+      }
+      throw validationError;
+    }
+
+    let fileStats: { size: number; isFile: boolean };
+    try {
+      fileStats = await validateFileSize(validatedPath, maxBytes);
+    } catch (validationError) {
+      if (validationError instanceof ValidationError) {
+        return { success: false, error: validationError.message, code: (validationError as ValidationError).code, path: validatedPath };
+      }
+      throw validationError;
+    }
+
+    if (!fileStats.isFile) {
+      return { success: false, error: `Path is not a file: ${validatedPath}`, path: validatedPath };
+    }
+
+    const stats = await fs.stat(validatedPath);
+
+    if (await isBinaryFile(validatedPath)) {
+      return { success: false, error: 'Binary file detected', path: validatedPath, size: stats.size, isBinary: true };
+    }
+
+    const buffer = await fs.readFile(validatedPath);
+    const detectedEncoding = detectEncoding(buffer);
+    const content = buffer.toString(encoding === 'utf-8' ? 'utf8' : (encoding as BufferEncoding));
+
+    if (item.startLine !== undefined || item.endLine !== undefined) {
+      const lines = content.split('\n');
+      const start = (item.startLine ?? 1) - 1;
+      const end = item.endLine ?? lines.length;
+
+      if (start >= lines.length) {
+        return { success: false, error: `Start line ${item.startLine} exceeds file length (${lines.length} lines)`, totalLines: lines.length };
+      }
+
+      const selectedLines = lines.slice(start, end);
+      const lineNumbers = selectedLines.map((line, idx) => ({ lineNumber: start + idx + 1, content: line }));
+
+      return {
+        success: true,
+        path: validatedPath,
+        encoding: detectedEncoding,
+        totalLines: lines.length,
+        range: { start: start + 1, end: Math.min(end, lines.length) },
+        lines: lineNumbers,
+      };
+    }
+
+    const lines = content.split('\n');
+    return {
+      success: true,
+      path: validatedPath,
+      encoding: detectedEncoding,
+      size: stats.size,
+      totalLines: lines.length,
+      content,
+      modifiedAt: stats.mtime.toISOString(),
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    Logger.error(`file-read error: ${errorMessage}`);
+
+    const nodeError = error as NodeJS.ErrnoException;
+    if (nodeError.code) {
+      const mcpError = fromNodeError(nodeError, inputPath, 'read');
+      return JSON.parse(errorToJsonString(mcpError));
+    }
+
+    return { success: false, error: errorMessage, code: 'UNKNOWN_ERROR', path: inputPath };
+  }
+}
+
 export const fileReadTool: UnifiedTool = {
   name: 'file-read',
-  description: 'Read file with encoding detection and line ranges',
+  description: 'Read 1-20 files with encoding detection and line ranges.',
   zodSchema: schema,
-  skipContextShare: true, // File content may be large
+  skipContextShare: true,
+  metadata: { category: 'file', tags: ['read', 'encoding'] },
 
   execute: async (args): Promise<string> => {
-    const { path: inputPath, startLine, endLine, encoding, maxSize } = args as FileReadArgs;
+    const { files, encoding, maxSize } = args as unknown as FileReadArgs;
     const maxBytes = maxSize ?? MAX_FILE_SIZE;
 
-    // Rate limit check
     if (!checkRateLimit('file-read', { maxRequests: 200, windowMs: 60000 })) {
       return JSON.stringify({
         success: false,
@@ -167,133 +270,20 @@ export const fileReadTool: UnifiedTool = {
       });
     }
 
-    try {
-      // Validate and sanitize the path
-      // Note: requireWithinProject is false to allow reading files from external codebases
-      let validatedPath: string;
-      try {
-        validatedPath = await validatePath(inputPath, {
-          allowSymlinks: false,
-          requireWithinProject: false, // Allow reading any accessible file
-          allowReadFromBlocked: true, // Allow reading from more places, but not /proc, /sys, /dev
-          operation: 'read',
-          projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
-        });
-      } catch (validationError) {
-        if (validationError instanceof ValidationError) {
-          Logger.warn(`file-read security validation failed: ${validationError.message}`);
-          return JSON.stringify({
-            success: false,
-            error: validationError.message,
-            code: validationError.code,
-            path: inputPath,
-          });
-        }
-        throw validationError;
-      }
+    const sessionCwd = (args as Record<string, unknown>)._sessionCwd as string | undefined;
 
-      // Validate file size
-      let fileStats: { size: number; isFile: boolean };
-      try {
-        fileStats = await validateFileSize(validatedPath, maxBytes);
-      } catch (validationError) {
-        if (validationError instanceof ValidationError) {
-          return JSON.stringify({
-            success: false,
-            error: validationError.message,
-            code: validationError.code,
-            path: validatedPath,
-          });
-        }
-        throw validationError;
-      }
+    const results = await Promise.all(
+      files.map((item) => readSingleFile(item, encoding, maxBytes, sessionCwd))
+    );
 
-      if (!fileStats.isFile) {
-        return JSON.stringify({
-          success: false,
-          error: `Path is not a file: ${validatedPath}`,
-          path: validatedPath,
-        });
-      }
+    const successful = results.filter((r) => r.success);
+    const failed = results.filter((r) => !r.success);
 
-      // Get file stats for additional metadata
-      const stats = await fs.stat(validatedPath);
-
-      // Check for binary
-      if (await isBinaryFile(validatedPath)) {
-        return JSON.stringify({
-          success: false,
-          error: 'Binary file detected. Use appropriate tools for binary files.',
-          path: validatedPath,
-          size: stats.size,
-          isBinary: true,
-        });
-      }
-
-      // Read file content
-      const buffer = await fs.readFile(validatedPath);
-      const detectedEncoding = detectEncoding(buffer);
-      const content = buffer.toString(encoding === 'utf-8' ? 'utf8' : (encoding as BufferEncoding));
-
-      // Handle line ranges
-      if (startLine !== undefined || endLine !== undefined) {
-        const lines = content.split('\n');
-        const start = (startLine ?? 1) - 1; // Convert to 0-based
-        const end = endLine ?? lines.length;
-
-        if (start >= lines.length) {
-          return JSON.stringify({
-            success: false,
-            error: `Start line ${startLine} exceeds file length (${lines.length} lines)`,
-            totalLines: lines.length,
-          });
-        }
-
-        const selectedLines = lines.slice(start, end);
-        const lineNumbers = selectedLines.map((line, idx) => ({
-          lineNumber: start + idx + 1,
-          content: line,
-        }));
-
-        return JSON.stringify({
-          success: true,
-          path: validatedPath,
-          encoding: detectedEncoding,
-          totalLines: lines.length,
-          range: { start: start + 1, end: Math.min(end, lines.length) },
-          lines: lineNumbers,
-        });
-      }
-
-      // Return full file content
-      const lines = content.split('\n');
-      return JSON.stringify({
-        success: true,
-        path: validatedPath,
-        encoding: detectedEncoding,
-        size: stats.size,
-        totalLines: lines.length,
-        content,
-        modifiedAt: stats.mtime.toISOString(),
-      });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`file-read error: ${errorMessage}`);
-
-      // Convert Node.js errno errors to custom error types
-      const nodeError = error as NodeJS.ErrnoException;
-      if (nodeError.code) {
-        const mcpError = fromNodeError(nodeError, inputPath, 'read');
-        return errorToJsonString(mcpError);
-      }
-
-      // For other errors, return a generic error response
-      return JSON.stringify({
-        success: false,
-        error: errorMessage,
-        code: 'UNKNOWN_ERROR',
-        path: inputPath,
-      });
-    }
+    return JSON.stringify({
+      success: failed.length === 0,
+      read: successful.length,
+      failed: failed.length,
+      results,
+    });
   },
 };

@@ -145,8 +145,11 @@ export const gitLogTool: UnifiedTool = {
       logArgs.push('--first-parent');
     }
 
-    // Specific ref
+    // Specific ref (prevent flag injection via refs starting with --)
     if (ref) {
+      if (ref.startsWith('-')) {
+        return `Error: Invalid ref '${ref}'. Refs must not start with '-'.`;
+      }
       logArgs.push(ref);
     }
 

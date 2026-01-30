@@ -157,9 +157,13 @@ async function execute(args: Record<string, unknown>): Promise<string> {
   }
 
   const template = synthesisPrompt || DEFAULT_SYNTHESIS_PROMPT;
+  // Replace placeholders in safe order: board_responses first (cannot be user-controlled),
+  // then original_prompt. This prevents user prompt containing '{board_responses}' from
+  // being expanded into actual board data (template injection).
+  const boardResponsesContent = boardResponsesXml.join('\n\n');
   const ceoPrompt = template
-    .replaceAll('{original_prompt}', prompt)
-    .replaceAll('{board_responses}', boardResponsesXml.join('\n\n'));
+    .replaceAll('{board_responses}', boardResponsesContent)
+    .replaceAll('{original_prompt}', prompt);
 
   output.push('---\n');
   output.push('## CEO Decision\n');
@@ -171,7 +175,7 @@ async function execute(args: Record<string, unknown>): Promise<string> {
       model: ceoModel,
       messages: ceoMessages,
       temperature: 0.7,
-      maxTokens: maxTokens ? maxTokens * 2 : 16384, // CEO gets more tokens
+      maxTokens: maxTokens ? Math.min(maxTokens * 2, 32768) : 16384, // CEO gets more tokens, capped at 32K
       stream: false,
     });
 

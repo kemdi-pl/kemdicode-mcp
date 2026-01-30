@@ -25,41 +25,25 @@
  */
 
 import { z } from 'zod';
-import { getSharedRedis } from '../../infrastructure/redis/connection.js';
-import { createHash } from 'crypto';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
-
-/** Redis key prefix for memories */
-const MEMORY_PREFIX = 'mcp:memory:';
-const MEMORY_INDEX_PREFIX = 'mcp:memory:index:';
-
-const getRedis = getSharedRedis;
-
-/**
- * Generate project ID from current working directory
- */
-function getProjectId(): string {
-  const cwd = process.cwd();
-  return createHash('sha256').update(cwd).digest('hex').slice(0, 16);
-}
+import { MEMORY_PREFIX, MEMORY_INDEX_PREFIX, getRedis, getProjectId } from './shared.js';
 
 const schema = z.object({
-  name: z.string().min(1).describe('Memory name'),
+  names: z.array(z.string().min(1)).min(1).max(20).describe('Memory names to delete (1-20)'),
 });
 
 type DeleteMemoryArgs = z.infer<typeof schema>;
 
 export const deleteMemoryTool: UnifiedTool = {
   name: 'delete-memory',
-  description: 'Delete named memory from current project',
+  description: 'Delete 1-20 named memories from current project.',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
-    const { name } = args as DeleteMemoryArgs;
+    const { names } = args as DeleteMemoryArgs;
 
-    // Rate limit check
     if (!checkRateLimit('memory-operations', { maxRequests: 50, windowMs: 60000 })) {
       return JSON.stringify({
         success: false,
@@ -69,35 +53,49 @@ export const deleteMemoryTool: UnifiedTool = {
     }
 
     const projectId = getProjectId();
-    const memoryKey = `${MEMORY_PREFIX}${projectId}:${name}`;
     const indexKey = `${MEMORY_INDEX_PREFIX}${projectId}`;
 
     try {
       const client = await getRedis();
 
-      // Check if memory exists
-      const exists = await client.exists(memoryKey);
-      if (!exists) {
-        return JSON.stringify({
-          success: false,
-          error: `Memory '${name}' not found`,
-          code: 'MEMORY_NOT_FOUND',
-          name,
-          projectId,
-        });
+      // Pipeline: check existence
+      const existsPipeline = client.pipeline();
+      for (const name of names) {
+        existsPipeline.exists(`${MEMORY_PREFIX}${projectId}:${name}`);
+      }
+      const existsResults = await existsPipeline.exec();
+
+      // Pipeline: delete existing + remove from index
+      const delPipeline = client.pipeline();
+      const results = names.map((name, i) => {
+        const exists = (existsResults?.[i]?.[1] as number) > 0;
+        if (!exists) {
+          return { name, success: false, error: `Memory '${name}' not found`, code: 'MEMORY_NOT_FOUND' };
+        }
+        delPipeline.del(`${MEMORY_PREFIX}${projectId}:${name}`);
+        delPipeline.srem(indexKey, name);
+        return { name, success: true };
+      });
+
+      if (results.some((r) => r.success)) {
+        await delPipeline.exec();
       }
 
-      // Delete memory and remove from index
-      await client.del(memoryKey);
-      await client.srem(indexKey, name);
+      for (const r of results) {
+        if (r.success) {
+          Logger.debug(`delete-memory: deleted '${r.name}' from project ${projectId}`);
+        }
+      }
 
-      Logger.debug(`delete-memory: deleted '${name}' from project ${projectId}`);
+      const successful = results.filter((r) => r.success);
+      const failed = results.filter((r) => !r.success);
 
       return JSON.stringify({
-        success: true,
-        name,
+        success: failed.length === 0,
         projectId,
-        message: `Memory '${name}' deleted successfully`,
+        deleted: successful.length,
+        notFound: failed.length,
+        results,
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

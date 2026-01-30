@@ -268,9 +268,15 @@ export class SessionManager {
     }
 
     if (session) {
-      // Update last accessed time
-      session.lastAccessedAt = Date.now();
-      await this.persistSession(session);
+      // Throttle write-back: only persist if last access was >5 minutes ago
+      const now = Date.now();
+      const staleThreshold = 5 * 60 * 1000; // 5 minutes
+      if (now - session.lastAccessedAt > staleThreshold) {
+        session.lastAccessedAt = now;
+        await this.persistSession(session);
+      } else {
+        session.lastAccessedAt = now;
+      }
       Logger.sessionEvent('accessed', sessionId, { source });
     } else {
       Logger.debug(() => `Session not found: ${sessionId}`, { sessionId });

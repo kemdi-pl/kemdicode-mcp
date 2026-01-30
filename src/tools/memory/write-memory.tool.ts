@@ -26,71 +26,47 @@
  */
 
 import { z } from 'zod';
-import type { Redis } from 'ioredis';
-import { getSharedRedis } from '../../infrastructure/redis/connection.js';
-import { createHash } from 'crypto';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
+import {
+  type ProjectMemory,
+  MEMORY_PREFIX,
+  MEMORY_INDEX_PREFIX,
+  DEFAULT_MEMORY_TTL,
+  MAX_CONTENT_SIZE,
+  getRedis,
+  getProjectId,
+  getExistingCreatedAt,
+} from './shared.js';
 
-/** Memory entry structure */
-interface ProjectMemory {
-  name: string;
-  projectId: string;
-  content: string;
-  createdAt: number;
-  updatedAt: number;
-  tags: string[];
-}
-
-/** Redis key prefix for memories */
-const MEMORY_PREFIX = 'mcp:memory:';
-const MEMORY_INDEX_PREFIX = 'mcp:memory:index:';
-
-/** Default TTL: 30 days in seconds */
-const DEFAULT_TTL = 30 * 24 * 60 * 60;
-
-/** Maximum memory content size: 1MB */
-const MAX_CONTENT_SIZE = 1024 * 1024;
-
-const getRedis = getSharedRedis;
-/**
- * Generate a unique project identifier from current working directory
- *
- * @description Creates a SHA-256 hash of the CWD, truncated to 16 characters.
- *              This ensures memories are scoped to specific projects.
- * @returns {string} 16-character hex string project identifier
- * @internal
- */
-function getProjectId(): string {
-  const cwd = process.cwd();
-  return createHash('sha256').update(cwd).digest('hex').slice(0, 16);
-}
-
-const schema = z.object({
+const memoryItemSchema = z.object({
   name: z
     .string()
     .min(1)
     .max(100)
     .regex(/^[a-zA-Z0-9_-]+$/, 'Name must be alphanumeric with dashes/underscores')
-    .describe('Memory name, alphanumeric with dashes/underscores'),
+    .describe('Memory name'),
   content: z.string().min(1).describe('Content to store'),
   tags: z.array(z.string()).default([]).describe('Tags for categorization'),
   overwrite: z.boolean().default(false).describe('Overwrite if exists'),
-  ttlDays: z.number().min(1).max(365).default(30).describe('Time-to-live in days'),
+  ttlDays: z.number().min(1).max(365).default(30).describe('TTL in days'),
+});
+
+const schema = z.object({
+  memories: z.array(memoryItemSchema).min(1).max(20).describe('Memories to store (1-20)'),
 });
 
 type WriteMemoryArgs = z.infer<typeof schema>;
 
 export const writeMemoryTool: UnifiedTool = {
   name: 'write-memory',
-  description: 'Store named memory for current project, persists across sessions',
+  description: 'Store 1-20 named memories for current project. Returns results.',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
-    const { name, content, tags, overwrite, ttlDays } = args as WriteMemoryArgs;
+    const { memories } = args as unknown as WriteMemoryArgs;
 
-    // Rate limit check
     if (!checkRateLimit('memory-operations', { maxRequests: 100, windowMs: 60000 })) {
       return JSON.stringify({
         success: false,
@@ -99,97 +75,79 @@ export const writeMemoryTool: UnifiedTool = {
       });
     }
 
-    // Check content size
-    if (content.length > MAX_CONTENT_SIZE) {
-      return JSON.stringify({
-        success: false,
-        error: `Content too large: ${content.length} bytes (max: ${MAX_CONTENT_SIZE} bytes)`,
-        code: 'CONTENT_TOO_LARGE',
-      });
-    }
-
     const projectId = getProjectId();
-    const memoryKey = `${MEMORY_PREFIX}${projectId}:${name}`;
     const indexKey = `${MEMORY_INDEX_PREFIX}${projectId}`;
 
-    try {
-      const client = await getRedis();
+    const results = await Promise.all(
+      memories.map(async (item) => {
+        try {
+          if (item.content.length > MAX_CONTENT_SIZE) {
+            return {
+              name: item.name,
+              success: false,
+              error: `Content too large: ${item.content.length} bytes`,
+              code: 'CONTENT_TOO_LARGE',
+            };
+          }
 
-      // Check if memory exists
-      const existing = await client.exists(memoryKey);
-      if (existing && !overwrite) {
-        return JSON.stringify({
-          success: false,
-          error: `Memory '${name}' already exists. Use overwrite: true to replace.`,
-          code: 'MEMORY_EXISTS',
-          name,
-          projectId,
-        });
-      }
+          const memoryKey = `${MEMORY_PREFIX}${projectId}:${item.name}`;
+          const client = await getRedis();
 
-      const now = Date.now();
-      const memory: ProjectMemory = {
-        name,
-        projectId,
-        content,
-        createdAt: existing ? ((await getExistingCreatedAt(client, memoryKey)) ?? now) : now,
-        updatedAt: now,
-        tags,
-      };
+          const existing = await client.exists(memoryKey);
+          if (existing && !item.overwrite) {
+            return {
+              name: item.name,
+              success: false,
+              error: `Memory '${item.name}' already exists`,
+              code: 'MEMORY_EXISTS',
+            };
+          }
 
-      const ttl = ttlDays * 24 * 60 * 60;
+          const now = Date.now();
+          const memory: ProjectMemory = {
+            name: item.name,
+            projectId,
+            content: item.content,
+            createdAt: existing ? ((await getExistingCreatedAt(client, memoryKey)) ?? now) : now,
+            updatedAt: now,
+            tags: item.tags,
+          };
 
-      // Store memory
-      await client.setex(memoryKey, ttl, JSON.stringify(memory));
+          const ttl = item.ttlDays * 24 * 60 * 60;
+          await client.setex(memoryKey, ttl, JSON.stringify(memory));
+          await client.sadd(indexKey, item.name);
+          await client.expire(indexKey, DEFAULT_MEMORY_TTL);
 
-      // Update index
-      await client.sadd(indexKey, name);
-      await client.expire(indexKey, DEFAULT_TTL);
+          Logger.debug(`write-memory: stored '${item.name}' for project ${projectId}`);
 
-      Logger.debug(`write-memory: stored '${name}' for project ${projectId}`);
+          return {
+            name: item.name,
+            success: true,
+            contentLength: item.content.length,
+            tags: item.tags,
+            ttlDays: item.ttlDays,
+            overwritten: existing > 0,
+          };
+        } catch (error) {
+          return {
+            name: item.name,
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      })
+    );
 
-      return JSON.stringify({
-        success: true,
-        name,
-        projectId,
-        contentLength: content.length,
-        tags,
-        ttlDays,
-        overwritten: existing > 0,
-        createdAt: memory.createdAt,
-        updatedAt: memory.updatedAt,
-      });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`write-memory error: ${errorMessage}`);
+    const successful = results.filter((r) => r.success);
+    const failed = results.filter((r) => !r.success);
 
-      return JSON.stringify({
-        success: false,
-        error: errorMessage,
-        code: 'STORAGE_ERROR',
-      });
-    }
+    return JSON.stringify({
+      success: failed.length === 0,
+      projectId,
+      stored: successful.length,
+      failed: failed.length,
+      results,
+    });
   },
 };
 
-/**
- * Retrieve the original creation timestamp of an existing memory
- *
- * @description Used when overwriting a memory to preserve the original createdAt
- * @param {Redis} client - Redis client instance
- * @param {string} key - Redis key for the memory
- * @returns {Promise<number | null>} Original createdAt timestamp or null
- * @internal
- */
-async function getExistingCreatedAt(client: Redis, key: string): Promise<number | null> {
-  try {
-    const data = await client.get(key);
-    if (data) {
-      const memory = JSON.parse(data) as ProjectMemory;
-      return memory.createdAt;
-    }
-  } catch {
-    // Ignore parse errors
-  }
-  return null;
-}

@@ -26,39 +26,18 @@
  */
 
 import { z } from 'zod';
-import { getSharedRedis } from '../../infrastructure/redis/connection.js';
-import { createHash } from 'crypto';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
+import {
+  type ProjectMemory,
+  MEMORY_PREFIX,
+  MAX_CONTENT_SIZE,
+  getRedis,
+  getProjectId,
+} from './shared.js';
 
-/** Memory entry structure */
-interface ProjectMemory {
-  name: string;
-  projectId: string;
-  content: string;
-  createdAt: number;
-  updatedAt: number;
-  tags: string[];
-}
-
-/** Redis key prefix for memories */
-const MEMORY_PREFIX = 'mcp:memory:';
-
-/** Maximum memory content size: 1MB */
-const MAX_CONTENT_SIZE = 1024 * 1024;
-
-const getRedis = getSharedRedis;
-
-/**
- * Generate project ID from current working directory
- */
-function getProjectId(): string {
-  const cwd = process.cwd();
-  return createHash('sha256').update(cwd).digest('hex').slice(0, 16);
-}
-
-const schema = z.object({
+const editItemSchema = z.object({
   name: z.string().min(1).describe('Memory name'),
   content: z.string().optional().describe('Replacement content'),
   appendContent: z.string().optional().describe('Content to append'),
@@ -68,18 +47,20 @@ const schema = z.object({
   removeTags: z.array(z.string()).optional().describe('Tags to remove'),
 });
 
+const schema = z.object({
+  edits: z.array(editItemSchema).min(1).max(10).describe('Memory edits to apply (1-10)'),
+});
+
 type EditMemoryArgs = z.infer<typeof schema>;
 
 export const editMemoryTool: UnifiedTool = {
   name: 'edit-memory',
-  description: 'Edit existing memory content or tags',
+  description: 'Edit 1-10 existing memories (content/tags). Returns results.',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
-    const { name, content, appendContent, prependContent, tags, addTags, removeTags } =
-      args as EditMemoryArgs;
+    const { edits } = args as unknown as EditMemoryArgs;
 
-    // Rate limit check
     if (!checkRateLimit('memory-operations', { maxRequests: 50, windowMs: 60000 })) {
       return JSON.stringify({
         success: false,
@@ -88,122 +69,104 @@ export const editMemoryTool: UnifiedTool = {
       });
     }
 
-    // Check if any edit is requested
-    if (!content && !appendContent && !prependContent && !tags && !addTags && !removeTags) {
-      return JSON.stringify({
-        success: false,
-        error: 'No edit operations specified',
-        code: 'NO_EDITS',
-      });
-    }
-
     const projectId = getProjectId();
-    const memoryKey = `${MEMORY_PREFIX}${projectId}:${name}`;
 
-    try {
-      const client = await getRedis();
+    const results = await Promise.all(
+      edits.map(async (item) => {
+        try {
+          const { name, content, appendContent, prependContent, tags, addTags, removeTags } = item;
 
-      // Get existing memory
-      const data = await client.get(memoryKey);
-      if (!data) {
-        return JSON.stringify({
-          success: false,
-          error: `Memory '${name}' not found`,
-          code: 'MEMORY_NOT_FOUND',
-          name,
-          projectId,
-        });
-      }
+          if (!content && !appendContent && !prependContent && !tags && !addTags && !removeTags) {
+            return { name, success: false, error: 'No edit operations specified', code: 'NO_EDITS' };
+          }
 
-      const memory = JSON.parse(data) as ProjectMemory;
-      const ttl = await client.ttl(memoryKey);
+          const memoryKey = `${MEMORY_PREFIX}${projectId}:${name}`;
+          const client = await getRedis();
 
-      // Track changes
-      const changes: string[] = [];
+          const data = await client.get(memoryKey);
+          if (!data) {
+            return { name, success: false, error: `Memory '${name}' not found`, code: 'MEMORY_NOT_FOUND' };
+          }
 
-      // Update content
-      let newContent = memory.content;
-      if (content !== undefined) {
-        newContent = content;
-        changes.push('content replaced');
-      }
-      if (prependContent) {
-        newContent = prependContent + newContent;
-        changes.push(`prepended ${prependContent.length} chars`);
-      }
-      if (appendContent) {
-        newContent = newContent + appendContent;
-        changes.push(`appended ${appendContent.length} chars`);
-      }
+          const memory = JSON.parse(data) as ProjectMemory;
+          const ttl = await client.ttl(memoryKey);
+          const changes: string[] = [];
 
-      // Check content size
-      if (newContent.length > MAX_CONTENT_SIZE) {
-        return JSON.stringify({
-          success: false,
-          error: `Content too large: ${newContent.length} bytes (max: ${MAX_CONTENT_SIZE} bytes)`,
-          code: 'CONTENT_TOO_LARGE',
-        });
-      }
+          let newContent = memory.content;
+          if (content !== undefined) {
+            newContent = content;
+            changes.push('content replaced');
+          }
+          if (prependContent) {
+            newContent = prependContent + newContent;
+            changes.push(`prepended ${prependContent.length} chars`);
+          }
+          if (appendContent) {
+            newContent = newContent + appendContent;
+            changes.push(`appended ${appendContent.length} chars`);
+          }
 
-      // Update tags
-      let newTags = memory.tags;
-      if (tags !== undefined) {
-        newTags = tags;
-        changes.push('tags replaced');
-      }
-      if (addTags && addTags.length > 0) {
-        const added = addTags.filter((t) => !newTags.includes(t));
-        newTags = [...newTags, ...added];
-        if (added.length > 0) {
-          changes.push(`added tags: ${added.join(', ')}`);
+          if (newContent.length > MAX_CONTENT_SIZE) {
+            return { name, success: false, error: 'Content too large', code: 'CONTENT_TOO_LARGE' };
+          }
+
+          let newTags = memory.tags;
+          if (tags !== undefined) {
+            newTags = tags;
+            changes.push('tags replaced');
+          }
+          if (addTags && addTags.length > 0) {
+            const added = addTags.filter((t) => !newTags.includes(t));
+            newTags = [...newTags, ...added];
+            if (added.length > 0) changes.push(`added tags: ${added.join(', ')}`);
+          }
+          if (removeTags && removeTags.length > 0) {
+            const removed = removeTags.filter((t) => newTags.includes(t));
+            newTags = newTags.filter((t) => !removeTags.includes(t));
+            if (removed.length > 0) changes.push(`removed tags: ${removed.join(', ')}`);
+          }
+
+          const updatedMemory: ProjectMemory = {
+            ...memory,
+            content: newContent,
+            tags: newTags,
+            updatedAt: Date.now(),
+          };
+
+          if (ttl > 0) {
+            await client.setex(memoryKey, ttl, JSON.stringify(updatedMemory));
+          } else {
+            await client.set(memoryKey, JSON.stringify(updatedMemory));
+          }
+
+          Logger.debug(`edit-memory: updated '${name}': ${changes.join(', ')}`);
+
+          return {
+            name,
+            success: true,
+            changes,
+            contentLength: newContent.length,
+            tags: newTags,
+          };
+        } catch (error) {
+          return {
+            name: item.name,
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
         }
-      }
-      if (removeTags && removeTags.length > 0) {
-        const removed = removeTags.filter((t) => newTags.includes(t));
-        newTags = newTags.filter((t) => !removeTags.includes(t));
-        if (removed.length > 0) {
-          changes.push(`removed tags: ${removed.join(', ')}`);
-        }
-      }
+      })
+    );
 
-      // Update memory
-      const updatedMemory: ProjectMemory = {
-        ...memory,
-        content: newContent,
-        tags: newTags,
-        updatedAt: Date.now(),
-      };
+    const successful = results.filter((r) => r.success);
+    const failed = results.filter((r) => !r.success);
 
-      // Save with preserved TTL
-      if (ttl > 0) {
-        await client.setex(memoryKey, ttl, JSON.stringify(updatedMemory));
-      } else {
-        await client.set(memoryKey, JSON.stringify(updatedMemory));
-      }
-
-      Logger.debug(
-        `edit-memory: updated '${name}' for project ${projectId}: ${changes.join(', ')}`
-      );
-
-      return JSON.stringify({
-        success: true,
-        name,
-        projectId,
-        changes,
-        contentLength: newContent.length,
-        tags: newTags,
-        updatedAt: updatedMemory.updatedAt,
-        ttlDays: ttl > 0 ? Math.round(ttl / 86400) : null,
-      });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`edit-memory error: ${errorMessage}`);
-
-      return JSON.stringify({
-        success: false,
-        error: errorMessage,
-        code: 'STORAGE_ERROR',
-      });
-    }
+    return JSON.stringify({
+      success: failed.length === 0,
+      projectId,
+      edited: successful.length,
+      failed: failed.length,
+      results,
+    });
   },
 };

@@ -27,6 +27,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getAgentMonitor } from '../../context/agent-monitor.js';
 import { MessagePriority } from '../../context/types.js';
+import { sanitizeTerminalOutput, wrapText } from '../../utils/format-helpers.js';
 
 const schema = z.object({
   agentIds: z.string().describe('Comma-separated agent IDs or "*" for broadcast'),
@@ -91,37 +92,24 @@ export const agentAlertTool: UnifiedTool = {
       critical: '🔴',
     }[priority];
 
+    const safeId = sanitizeTerminalOutput(alert.id);
+    const safeSource = sanitizeTerminalOutput(source);
+    const safeMessage = sanitizeTerminalOutput(message);
+
     return [
       '╔══════════════════════════════════════════════════════════════════╗',
       '║                    ALERT SENT                                    ║',
       '╠══════════════════════════════════════════════════════════════════╣',
-      `║ ID:       ${alert.id.padEnd(54)} ║`,
+      `║ ID:       ${safeId.padEnd(54)} ║`,
       `║ To:       ${targetCount.padEnd(54)} ║`,
       `║ Priority: ${priorityIcon} ${priority.padEnd(51)} ║`,
-      `║ Source:   ${source.padEnd(54)} ║`,
+      `║ Source:   ${safeSource.padEnd(54)} ║`,
       `║ Interrupt: ${interrupt ? 'Yes' : 'No'}`.padEnd(67) + '║',
       '╠──────────────────────────────────────────────────────────────────╣',
       `║ Message:`.padEnd(67) + '║',
-      ...wrapText(message, 63).map((line) => `║   ${line.padEnd(62)} ║`),
+      ...wrapText(safeMessage, 63).map((line) => `║   ${line.padEnd(62)} ║`),
       '╚══════════════════════════════════════════════════════════════════╝',
     ].join('\n');
   },
 };
 
-function wrapText(text: string, maxWidth: number): string[] {
-  const words = text.split(' ');
-  const lines: string[] = [];
-  let currentLine = '';
-
-  for (const word of words) {
-    if (currentLine.length + word.length + 1 <= maxWidth) {
-      currentLine += (currentLine ? ' ' : '') + word;
-    } else {
-      if (currentLine) lines.push(currentLine);
-      currentLine = word;
-    }
-  }
-  if (currentLine) lines.push(currentLine);
-
-  return lines.length > 0 ? lines : [''];
-}

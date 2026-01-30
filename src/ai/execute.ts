@@ -65,7 +65,8 @@ export interface ExecuteAIResult {
   duration: number;
 }
 
-// Simple in-memory session storage for conversation history
+// Simple in-memory session storage for conversation history with LRU eviction
+const SESSION_HISTORY_MAX = 100;
 const sessionHistory = new Map<string, Array<{ role: 'user' | 'assistant'; content: string }>>();
 
 /**
@@ -126,6 +127,16 @@ export async function executeAI(options: ExecuteAIOptions): Promise<string> {
       currentHistory.splice(0, currentHistory.length - 20);
     }
 
+    // LRU eviction: delete oldest entry when map exceeds limit
+    if (sessionHistory.size >= SESSION_HISTORY_MAX && !sessionHistory.has(historyKey)) {
+      const oldestKey = sessionHistory.keys().next().value;
+      if (oldestKey !== undefined) {
+        sessionHistory.delete(oldestKey);
+      }
+    }
+
+    // Re-insert to move to end of Map iteration order (LRU)
+    sessionHistory.delete(historyKey);
     sessionHistory.set(historyKey, currentHistory);
   }
 

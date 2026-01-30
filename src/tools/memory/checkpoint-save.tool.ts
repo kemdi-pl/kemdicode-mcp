@@ -26,39 +26,19 @@
  */
 
 import { z } from 'zod';
-import type { Redis } from 'ioredis';
-import { getSharedRedis } from '../../infrastructure/redis/connection.js';
-import { createHash } from 'crypto';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
-
-/** Checkpoint entry structure */
-interface Checkpoint {
-  name: string;
-  projectId: string;
-  content: string;
-  createdAt: number;
-  updatedAt: number;
-  tags: string[];
-}
-
-/** Redis key prefix for checkpoints */
-const CHECKPOINT_PREFIX = 'mcp:checkpoint:';
-const CHECKPOINT_INDEX_PREFIX = 'mcp:checkpoint:index:';
-
-/** Default TTL: 7 days in seconds */
-const DEFAULT_TTL = 7 * 24 * 60 * 60;
-
-/** Maximum checkpoint content size: 1MB */
-const MAX_CONTENT_SIZE = 1024 * 1024;
-
-const getRedis = getSharedRedis;
-
-function getProjectId(): string {
-  const cwd = process.cwd();
-  return createHash('sha256').update(cwd).digest('hex').slice(0, 16);
-}
+import {
+  type Checkpoint,
+  CHECKPOINT_PREFIX,
+  CHECKPOINT_INDEX_PREFIX,
+  DEFAULT_CHECKPOINT_TTL,
+  MAX_CONTENT_SIZE,
+  getRedis,
+  getProjectId,
+  getExistingCreatedAt,
+} from './shared.js';
 
 const schema = z.object({
   name: z
@@ -131,7 +111,7 @@ export const checkpointSaveTool: UnifiedTool = {
 
       await client.setex(checkpointKey, ttl, JSON.stringify(checkpoint));
       await client.sadd(indexKey, name);
-      await client.expire(indexKey, DEFAULT_TTL);
+      await client.expire(indexKey, DEFAULT_CHECKPOINT_TTL);
 
       Logger.debug(`checkpoint-save: stored '${name}' for project ${projectId}`);
 
@@ -159,15 +139,3 @@ export const checkpointSaveTool: UnifiedTool = {
   },
 };
 
-async function getExistingCreatedAt(client: Redis, key: string): Promise<number | null> {
-  try {
-    const data = await client.get(key);
-    if (data) {
-      const checkpoint = JSON.parse(data) as Checkpoint;
-      return checkpoint.createdAt;
-    }
-  } catch {
-    // Ignore parse errors
-  }
-  return null;
-}

@@ -26,7 +26,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getSessionManager } from '../../session/manager.js';
 
-const schema = z.object({
+const sessionItemSchema = z.object({
   model: z.string().describe('AI model ID'),
   fallbackModel: z.string().optional().describe('Fallback model'),
   cwd: z.string().optional().describe('Working directory'),
@@ -35,46 +35,61 @@ const schema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional().describe('Session metadata'),
 });
 
+const schema = z.object({
+  sessions: z.array(sessionItemSchema).min(1).max(10).describe('Sessions to create (1-10)'),
+});
+
 export const sessionCreateTool: UnifiedTool<typeof schema> = {
   name: 'session-create',
-  description: 'Create new session with AI model, returns session ID',
+  description: 'Create 1-10 sessions with AI models. Returns session IDs.',
   zodSchema: schema,
   skipContextShare: true,
 
   execute: async (args) => {
-    const { model, fallbackModel, cwd, sessionId, skipProjectDetection, metadata } = args;
+    const { sessions } = args;
     const manager = getSessionManager();
 
-    try {
-      const session = await manager.createSession({
-        model,
-        fallbackModel,
-        cwd,
-        sessionId,
-        skipProjectDetection,
-        metadata,
-      });
+    const results = await Promise.all(
+      sessions.map(async (item) => {
+        try {
+          const session = await manager.createSession({
+            model: item.model,
+            fallbackModel: item.fallbackModel,
+            cwd: item.cwd,
+            sessionId: item.sessionId,
+            skipProjectDetection: item.skipProjectDetection,
+            metadata: item.metadata,
+          });
 
-      return [
-        '╔══════════════════════════════════════════════════════════════════╗',
-        '║ ✅ SESSION CREATED                                              ║',
-        '╠══════════════════════════════════════════════════════════════════╣',
-        `║ 🆔 ID:       ${session.sessionId.padEnd(54)} ║`,
-        `║ 🤖 Model:    ${session.model.padEnd(54)} ║`,
-        fallbackModel ? `║ 🔄 Fallback: ${session.fallbackModel!.padEnd(54)} ║` : null,
-        `║ 📁 CWD:      ${session.cwd.slice(-54).padStart(54)} ║`,
-        `║ 📂 Project:  ${(session.projectType || 'unknown').padEnd(54)} ║`,
-        session.projectName ? `║ 📛 Name:     ${session.projectName.padEnd(54)} ║` : null,
-        '╠──────────────────────────────────────────────────────────────────╣',
-        '║ Use this ID in other tools:'.padEnd(67) + '║',
-        `║   session-info --sessionId=${session.sessionId}`.padEnd(67) + '║',
-        `║   session-switch --sessionId=${session.sessionId}`.padEnd(67) + '║',
-        '╚══════════════════════════════════════════════════════════════════╝',
-      ]
-        .filter(Boolean)
-        .join('\n');
-    } catch (error) {
-      return `❌ Failed to create session: ${error instanceof Error ? error.message : error}`;
-    }
+          return {
+            sessionId: session.sessionId,
+            model: session.model,
+            fallbackModel: session.fallbackModel,
+            cwd: session.cwd,
+            projectType: session.projectType || 'unknown',
+            projectName: session.projectName,
+            success: true,
+          };
+        } catch (error) {
+          return {
+            model: item.model,
+            sessionId: item.sessionId,
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      })
+    );
+
+    const successful = results.filter((r) => r.success);
+    const failed = results.filter((r) => !r.success);
+
+    return JSON.stringify({
+      success: failed.length === 0,
+      created: successful.length,
+      failed: failed.length,
+      sessions: results,
+      sessionIds: successful.map((r) => r.sessionId),
+    });
   },
 };

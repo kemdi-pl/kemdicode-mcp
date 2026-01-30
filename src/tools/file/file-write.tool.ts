@@ -33,9 +33,14 @@ import { Logger } from '../../utils/logger.js';
 import { fromNodeError, formatErrorResponse } from '../../utils/errors.js';
 import { validatePath, ValidationError, checkRateLimit } from '../../utils/validation.js';
 
-const schema = z.object({
+const fileItemSchema = z.object({
   path: z.string().min(1).describe('File path'),
   content: z.string().describe('Content to write'),
+  mode: z.string().regex(/^[0-7]{3,4}$/, 'Must be valid octal (e.g. "644", "0755")').optional().describe('File permissions (octal)'),
+});
+
+const schema = z.object({
+  files: z.array(fileItemSchema).min(1).max(20).describe('Files to write (1-20)'),
   createBackup: z.boolean().default(true).describe('Create .bak backup'),
   createDirs: z.boolean().default(true).describe('Create parent dirs'),
   append: z.boolean().default(false).describe('Append instead of overwrite'),
@@ -43,10 +48,10 @@ const schema = z.object({
     .enum(['utf-8', 'utf-16', 'ascii', 'latin1'])
     .default('utf-8')
     .describe('Encoding'),
-  mode: z.string().optional().describe('File permissions'),
 });
 
 type FileWriteArgs = z.infer<typeof schema>;
+type FileItemArgs = z.infer<typeof fileItemSchema>;
 
 /**
  * Create parent directories recursively
@@ -97,147 +102,128 @@ async function getFileMode(filePath: string): Promise<number | null> {
 /** Maximum content size to write (10MB) */
 const MAX_CONTENT_SIZE = 10 * 1024 * 1024;
 
+/**
+ * Write a single file and return structured result
+ */
+async function writeSingleFile(
+  item: FileItemArgs,
+  options: { createBackup: boolean; createDirs: boolean; append: boolean; encoding: string },
+  sessionCwd?: string
+): Promise<Record<string, unknown>> {
+  const inputPath = item.path;
+  const { content, mode } = item;
+
+  if (content.length > MAX_CONTENT_SIZE) {
+    return { success: false, error: `Content too large: ${content.length} bytes`, code: 'CONTENT_TOO_LARGE', path: inputPath };
+  }
+
+  let validatedPath: string;
+  try {
+    validatedPath = await validatePath(inputPath, {
+      allowSymlinks: false,
+      requireWithinProject: false,
+      allowReadFromBlocked: false,
+      operation: 'write',
+      projectRoot: sessionCwd,
+    });
+  } catch (validationError) {
+    if (validationError instanceof ValidationError) {
+      Logger.warn(`file-write security validation failed: ${validationError.message}`);
+      return { success: false, error: validationError.message, code: (validationError as ValidationError).code, path: inputPath };
+    }
+    throw validationError;
+  }
+
+  const result: Record<string, unknown> = { success: false, path: validatedPath };
+
+  try {
+    const existingMode = await getFileMode(validatedPath);
+    const fileExists = existingMode !== null;
+
+    if (options.createDirs) {
+      const dir = dirname(validatedPath);
+      try {
+        await fs.access(dir);
+      } catch {
+        await ensureDirectory(dir);
+        result.directoriesCreated = true;
+      }
+    }
+
+    if (fileExists && options.createBackup && !options.append) {
+      const backupPath = await createBackupFile(validatedPath);
+      if (backupPath) result.backup = backupPath;
+    }
+
+    const writeEncoding = options.encoding === 'utf-8' ? 'utf8' : (options.encoding as BufferEncoding);
+
+    if (options.append) {
+      await fs.appendFile(validatedPath, content, { encoding: writeEncoding });
+      result.appended = true;
+    } else {
+      await fs.writeFile(validatedPath, content, { encoding: writeEncoding });
+      result.created = !fileExists;
+    }
+
+    const targetMode = mode ? parseInt(mode, 8) : (existingMode ?? 0o644);
+    if (mode || existingMode) {
+      await fs.chmod(validatedPath, targetMode);
+      result.mode = '0' + (targetMode & 0o777).toString(8);
+    }
+
+    const stats = await fs.stat(validatedPath);
+    result.bytesWritten = stats.size;
+    result.success = true;
+
+    Logger.debug(`file-write: wrote ${stats.size} bytes to ${validatedPath}`);
+    return result;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    Logger.error(`file-write error: ${errorMessage}`);
+
+    const nodeError = error as NodeJS.ErrnoException;
+    if (nodeError.code) {
+      const mcpError = fromNodeError(nodeError, validatedPath, 'write');
+      const errorResponse = formatErrorResponse(mcpError);
+      return { ...result, ...errorResponse };
+    }
+
+    result.error = errorMessage;
+    return result;
+  }
+}
+
 export const fileWriteTool: UnifiedTool = {
   name: 'file-write',
-  description: 'Write file with backup, dir creation, and append mode',
+  description: 'Write 1-20 files with backup, dir creation, and append mode.',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
-    const {
-      path: inputPath,
-      content,
-      createBackup,
-      createDirs,
-      append,
-      encoding,
-      mode,
-    } = args as FileWriteArgs;
+    const { files, createBackup, createDirs, append, encoding } = args as unknown as FileWriteArgs;
 
-    // Rate limit check (stricter for write operations)
     if (!checkRateLimit('file-write', { maxRequests: 50, windowMs: 60000 })) {
       return JSON.stringify({
         success: false,
         error: 'Rate limit exceeded for file-write operations',
         code: 'RATE_LIMIT_EXCEEDED',
-        path: inputPath,
       });
     }
 
-    // Check content size limit
-    if (content.length > MAX_CONTENT_SIZE) {
-      return JSON.stringify({
-        success: false,
-        error: `Content too large: ${content.length} bytes (max: ${MAX_CONTENT_SIZE} bytes)`,
-        code: 'CONTENT_TOO_LARGE',
-        path: inputPath,
-      });
-    }
+    const sessionCwd = (args as Record<string, unknown>)._sessionCwd as string | undefined;
+    const options = { createBackup, createDirs, append, encoding };
 
-    // Validate and sanitize the path
-    let validatedPath: string;
-    try {
-      validatedPath = await validatePath(inputPath, {
-        allowSymlinks: false,
-        requireWithinProject: false, // Allow writing anywhere (except system dirs)
-        allowReadFromBlocked: false, // Strict mode for writes
-        operation: 'write',
-        projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
-      });
-    } catch (validationError) {
-      if (validationError instanceof ValidationError) {
-        Logger.warn(`file-write security validation failed: ${validationError.message}`);
-        return JSON.stringify({
-          success: false,
-          error: validationError.message,
-          code: validationError.code,
-          path: inputPath,
-        });
-      }
-      throw validationError;
-    }
+    const results = await Promise.all(
+      files.map((item) => writeSingleFile(item, options, sessionCwd))
+    );
 
-    const results: {
-      success: boolean;
-      path: string;
-      backup?: string;
-      created?: boolean;
-      appended?: boolean;
-      bytesWritten?: number;
-      error?: string;
-      directoriesCreated?: boolean;
-      mode?: string;
-    } = {
-      success: false,
-      path: validatedPath,
-    };
+    const successful = results.filter((r) => r.success);
+    const failed = results.filter((r) => !r.success);
 
-    try {
-      // Check if file exists and get original permissions
-      const existingMode = await getFileMode(validatedPath);
-      const fileExists = existingMode !== null;
-
-      // Create parent directories if needed
-      if (createDirs) {
-        const dir = dirname(validatedPath);
-        try {
-          await fs.access(dir);
-        } catch {
-          await ensureDirectory(dir);
-          results.directoriesCreated = true;
-        }
-      }
-
-      // Create backup if file exists and backup is requested
-      if (fileExists && createBackup && !append) {
-        const backupPath = await createBackupFile(validatedPath);
-        if (backupPath) {
-          results.backup = backupPath;
-        }
-      }
-
-      // Determine encoding for write
-      const writeEncoding = encoding === 'utf-8' ? 'utf8' : (encoding as BufferEncoding);
-
-      // Write or append content
-      if (append) {
-        await fs.appendFile(validatedPath, content, { encoding: writeEncoding });
-        results.appended = true;
-      } else {
-        await fs.writeFile(validatedPath, content, { encoding: writeEncoding });
-        results.created = !fileExists;
-      }
-
-      // Set file permissions if specified or preserve existing
-      const targetMode = mode ? parseInt(mode, 8) : (existingMode ?? 0o644);
-
-      if (mode || existingMode) {
-        await fs.chmod(validatedPath, targetMode);
-        results.mode = '0' + (targetMode & 0o777).toString(8);
-      }
-
-      // Get final file stats
-      const stats = await fs.stat(validatedPath);
-      results.bytesWritten = stats.size;
-      results.success = true;
-
-      Logger.debug(`file-write: wrote ${stats.size} bytes to ${validatedPath}`);
-
-      return JSON.stringify(results);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`file-write error: ${errorMessage}`);
-
-      // Convert Node.js errno errors to custom error types
-      const nodeError = error as NodeJS.ErrnoException;
-      if (nodeError.code) {
-        const mcpError = fromNodeError(nodeError, validatedPath, 'write');
-        const errorResponse = formatErrorResponse(mcpError);
-        return JSON.stringify({ ...results, ...errorResponse });
-      }
-
-      results.error = errorMessage;
-      results.success = false;
-      return JSON.stringify(results);
-    }
+    return JSON.stringify({
+      success: failed.length === 0,
+      written: successful.length,
+      failed: failed.length,
+      results,
+    });
   },
 };

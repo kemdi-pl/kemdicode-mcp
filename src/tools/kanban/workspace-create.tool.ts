@@ -30,26 +30,30 @@ import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { createWorkspace } from '../../kanban/index.js';
 
-const schema = z.object({
+const wsItemSchema = z.object({
   name: z.string().min(1).max(100).describe('Workspace name'),
   description: z.string().max(500).optional().describe('Workspace description'),
-  ownerSessionId: z.string().min(1).describe('Creator session ID'),
-  ownerId: z.string().min(1).describe('Creator agent ID'),
   initialMemberSessions: z
     .array(z.string())
     .optional()
     .describe('Session IDs to invite immediately'),
 });
 
+const schema = z.object({
+  workspaces: z.array(wsItemSchema).min(1).max(5).describe('Workspaces to create (1-5)'),
+  ownerSessionId: z.string().min(1).describe('Creator session ID'),
+  ownerId: z.string().min(1).describe('Creator agent ID'),
+});
+
 type WorkspaceCreateArgs = z.infer<typeof schema>;
 
 export const workspaceCreateTool: UnifiedTool = {
   name: 'workspace-create',
-  description: 'Create workspace for cross-session board sharing',
+  description: 'Create 1-5 workspaces for cross-session board sharing. Returns IDs.',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
-    const input = args as WorkspaceCreateArgs;
+    const { workspaces, ownerSessionId, ownerId } = args as unknown as WorkspaceCreateArgs;
 
     if (!checkRateLimit('kanban-operations', { maxRequests: 100, windowMs: 60000 })) {
       return JSON.stringify({
@@ -59,37 +63,48 @@ export const workspaceCreateTool: UnifiedTool = {
       });
     }
 
-    try {
-      const workspace = await createWorkspace({
-        name: input.name,
-        description: input.description,
-        ownerSessionId: input.ownerSessionId,
-        ownerId: input.ownerId,
-        initialMemberSessions: input.initialMemberSessions,
-      });
+    const results = await Promise.all(
+      workspaces.map(async (item) => {
+        try {
+          const workspace = await createWorkspace({
+            name: item.name,
+            description: item.description,
+            ownerSessionId,
+            ownerId,
+            initialMemberSessions: item.initialMemberSessions,
+          });
 
-      Logger.debug(`workspace-create: created workspace ${workspace.id}: ${workspace.name}`);
+          Logger.debug(`workspace-create: created workspace ${workspace.id}: ${workspace.name}`);
 
-      return JSON.stringify({
-        success: true,
-        workspace: {
-          id: workspace.id,
-          name: workspace.name,
-          description: workspace.description,
-          ownerId: workspace.ownerId,
-          memberSessions: workspace.memberSessions,
-          createdAt: workspace.createdAt,
-        },
-      });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`workspace-create error: ${errorMessage}`);
+          return {
+            id: workspace.id,
+            name: workspace.name,
+            description: workspace.description,
+            memberSessions: workspace.memberSessions,
+            createdAt: workspace.createdAt,
+            success: true,
+          };
+        } catch (error) {
+          return {
+            name: item.name,
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      })
+    );
 
-      return JSON.stringify({
-        success: false,
-        error: errorMessage,
-        code: 'CREATE_ERROR',
-      });
-    }
+    const successful = results.filter((r) => r.success);
+    const failed = results.filter((r) => !r.success);
+
+    return JSON.stringify({
+      success: failed.length === 0,
+      ownerSessionId,
+      ownerId,
+      created: successful.length,
+      failed: failed.length,
+      workspaces: results,
+      workspaceIds: successful.map((r) => r.id),
+    });
   },
 };

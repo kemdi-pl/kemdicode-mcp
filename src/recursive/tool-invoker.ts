@@ -202,6 +202,9 @@ export async function invokeTool(
   const client = await tryGetRedis();
   let redisAvailable = !!client;
 
+  // Save parent context before modification so it can be restored on error
+  const parentContext = contextStack.get(request.agentId);
+
   try {
     // Update rate limit (skip if Redis unavailable)
     if (client) {
@@ -217,7 +220,6 @@ export async function invokeTool(
     }
 
     // Set up context
-    const parentContext = contextStack.get(request.agentId);
     const context: InvocationContext = {
       rootInvocationId: parentContext?.rootInvocationId || invocationId,
       currentDepth: (parentContext?.currentDepth || 0) + 1,
@@ -317,13 +319,9 @@ export async function invokeTool(
       Logger.warn('invoke-tool: Failed to log invocation error to Redis');
     }
 
-    // Restore context
-    const parentContext = contextStack.get(request.agentId);
-    if (parentContext && parentContext.currentDepth > 0) {
-      contextStack.set(request.agentId, {
-        ...parentContext,
-        currentDepth: parentContext.currentDepth - 1,
-      });
+    // Restore parent context (same logic as success path)
+    if (parentContext) {
+      contextStack.set(request.agentId, parentContext);
     } else {
       contextStack.delete(request.agentId);
     }

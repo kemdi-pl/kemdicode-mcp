@@ -92,6 +92,7 @@ export const codeReviewTool: UnifiedTool = {
   description: 'Security/performance/quality code review with optional dependency analysis',
   zodSchema: schema,
   prompt: { description: 'Code review for source files' },
+  metadata: { category: 'specialized', tags: ['review', 'security', 'quality'], longRunning: true },
   execute: async (args, onProgress) => {
     const { files, focus = 'all', severity = 'all', concise, withDeps, continueSession } = args;
     if (!files?.toString().trim()) throw new Error('Files required. Use @path/file syntax.');

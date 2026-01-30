@@ -61,9 +61,9 @@ export class AgentMonitor {
   private redis: Redis | null = null;
   private subscriber: Redis | null = null;
   private connected = false;
-  private messageHandlers: MessageHandler[] = [];
-  private alertHandlers: AlertHandler[] = [];
-  private statusHandlers: StatusHandler[] = [];
+  private messageHandlers = new Set<MessageHandler>();
+  private alertHandlers = new Set<AlertHandler>();
+  private statusHandlers = new Set<StatusHandler>();
   private messageHandlerRegistered = false;
   private alertHandlerRegistered = false;
   private statusHandlerRegistered = false;
@@ -127,6 +127,9 @@ export class AgentMonitor {
     this.messageHandlerRegistered = false;
     this.alertHandlerRegistered = false;
     this.statusHandlerRegistered = false;
+    this.messageHandlers.clear();
+    this.alertHandlers.clear();
+    this.statusHandlers.clear();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -552,10 +555,10 @@ export class AgentMonitor {
   /**
    * Subscribe to real-time message updates
    */
-  async subscribeToMessages(handler: MessageHandler): Promise<void> {
-    if (!this.subscriber) return;
+  async subscribeToMessages(handler: MessageHandler): Promise<() => void> {
+    if (!this.subscriber) return () => {};
 
-    this.messageHandlers.push(handler);
+    this.messageHandlers.add(handler);
 
     if (!this.messageHandlerRegistered) {
       this.messageHandlerRegistered = true;
@@ -572,15 +575,17 @@ export class AgentMonitor {
         }
       });
     }
+
+    return () => { this.messageHandlers.delete(handler); };
   }
 
   /**
    * Subscribe to alerts
    */
-  async subscribeToAlerts(handler: AlertHandler): Promise<void> {
-    if (!this.subscriber) return;
+  async subscribeToAlerts(handler: AlertHandler): Promise<() => void> {
+    if (!this.subscriber) return () => {};
 
-    this.alertHandlers.push(handler);
+    this.alertHandlers.add(handler);
 
     if (!this.alertHandlerRegistered) {
       this.alertHandlerRegistered = true;
@@ -597,15 +602,17 @@ export class AgentMonitor {
         }
       });
     }
+
+    return () => { this.alertHandlers.delete(handler); };
   }
 
   /**
    * Subscribe to agent status changes
    */
-  async subscribeToStatusUpdates(handler: StatusHandler): Promise<void> {
-    if (!this.subscriber) return;
+  async subscribeToStatusUpdates(handler: StatusHandler): Promise<() => void> {
+    if (!this.subscriber) return () => {};
 
-    this.statusHandlers.push(handler);
+    this.statusHandlers.add(handler);
 
     if (!this.statusHandlerRegistered) {
       this.statusHandlerRegistered = true;
@@ -622,6 +629,8 @@ export class AgentMonitor {
         }
       });
     }
+
+    return () => { this.statusHandlers.delete(handler); };
   }
 
   private async publishStatusUpdate(agent: McpAgent): Promise<void> {

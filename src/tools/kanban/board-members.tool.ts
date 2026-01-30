@@ -36,7 +36,7 @@ import {
   BoardRole,
 } from '../../kanban/index.js';
 
-const schema = z.object({
+const operationSchema = z.object({
   boardId: z.string().min(1).describe('Board ID'),
   action: z.enum(['list', 'update-role', 'remove']).default('list').describe('Action'),
   targetAgentId: z.string().optional().describe('Agent to modify (for update-role/remove)'),
@@ -44,6 +44,10 @@ const schema = z.object({
     .enum(['owner', 'admin', 'member', 'viewer'])
     .optional()
     .describe('New role (for update-role)'),
+});
+
+const schema = z.object({
+  operations: z.array(operationSchema).min(1).max(20).describe('Member operations (1-20)'),
   requestingAgentId: z.string().min(1).describe('Requesting agent ID'),
 });
 
@@ -51,11 +55,11 @@ type BoardMembersArgs = z.infer<typeof schema>;
 
 export const boardMembersTool: UnifiedTool = {
   name: 'board-members',
-  description: 'Manage board membership and roles',
+  description: 'Manage board membership: list, update-role, remove (1-20 ops).',
   zodSchema: schema,
 
   execute: async (args): Promise<string> => {
-    const input = args as BoardMembersArgs;
+    const { operations, requestingAgentId } = args as BoardMembersArgs;
 
     if (!checkRateLimit('kanban-operations', { maxRequests: 100, windowMs: 60000 })) {
       return JSON.stringify({
@@ -65,134 +69,144 @@ export const boardMembersTool: UnifiedTool = {
       });
     }
 
-    try {
-      if (input.action === 'list') {
-        const members = await listBoardMembers(input.boardId);
+    const results = await Promise.all(
+      operations.map(async (op) => {
+        try {
+          if (op.action === 'list') {
+            const members = await listBoardMembers(op.boardId);
+            return {
+              boardId: op.boardId,
+              action: 'list',
+              success: true,
+              count: members.length,
+              members: members.map((m) => ({
+                agentId: m.agentId,
+                sessionId: m.sessionId,
+                role: m.role,
+                joinedAt: m.joinedAt,
+                invitedBy: m.invitedBy,
+                permissions: m.permissions,
+              })),
+            };
+          }
 
-        return JSON.stringify({
-          success: true,
-          boardId: input.boardId,
-          count: members.length,
-          members: members.map((m) => ({
-            agentId: m.agentId,
-            sessionId: m.sessionId,
-            role: m.role,
-            joinedAt: m.joinedAt,
-            invitedBy: m.invitedBy,
-            permissions: m.permissions,
-          })),
-        });
-      }
+          if (op.action === 'update-role') {
+            if (!op.targetAgentId || !op.newRole) {
+              return {
+                boardId: op.boardId,
+                action: 'update-role',
+                success: false,
+                error: 'targetAgentId and newRole required',
+                code: 'MISSING_PARAMS',
+              };
+            }
 
-      if (input.action === 'update-role') {
-        if (!input.targetAgentId || !input.newRole) {
-          return JSON.stringify({
+            const canManage = await hasPermission(op.boardId, requestingAgentId, 'canManageBoard');
+            const canInvite = await hasPermission(op.boardId, requestingAgentId, 'canInviteMembers');
+            if (!canManage && !canInvite) {
+              return {
+                boardId: op.boardId,
+                action: 'update-role',
+                success: false,
+                error: 'Permission denied',
+                code: 'PERMISSION_DENIED',
+              };
+            }
+
+            const updated = await updateMemberRole(
+              op.boardId,
+              op.targetAgentId,
+              op.newRole as BoardRole
+            );
+
+            if (!updated) {
+              return {
+                boardId: op.boardId,
+                action: 'update-role',
+                success: false,
+                error: 'Member not found',
+                code: 'NOT_FOUND',
+              };
+            }
+
+            Logger.debug(`board-members: updated ${op.targetAgentId} role to ${op.newRole}`);
+            return {
+              boardId: op.boardId,
+              action: 'update-role',
+              agentId: op.targetAgentId,
+              newRole: op.newRole,
+              success: true,
+            };
+          }
+
+          if (op.action === 'remove') {
+            if (!op.targetAgentId) {
+              return {
+                boardId: op.boardId,
+                action: 'remove',
+                success: false,
+                error: 'targetAgentId required',
+                code: 'MISSING_PARAMS',
+              };
+            }
+
+            const canManage = await hasPermission(op.boardId, requestingAgentId, 'canManageBoard');
+            if (!canManage) {
+              return {
+                boardId: op.boardId,
+                action: 'remove',
+                success: false,
+                error: 'Permission denied',
+                code: 'PERMISSION_DENIED',
+              };
+            }
+
+            const removed = await removeBoardMember(op.boardId, op.targetAgentId);
+            if (!removed) {
+              return {
+                boardId: op.boardId,
+                action: 'remove',
+                success: false,
+                error: 'Member not found',
+                code: 'NOT_FOUND',
+              };
+            }
+
+            Logger.debug(`board-members: removed ${op.targetAgentId} from board ${op.boardId}`);
+            return {
+              boardId: op.boardId,
+              action: 'remove',
+              agentId: op.targetAgentId,
+              success: true,
+            };
+          }
+
+          return {
+            boardId: op.boardId,
+            action: op.action,
             success: false,
-            error: 'targetAgentId and newRole required for update-role',
-            code: 'MISSING_PARAMS',
-          });
-        }
-
-        // Check permission
-        const canManage = await hasPermission(
-          input.boardId,
-          input.requestingAgentId,
-          'canManageBoard'
-        );
-        const canInvite = await hasPermission(
-          input.boardId,
-          input.requestingAgentId,
-          'canInviteMembers'
-        );
-        if (!canManage && !canInvite) {
-          return JSON.stringify({
+            error: 'Unknown action',
+            code: 'UNKNOWN_ACTION',
+          };
+        } catch (error) {
+          return {
+            boardId: op.boardId,
+            action: op.action,
             success: false,
-            error: 'Agent does not have permission to update roles',
-            code: 'PERMISSION_DENIED',
-          });
+            error: error instanceof Error ? error.message : String(error),
+          };
         }
+      })
+    );
 
-        const updated = await updateMemberRole(
-          input.boardId,
-          input.targetAgentId,
-          input.newRole as BoardRole
-        );
+    const successful = results.filter((r) => r.success);
+    const failed = results.filter((r) => !r.success);
 
-        if (!updated) {
-          return JSON.stringify({
-            success: false,
-            error: 'Member not found',
-            code: 'NOT_FOUND',
-          });
-        }
-
-        Logger.debug(`board-members: updated ${input.targetAgentId} role to ${input.newRole}`);
-
-        return JSON.stringify({
-          success: true,
-          action: 'update-role',
-          agentId: input.targetAgentId,
-          newRole: input.newRole,
-        });
-      }
-
-      if (input.action === 'remove') {
-        if (!input.targetAgentId) {
-          return JSON.stringify({
-            success: false,
-            error: 'targetAgentId required for remove',
-            code: 'MISSING_PARAMS',
-          });
-        }
-
-        // Check permission
-        const canManage = await hasPermission(
-          input.boardId,
-          input.requestingAgentId,
-          'canManageBoard'
-        );
-        if (!canManage) {
-          return JSON.stringify({
-            success: false,
-            error: 'Agent does not have permission to remove members',
-            code: 'PERMISSION_DENIED',
-          });
-        }
-
-        const removed = await removeBoardMember(input.boardId, input.targetAgentId);
-
-        if (!removed) {
-          return JSON.stringify({
-            success: false,
-            error: 'Member not found',
-            code: 'NOT_FOUND',
-          });
-        }
-
-        Logger.debug(`board-members: removed ${input.targetAgentId} from board ${input.boardId}`);
-
-        return JSON.stringify({
-          success: true,
-          action: 'remove',
-          agentId: input.targetAgentId,
-          boardId: input.boardId,
-        });
-      }
-
-      return JSON.stringify({
-        success: false,
-        error: 'Unknown action',
-        code: 'UNKNOWN_ACTION',
-      });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`board-members error: ${errorMessage}`);
-
-      return JSON.stringify({
-        success: false,
-        error: errorMessage,
-        code: 'MEMBER_ERROR',
-      });
-    }
+    return JSON.stringify({
+      success: failed.length === 0,
+      processed: successful.length,
+      failed: failed.length,
+      results,
+    });
   },
 };
