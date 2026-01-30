@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/kemdicode-mcp"><img src="https://img.shields.io/badge/npm-kemdicode--mcp-CB3837?style=flat-square&logo=npm&logoColor=white" alt="npm" /></a>
-  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.17.0-blue?style=flat-square" alt="Version" /></a>
+  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.18.0-blue?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License" /></a>
 </p>
 
@@ -28,7 +28,7 @@
 <details>
 <summary><strong>Table of Contents</strong></summary>
 
-- [What's New in 1.17.0](#whats-new-in-1170)
+- [What's New in 1.18.0](#whats-new-in-1170)
 - [Usage Examples](#usage-examples)
 - [Highlights](#highlights)
 - [Compatibility](#compatibility)
@@ -50,7 +50,7 @@
 
 ---
 
-## What's New in 1.17.0
+## What's New in 1.18.0
 
 - **Checkpoint Save/Restore** &mdash; new tools `checkpoint-save` and `checkpoint-restore` for temporary state snapshots in Redis (7-day TTL). Save progress mid-task and restore later.
 - **Session Resume** &mdash; new `/resume` HTTP endpoint returns the last active session with tool history, enabling post-compaction recovery. SSE connections receive a `resume` event on reconnect.
