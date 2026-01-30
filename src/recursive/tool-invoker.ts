@@ -349,9 +349,10 @@ export async function invokeBatch(
   parallel: boolean = true
 ): Promise<ToolInvocationResult[]> {
   if (parallel) {
-    // Snapshot the current depth before launching parallel ops so each
-    // operation starts from the same base depth instead of seeing an
-    // incrementing depth caused by shared contextStack mutation.
+    // Snapshot the current depth before launching parallel ops.
+    // To avoid race conditions on the shared contextStack (all concurrent
+    // invokeTool calls read/write the same agentId key), we give each
+    // parallel operation a unique synthetic agentId so they don't interfere.
     const baseContexts = new Map<string, InvocationContext | undefined>();
     for (const r of requests) {
       if (!baseContexts.has(r.agentId)) {
@@ -359,15 +360,22 @@ export async function invokeBatch(
       }
     }
     const results = await Promise.all(
-      requests.map(async (r) => {
-        // Reset to the snapshot before each parallel invocation
+      requests.map(async (r, idx) => {
+        // Use a unique context key so parallel invocations don't race
+        const isolatedAgentId = `${r.agentId}::batch-${idx}`;
         const base = baseContexts.get(r.agentId);
         if (base) {
-          contextStack.set(r.agentId, { ...base });
-        } else {
-          contextStack.delete(r.agentId);
+          contextStack.set(isolatedAgentId, { ...base });
         }
-        return invokeTool(r, policy);
+        try {
+          const result = await invokeTool(
+            { ...r, agentId: isolatedAgentId },
+            policy
+          );
+          return result;
+        } finally {
+          contextStack.delete(isolatedAgentId);
+        }
       })
     );
     // Restore original contexts after parallel batch completes

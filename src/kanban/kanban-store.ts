@@ -181,6 +181,7 @@ export async function getTask(taskId: string): Promise<KanbanTask | null> {
   return {
     id: data.id,
     sessionId: data.sessionId,
+    boardId: data.boardId || undefined,
     title: data.title,
     description: data.description || undefined,
     status: data.status as TaskStatus,

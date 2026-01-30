@@ -369,192 +369,97 @@ ai-config --action test
 
 ### System Overview
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        IDE / AI Agent Layer                             │
-│                                                                         │
-│   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌───────────┐  │
-│   │  Claude Code  │  │    Cursor    │  │   KiroCode   │  │  RooCode  │  │
-│   └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └─────┬─────┘  │
-│          │                 │                 │                 │         │
-└──────────┼─────────────────┼─────────────────┼─────────────────┼─────────┘
-           │   SSE + JSON-RPC (MCP Protocol)   │                 │
-           └─────────────────┼─────────────────┘                 │
-                             ▼                                   │
-┌────────────────────────────────────────────────────────────────┐│
-│                kemdiCode MCP Server (HTTP :3100)               ││
-│  ┌───────────────────────────────────────────────────────────┐ ││
-│  │                    Session Manager                        │◄┘│
-│  │  • Per-client sessions with CWD isolation                 │  │
-│  │  • Activity tracking (last tool, args, timestamp)         │  │
-│  │  • /resume endpoint for post-compaction recovery          │  │
-│  │  • SSE keep-alive + resume events on reconnect            │  │
-│  └───────────────────────┬───────────────────────────────────┘  │
-│                          ▼                                      │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │                   Tool Registry (103 tools)               │  │
-│  │                                                           │  │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐ │  │
-│  │  │Code      │ │File &    │ │Git       │ │Multi-Agent   │ │  │
-│  │  │Analysis  │ │Editing   │ │Operations│ │Coordination  │ │  │
-│  │  │(8 tools) │ │(12 tools)│ │(5 tools) │ │(13 tools)    │ │  │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────────┘ │  │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐ │  │
-│  │  │AI Agents │ │Kanban    │ │Project   │ │Memory &      │ │  │
-│  │  │& LLM    │ │& Boards  │ │Management│ │Checkpoints   │ │  │
-│  │  │(6 tools) │ │(16 tools)│ │(5 tools) │ │(7 tools)     │ │  │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────────┘ │  │
-│  │  • Runtime registration with tools/list_changed broadcast │  │
-│  │  • Zod schema validation + auto JSON Schema generation    │  │
-│  └───────────────────────┬───────────────────────────────────┘  │
-│                          ▼                                      │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │               Provider Registry (7 providers)             │  │
-│  │                                                           │  │
-│  │  ┌─────────┐ ┌──────────┐ ┌────────┐ ┌────────────────┐  │  │
-│  │  │ OpenAI  │ │Anthropic │ │ Gemini │ │ OpenAI-compat  │  │  │
-│  │  │ (native)│ │ (native) │ │(native)│ │ Groq DeepSeek  │  │  │
-│  │  │         │ │          │ │        │ │ Ollama OpenRtr  │  │  │
-│  │  └─────────┘ └──────────┘ └────────┘ └────────────────┘  │  │
-│  │  • Lazy init on first use • Hot-reload without restart    │  │
-│  │  • Unified thinking tokens: effort / budget / budget      │  │
-│  │  • Model spec syntax: provider:model:thinking             │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                                                                 │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │                  Tree-sitter AST Engine                    │  │
-│  │  • WASM parsers for 19 languages                          │  │
-│  │  • Symbol navigation, rename, insert before/after         │  │
-│  │  • Indentation detection + context-aware editing           │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                                                                 │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │               Runtime Abstraction Layer                    │  │
-│  │  • Auto-detects Bun vs Node.js at startup                 │  │
-│  │  • Unified HTTP server (Bun.serve / node:http)            │  │
-│  │  • Unified process spawning (Bun.spawn / child_process)   │  │
-│  └───────────────────────────────────────────────────────────┘  │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-                             ▼
-┌────────────────────────────────────────────────────────────────┐
-│                      Redis (DB 2)                              │
-│                                                                │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │ Context      │  │ Agents       │  │ Kanban               │  │
-│  │ mcp:context: │  │ mcp:agents:  │  │ mcp:kanban:          │  │
-│  │ mcp:memory:  │  │ mcp:queue:   │  │  workspace:<id>      │  │
-│  │ mcp:checkpoint│ │ mcp:messages:│  │  board:<id>           │  │
-│  └──────────────┘  └──────────────┘  │  task:<id>            │  │
-│                                      └──────────────────────┘  │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │ Pub/Sub Channels                                        │   │
-│  │ mcp:channel:broadcast  mcp:channel:inject:<agentId>     │   │
-│  │ mcp:channel:alerts     mcp:channel:thoughts             │   │
-│  └─────────────────────────────────────────────────────────┘   │
-└────────────────────────────────────────────────────────────────┘
-```
+| Layer | Component | Description |
+|:------|:----------|:------------|
+| **Clients** | Claude Code, Cursor, KiroCode, RooCode | Connect via SSE + JSON-RPC (MCP Protocol) |
+| **HTTP Server** | `:3100` (Bun or Node.js) | Routes: `/sse`, `/message`, `/resume`, `/stream` |
+| **Session Manager** | Per-client isolation | CWD injection, activity tracking, `/resume` for post-compaction recovery, SSE keep-alive |
+| **Tool Registry** | 103 tools, 20 categories | Zod schema validation, auto JSON Schema generation, runtime registration with `tools/list_changed` broadcast |
+| **Provider Registry** | 7 LLM providers | OpenAI, Anthropic, Gemini (native SDKs) + Groq, DeepSeek, Ollama, OpenRouter (OpenAI-compatible). Lazy init, hot-reload, unified thinking tokens |
+| **Tree-sitter AST** | 19 languages | WASM parsers, symbol navigation, rename, insert before/after, indentation detection |
+| **Runtime Abstraction** | Bun / Node.js | Auto-detection at startup. Unified HTTP (`Bun.serve` / `node:http`), process spawning (`Bun.spawn` / `child_process`) |
+| **Redis (DB 2)** | Shared state | `mcp:context:*` (tool outputs), `mcp:agents:*` (registry), `mcp:kanban:*` (tasks/boards/workspaces), `mcp:memory:*` (project memory), `mcp:checkpoint:*` (snapshots) |
+| **Redis Pub/Sub** | Real-time messaging | Channels: `broadcast`, `inject:<agentId>`, `alerts`, `thoughts` |
 
 ### Request Lifecycle
 
-```
-Client (IDE)                    kemdiCode MCP                     Redis / LLM
-     │                               │                                │
-     │── GET /sse ──────────────────►│                                │
-     │◄── SSE: endpoint + resume ───│  create session, track activity │
-     │                               │                                │
-     │── POST /message ────────────►│                                │
-     │   { tool: "code-review" }     │                                │
-     │                               │── validate (Zod) ────────────►│
-     │                               │── execute tool ──────────────►│
-     │                               │   ├─ share result to Redis    │
-     │                               │   └─ record session activity  │
-     │◄── SSE: result ─────────────│                                │
-     │                               │                                │
-     │── POST /message ────────────►│                                │
-     │   { tool: "ask-ai" }          │── route to provider ────────►│
-     │                               │◄── LLM response ────────────│
-     │◄── SSE: result ─────────────│                                │
-```
+| Step | Client (IDE) | kemdiCode MCP Server | External (Redis / LLM) |
+|:----:|:-------------|:---------------------|:-----------------------|
+| 1 | `GET /sse` &rarr; | Create session, assign CWD | |
+| 2 | | &larr; SSE: `endpoint` + `resume` event | |
+| 3 | `POST /message` `{ tool: "code-review" }` &rarr; | | |
+| 4 | | Validate args (Zod schema) | |
+| 5 | | Execute tool &rarr; | Share result to Redis, record activity |
+| 6 | | &larr; SSE: tool result | |
+| 7 | `POST /message` `{ tool: "ask-ai" }` &rarr; | | |
+| 8 | | Route to LLM provider &rarr; | Provider returns completion |
+| 9 | | &larr; SSE: AI response | |
 
 ### Source Tree
 
-```
-src/
-├── index.ts                 # Entry point, CLI args, server bootstrap
-├── constants.ts             # Error messages, timeouts, limits
-├── server/
-│   ├── http-server.ts       # HTTP routes: /sse, /message, /resume, /stream
-│   ├── session-server.ts    # MCP Server per session, CWD injection, activity tracking
-│   ├── types.ts             # ServerConfig, VERSION
-│   └── index.ts             # Public API exports
-├── ai/
-│   ├── client.ts            # Completion router (multi-provider + fallback)
-│   ├── execute.ts           # High-level AI execution with agent prompts
-│   ├── agents.ts            # Agent configs: plan, build, explore
-│   ├── model-spec.ts        # Parser for provider:model:thinking syntax
-│   ├── file-context.ts      # File attachment → prompt injection
-│   └── providers/
-│       ├── types.ts          # LLMProvider interface, ProviderId, ThinkingConfig
-│       ├── registry.ts       # Provider registry with lazy initialization
-│       ├── openai.provider.ts        # OpenAI (reasoning_effort)
-│       ├── anthropic.provider.ts     # Anthropic (thinking budget)
-│       ├── gemini.provider.ts        # Google GenAI (thinking budget)
-│       └── openai-compat.provider.ts # Groq, DeepSeek, Ollama, OpenRouter
-├── runtime/
-│   ├── index.ts             # isBun / isNode detection
-│   ├── http.ts              # Bun.serve ↔ node:http
-│   ├── process.ts           # Bun.spawn ↔ child_process
-│   └── crypto.ts            # Crypto utilities
-├── context/
-│   ├── agent-monitor.ts     # Redis Pub/Sub for agent lifecycle
-│   ├── storage.ts           # Redis-based shared context (DB 2)
-│   ├── feedback-loop.ts     # Learning from iteration results
-│   └── iteration-tracker.ts # Track fix attempts per issue
-├── kanban/
-│   ├── kanban-store.ts      # Task CRUD with Redis persistence
-│   ├── workspace-store.ts   # Workspace operations
-│   ├── board-store.ts       # Board management
-│   ├── membership-store.ts  # Role-based access (owner/admin/member/viewer)
-│   └── migration.ts         # Lazy migration to multi-board schema
-├── recursive/
-│   └── tool-invoker.ts      # Safe tool calls: max depth 2, rate-limited
-├── tree-sitter/
-│   ├── parser-manager.ts    # WASM parser lifecycle (19 languages)
-│   └── types.ts             # Language mappings, symbol types
-├── session/
-│   ├── manager.ts           # Session create/destroy lifecycle
-│   └── cwd-resolver.ts      # Project path resolution priority
-├── tools/                   # 20 categories, 103 tools
-│   ├── registry.ts          # UnifiedTool interface, Zod → JSON Schema, broadcast
-│   ├── index.ts             # Tool registration
-│   ├── agents/              # 9 tools: register, watch, alert, inject, monitor...
-│   ├── code/                # 8 tools: find-definition, rename-symbol, outline...
-│   ├── context/             # 4 tools: shared-thoughts, feedback, shared-context
-│   ├── edit/                # 4 tools: insert-at-line, delete/replace-lines
-│   ├── file/                # 5 tools: read, write, search, tree, diff
-│   ├── git/                 # 5 tools: status, diff, log, blame, branch
-│   ├── kanban/              # 16 tools: tasks, boards, workspaces
-│   ├── memory/              # 7 tools: CRUD + checkpoint-save/restore
-│   ├── multi-llm/           # 2 tools: multi-prompt, consensus-prompt
-│   ├── project/             # 5 tools: info, scripts, tests, lint, types
-│   ├── recursive/           # 3 tools: invoke-tool, invoke-batch, log
-│   ├── specialized/         # 8 tools: code-review, fix-bug, refactor, write-tests
-│   ├── session/             # 5 tools: CRUD + switch
-│   ├── system/              # 10 tools: shell, env, memory, ai-config, ping
-│   ├── loci/                # 4 tools: graph-query, find-path, recall, recommend
-│   ├── mpc/                 # 4 tools: split, distribute, reconstruct, status
-│   └── rl/                  # 2 tools: reward-stats, dopamine-log
-└── utils/
-    ├── commandExecutor.ts   # Process spawning with timeout + kill
-    ├── file-utils.ts        # Read/write with encoding detection
-    ├── edit-utils.ts        # Line-based editing helpers
-    ├── git-utils.ts         # Git command builders
-    ├── cache.ts             # In-memory TTL cache
-    ├── validation.ts        # Rate limiting, input sanitization
-    ├── errors.ts            # Typed error classes
-    └── logger.ts            # Structured logging
-```
+| Directory | File | Purpose |
+|:----------|:-----|:--------|
+| `src/` | `index.ts` | Entry point, CLI argument parsing, server bootstrap |
+| | `constants.ts` | Error messages, timeouts, limits |
+| `src/server/` | `http-server.ts` | HTTP routes: `/sse`, `/message`, `/resume`, `/stream` |
+| | `session-server.ts` | MCP Server per session, CWD injection, activity tracking |
+| | `types.ts` | `ServerConfig`, `VERSION` constants |
+| `src/ai/` | `client.ts` | Completion router (multi-provider + automatic fallback) |
+| | `execute.ts` | High-level AI execution with agent system prompts |
+| | `agents.ts` | Agent configurations: `plan`, `build`, `explore` |
+| | `model-spec.ts` | Parser for `provider:model:thinking` syntax |
+| | `file-context.ts` | File attachment &rarr; prompt injection |
+| `src/ai/providers/` | `types.ts` | `LLMProvider` interface, `ProviderId`, `ThinkingConfig` |
+| | `registry.ts` | Provider registry with lazy initialization |
+| | `openai.provider.ts` | OpenAI native SDK (`reasoning_effort`) |
+| | `anthropic.provider.ts` | Anthropic native SDK (`thinking` budget) |
+| | `gemini.provider.ts` | Google GenAI native SDK (`thinking` budget) |
+| | `openai-compat.provider.ts` | Groq, DeepSeek, Ollama, OpenRouter via OpenAI SDK |
+| `src/runtime/` | `index.ts` | `isBun` / `isNode` runtime detection |
+| | `http.ts` | Unified HTTP: `Bun.serve` &harr; `node:http` |
+| | `process.ts` | Unified spawn: `Bun.spawn` &harr; `child_process` |
+| | `crypto.ts` | Crypto utilities |
+| `src/context/` | `agent-monitor.ts` | Redis Pub/Sub for agent lifecycle and messaging |
+| | `storage.ts` | Redis-based shared context store (DB 2) |
+| | `feedback-loop.ts` | Learning from iteration results |
+| | `iteration-tracker.ts` | Track fix attempts per issue |
+| `src/kanban/` | `kanban-store.ts` | Task CRUD with Redis `hset`/`hgetall` persistence |
+| | `workspace-store.ts` | Workspace CRUD operations |
+| | `board-store.ts` | Board management and membership |
+| | `membership-store.ts` | Role-based access: owner / admin / member / viewer |
+| | `migration.ts` | Lazy migration to multi-board schema |
+| `src/recursive/` | `tool-invoker.ts` | Safe recursive tool calls: max depth 2, rate-limited, parallel isolation |
+| `src/tree-sitter/` | `parser-manager.ts` | WASM parser lifecycle for 19 languages |
+| | `types.ts` | Language &harr; extension mappings, symbol types |
+| `src/session/` | `manager.ts` | Session create / destroy / cleanup lifecycle |
+| | `cwd-resolver.ts` | Project path resolution priority chain |
+| `src/tools/` | `registry.ts` | `UnifiedTool` interface, Zod &rarr; JSON Schema, broadcast on register |
+| | `index.ts` | Central tool registration (103 tools) |
+| `src/tools/agents/` | 9 tools | `agent-register`, `agent-watch`, `agent-alert`, `agent-inject`, `monitor`, `agent-summary`, `queue-message`, `agent-list`, `agent-history` |
+| `src/tools/code/` | 8 tools | `find-definition`, `find-references`, `find-symbols`, `code-outline`, `insert-before-symbol`, `insert-after-symbol`, `rename-symbol`, `semantic-search` |
+| `src/tools/context/` | 4 tools | `shared-thoughts`, `get-shared-context`, `feedback`, `batch` |
+| `src/tools/edit/` | 4 tools | `insert-at-line`, `delete-lines`, `replace-lines`, `replace-content` |
+| `src/tools/file/` | 5 tools | `file-read`, `file-write`, `file-search`, `file-tree`, `file-diff` |
+| `src/tools/git/` | 5 tools | `git-status`, `git-diff`, `git-log`, `git-blame`, `git-branch` |
+| `src/tools/kanban/` | 16 tools | Tasks (7), boards (5), workspaces (4) |
+| `src/tools/memory/` | 7 tools | `write-memory`, `read-memory`, `list-memories`, `edit-memory`, `delete-memory`, `checkpoint-save`, `checkpoint-restore` |
+| `src/tools/multi-llm/` | 2 tools | `multi-prompt`, `consensus-prompt` |
+| `src/tools/project/` | 5 tools | `project-info`, `run-script`, `run-tests`, `run-lint`, `check-types` |
+| `src/tools/recursive/` | 3 tools | `invoke-tool`, `invoke-batch`, `invocation-log` |
+| `src/tools/specialized/` | 8 tools | `code-review`, `explain-code`, `analyze-deps`, `fix-bug`, `refactor`, `auto-fix`, `auto-fix-agent`, `write-tests` |
+| `src/tools/session/` | 5 tools | `session-list`, `session-info`, `session-create`, `session-switch`, `session-delete` |
+| `src/tools/system/` | 10 tools | `shell-exec`, `process-list`, `env-info`, `memory-usage`, `ai-config`, `ai-models`, `config`, `ping`, `help`, `timeout-test` |
+| `src/tools/loci/` | 4 tools | `graph-query`, `graph-find-path`, `loci-recall`, `sequence-recommend` |
+| `src/tools/mpc/` | 4 tools | `mpc-split`, `mpc-distribute`, `mpc-reconstruct`, `mpc-status` |
+| `src/tools/rl/` | 2 tools | `rl-reward-stats`, `rl-dopamine-log` |
+| `src/utils/` | `commandExecutor.ts` | Process spawning with timeout, SIGTERM &rarr; SIGKILL |
+| | `file-utils.ts` | Read/write with encoding detection (UTF-8, UTF-16, Latin1) |
+| | `edit-utils.ts` | Line-based editing helpers |
+| | `git-utils.ts` | Git command builders |
+| | `cache.ts` | In-memory TTL cache |
+| | `validation.ts` | Rate limiting, path validation, input sanitization |
+| | `errors.ts` | Typed error classes (`ValidationError`, `TimeoutError`, etc.) |
+| | `logger.ts` | Structured logging with levels |
 
 ---
 
@@ -678,25 +583,76 @@ bun dist/index.js [options]
 
 ## Development
 
-```bash
-bun install            # Install dependencies
-bun run build:bun      # Build
-bun run start:bun      # Start server
-bun run dev:bun        # Watch mode
+### Prerequisites
 
-bun run lint           # ESLint
-bun run format         # Prettier
-bun run typecheck      # tsc --noEmit
-bun test               # Vitest
+| Requirement | Version | Notes |
+|:------------|:--------|:------|
+| **Bun** | &ge; 1.0 | Recommended runtime (faster builds, native TS) |
+| **Node.js** | &ge; 18 | Alternative runtime (requires `npm run build` first) |
+| **Redis** | &ge; 6.0 | Optional &mdash; needed for multi-agent, kanban, memory, context sharing |
+| **TypeScript** | 5.0+ | Strict mode enabled, bundled as dev dependency |
+
+### Build & Run
+
+| Command | Description |
+|:--------|:------------|
+| `bun install` | Install all dependencies |
+| `bun run build:bun` | Bundle for Bun runtime (`dist/`) |
+| `bun run start:bun` | Start server on `:3100` |
+| `bun run dev:bun` | Watch mode with hot-reload |
+| `npm run build` | TypeScript compilation (`tsc`) for Node.js |
+| `npm run start` | Start with Node.js |
+
+### Quality & Testing
+
+| Command | Description |
+|:--------|:------------|
+| `bun run typecheck` | Type-check without emitting (`tsc --noEmit`) |
+| `bun run lint` | ESLint with TypeScript rules |
+| `bun run format` | Prettier formatting |
+| `bun run prepare` | Run all checks (typecheck + lint + format) &mdash; use before committing |
+| `bun run add-license` | Add GPL-3.0 headers to all source files |
+| `bun test` | Run test suite (Vitest) |
+
+### Environment Variables
+
+| Variable | Default | Description |
+|:---------|:--------|:------------|
+| `OPENAI_API_KEY` | &mdash; | OpenAI API key (GPT-5, o3, Codex) |
+| `ANTHROPIC_API_KEY` | &mdash; | Anthropic API key (Claude 4.5) |
+| `GEMINI_API_KEY` | &mdash; | Google Gemini API key |
+| `GROQ_API_KEY` | &mdash; | Groq API key |
+| `DEEPSEEK_API_KEY` | &mdash; | DeepSeek API key |
+| `OPENROUTER_API_KEY` | &mdash; | OpenRouter API key |
+| `KEMDICODE_SHELL_EXEC_ENABLED` | `false` | Enable `shell-exec` tool (security opt-in) |
+| `MPC_MASTER_SECRET` | &mdash; | Master secret for MPC security tools |
+
+### Server Management
+
+```bash
+# Start (auto-checks if already running)
+./start-server.sh
+
+# Manual start with custom options
+nohup bun dist/index.js --port 3100 -m claude-sonnet-4-5 >> /tmp/kemdicode-mcp.log 2>&1 &
+
+# Check status
+nc -z 127.0.0.1 3100 && echo "Running"
+
+# View logs
+tail -f /tmp/kemdicode-mcp.log
+
+# Restart after code changes
+npm run build && pkill -f "bun dist/index.js" && ./start-server.sh
 ```
 
-<details>
-<summary>Adding a new tool</summary>
+### Adding a New Tool
 
-1. Create a file in the appropriate `src/tools/` subdirectory.
-2. Define a Zod schema with `.describe()` for every field.
+1. Create a file in the appropriate `src/tools/<category>/` subdirectory.
+2. Define a Zod schema &mdash; every field **must** have `.describe()` (used for MCP JSON Schema).
 3. Implement the `UnifiedTool` interface.
-4. Register in `src/tools/index.ts`.
+4. Register the tool in `src/tools/index.ts`.
+5. Build and connected clients receive `notifications/tools/list_changed` automatically.
 
 ```typescript
 import { z } from 'zod';
@@ -704,20 +660,37 @@ import type { UnifiedTool } from '../registry.js';
 
 const schema = z.object({
   input: z.string().describe('Input value'),
+  format: z.enum(['json', 'text']).default('json').describe('Output format'),
 });
 
-export const myTool: UnifiedTool = {
+export const myTool: UnifiedTool<typeof schema> = {
   name: 'my-tool',
-  description: 'What this tool does',
+  description: 'Short description for MCP tool listing',
   zodSchema: schema,
-  execute: async (args) => {
-    const { input } = args as z.infer<typeof schema>;
-    return `Result: ${input}`;
+  // skipContextShare: true,  // Set to true if output is too large for Redis
+  execute: async (args, onProgress) => {
+    const { input, format } = args;
+
+    // Optional: stream progress to the client
+    onProgress?.('Processing...\n');
+
+    // Return JSON string
+    return JSON.stringify({ result: input, format });
   },
 };
 ```
 
-</details>
+### Project Structure Conventions
+
+| Convention | Details |
+|:-----------|:--------|
+| **Language** | TypeScript strict mode, ES modules (`.js` extensions in imports) |
+| **Schemas** | Zod with `.describe()` on every field &rarr; auto-generates JSON Schema for MCP |
+| **Error handling** | Typed errors from `utils/errors.ts` (`ValidationError`, `TimeoutError`, `CommandError`) |
+| **File paths** | `@path/file.ts` notation in tool arguments (resolved by session CWD) |
+| **Prompts** | Always English (for model consistency) |
+| **Code style** | Prettier (2-space indent, single quotes, trailing commas) + ESLint |
+| **Commit messages** | English, conventional style (`feat:`, `fix:`, `docs:`, `chore:`) |
 
 ---
 
