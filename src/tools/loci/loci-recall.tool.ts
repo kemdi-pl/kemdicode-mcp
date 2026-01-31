@@ -143,6 +143,30 @@ async function handleResurrect(projectPath: string, currentGoal?: string, sessio
     lines.push('');
   }
 
+  if (context.graphInsights && context.graphInsights.length > 0) {
+    lines.push('### Graph Insights (A* Search)');
+    for (const insight of context.graphInsights) {
+      lines.push(`- ${insight}`);
+    }
+    lines.push('');
+  }
+
+  if (context.lociAssociations && context.lociAssociations.length > 0) {
+    lines.push('### Memory Palace');
+    for (const assoc of context.lociAssociations) {
+      lines.push(`- ${assoc}`);
+    }
+    lines.push('');
+  }
+
+  if (context.toolPatterns && context.toolPatterns.length > 0) {
+    lines.push('### Learned Tool Patterns');
+    for (const pattern of context.toolPatterns) {
+      lines.push(`- ${pattern}`);
+    }
+    lines.push('');
+  }
+
   if (context.suggestedActions.length > 0) {
     lines.push('### Suggested Actions');
     for (const action of context.suggestedActions) {

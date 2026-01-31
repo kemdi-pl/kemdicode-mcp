@@ -20,6 +20,9 @@
 import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
 import { Logger } from '../utils/logger.js';
 import { getGraphStorage } from './graph-storage.js';
+import { aStarSearch } from './graph-traversal.js';
+import { getLociManager } from './loci-manager.js';
+import { getSequenceTracker } from './sequence-tracker.js';
 import { getTimelineRecorder, hashProjectPath } from './timeline-recorder.js';
 import type {
   TimelineEvent,
@@ -27,6 +30,7 @@ import type {
   ResurrectionContext,
   SessionContinuity,
   CompactionLevel,
+  GraphNode,
 } from './types.js';
 import { TIMELINE_KEYS, COMPACTION_TTL } from './types.js';
 
@@ -510,7 +514,7 @@ export class CompactionEngine extends RedisBackedService {
       }
       context.activeFiles = [...filesSet].slice(0, 20);
 
-      // 5. Goal-based graph search (if goal provided)
+      // 5. Goal-based A* graph search (if goal provided)
       if (currentGoal) {
         const graph = getGraphStorage();
         if (!graph.isConnected()) {
@@ -518,27 +522,88 @@ export class CompactionEngine extends RedisBackedService {
         }
 
         if (graph.isConnected()) {
-          // Search for relevant nodes by label matching
           const goalWords = currentGoal.toLowerCase().split(/\s+/).filter(w => w.length > 3);
 
+          // Try A* search from graph nodes linked to timeline events
+          const graphNodeIds = new Set<string>();
           for (const sid of sessionIds.slice(0, 2)) {
-            const nodes = await graph.queryNodes({
-              sessionId: sid,
-              limit: 20,
-              sortBy: 'weight',
-              sortOrder: 'desc',
-            });
+            const recentEvents = await recorder.getEvents(sid, 'L0', 20);
+            for (const event of recentEvents) {
+              for (const nid of event.graphNodeIds) graphNodeIds.add(nid);
+            }
+          }
 
-            for (const node of nodes) {
-              const labelLower = node.label.toLowerCase();
-              const relevant = goalWords.some(w => labelLower.includes(w));
-              if (relevant) {
-                if (node.type === 'error') {
-                  if (!context.unresolvedErrors) context.unresolvedErrors = [];
-                  context.unresolvedErrors.push(node.label);
-                } else if (node.type === 'file') {
-                  if (!context.activeFiles.includes(node.label)) {
-                    context.activeFiles.push(node.label);
+          // A* from each seed node with goal heuristic
+          const goalFn = (node: GraphNode): number => {
+            const labelLower = node.label.toLowerCase();
+            let matchScore = 0;
+            for (const w of goalWords) {
+              if (labelLower.includes(w)) matchScore++;
+            }
+            // Score 0 = perfect match, 1 = no match
+            return goalWords.length > 0 ? 1 - (matchScore / goalWords.length) : 0.5;
+          };
+
+          const aStarResults: GraphNode[] = [];
+          const seenNodeIds = new Set<string>();
+
+          for (const seedId of [...graphNodeIds].slice(0, 5)) {
+            try {
+              const nodes = await aStarSearch(seedId, goalFn, {
+                maxResults: 10,
+                relevanceThreshold: 0.7,
+                maxDepth: 4,
+                maxNodes: 100,
+              });
+              for (const node of nodes) {
+                if (!seenNodeIds.has(node.id)) {
+                  seenNodeIds.add(node.id);
+                  aStarResults.push(node);
+                }
+              }
+            } catch {
+              // Individual A* search may fail if node expired
+            }
+          }
+
+          // Classify A* results
+          context.graphInsights = [];
+          for (const node of aStarResults.slice(0, 15)) {
+            if (node.type === 'error') {
+              if (!context.unresolvedErrors) context.unresolvedErrors = [];
+              context.unresolvedErrors.push(node.label);
+            } else if (node.type === 'file') {
+              if (!context.activeFiles.includes(node.label)) {
+                context.activeFiles.push(node.label);
+              }
+            } else {
+              context.graphInsights.push(`[${node.type}] ${node.label}`);
+            }
+          }
+
+          // Fallback: if A* found nothing, do simple label search
+          if (aStarResults.length === 0) {
+            for (const sid of sessionIds.slice(0, 2)) {
+              const nodes = await graph.queryNodes({
+                sessionId: sid,
+                limit: 20,
+                sortBy: 'weight',
+                sortOrder: 'desc',
+              });
+              for (const node of nodes) {
+                const labelLower = node.label.toLowerCase();
+                const relevant = goalWords.some(w => labelLower.includes(w));
+                if (relevant) {
+                  if (node.type === 'error') {
+                    if (!context.unresolvedErrors) context.unresolvedErrors = [];
+                    context.unresolvedErrors.push(node.label);
+                  } else if (node.type === 'file') {
+                    if (!context.activeFiles.includes(node.label)) {
+                      context.activeFiles.push(node.label);
+                    }
+                  } else {
+                    if (!context.graphInsights) context.graphInsights = [];
+                    context.graphInsights.push(`[${node.type}] ${node.label}`);
                   }
                 }
               }
@@ -547,12 +612,70 @@ export class CompactionEngine extends RedisBackedService {
         }
       }
 
-      // 6. Generate suggested actions
+      // 6. Loci palace associations
+      try {
+        const lociManager = getLociManager();
+        if (!lociManager.isConnected()) {
+          await lociManager.connect();
+        }
+
+        if (lociManager.isConnected()) {
+          // Walk palace for all sessions in chain
+          for (const sid of sessionIds.slice(0, 2)) {
+            const recalls = await lociManager.walkPalace(sid);
+            if (recalls.length > 0) {
+              context.lociAssociations = context.lociAssociations || [];
+              for (const recall of recalls.slice(0, 5)) {
+                const icon = recall.loci.icon || '';
+                context.lociAssociations.push(
+                  `${icon} ${recall.loci.name}: ${recall.nodes.length} memories`
+                );
+                // Include triggered associations (mnemonic cues)
+                for (const assoc of recall.associationsTriggered.slice(0, 2)) {
+                  context.lociAssociations.push(`  - ${assoc}`);
+                }
+              }
+            }
+          }
+        }
+      } catch {
+        // Loci manager may not be available
+      }
+
+      // 7. Tool sequence patterns
+      try {
+        const seqTracker = getSequenceTracker();
+        if (!seqTracker.isConnected()) {
+          await seqTracker.connect();
+        }
+
+        if (seqTracker.isConnected()) {
+          for (const sid of sessionIds.slice(0, 2)) {
+            const sequences = await seqTracker.getSequences(sid);
+            if (sequences.length > 0) {
+              context.toolPatterns = context.toolPatterns || [];
+              for (const seq of sequences.slice(0, 5)) {
+                const rate = Math.round(seq.successRate * 100);
+                context.toolPatterns.push(
+                  `${seq.tools.join(' -> ')} (${seq.occurrences}x, ${rate}% success)`
+                );
+              }
+            }
+          }
+        }
+      } catch {
+        // Sequence tracker may not be available
+      }
+
+      // 8. Generate suggested actions
       if (context.unresolvedErrors && context.unresolvedErrors.length > 0) {
         context.suggestedActions.push(`Fix ${context.unresolvedErrors.length} unresolved error(s)`);
       }
       if (context.activeFiles.length > 0) {
         context.suggestedActions.push(`Continue work on: ${context.activeFiles.slice(0, 3).join(', ')}`);
+      }
+      if (context.toolPatterns && context.toolPatterns.length > 0) {
+        context.suggestedActions.push(`Follow learned pattern: ${context.toolPatterns[0]}`);
       }
       if (context.keyFacts.length === 0) {
         context.suggestedActions.push('No prior key facts found - this may be a fresh project');

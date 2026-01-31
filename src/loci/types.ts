@@ -548,6 +548,12 @@ export interface ResurrectionContext {
   unresolvedErrors?: string[];
   activeFiles: string[];
   suggestedActions: string[];
+  /** Mnemonic associations from loci palace walk */
+  lociAssociations?: string[];
+  /** Learned tool sequence patterns */
+  toolPatterns?: string[];
+  /** Goal-relevant graph nodes found via A* search */
+  graphInsights?: string[];
 }
 
 /**
