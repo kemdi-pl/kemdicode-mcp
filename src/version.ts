@@ -15,4 +15,4 @@
  * @module version
  */
 
-export const VERSION = '1.23.0';
+export const VERSION = '1.23.1';

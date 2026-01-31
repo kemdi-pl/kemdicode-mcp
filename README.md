@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/kemdicode-mcp"><img src="https://img.shields.io/badge/npm-kemdicode--mcp-CB3837?style=flat-square&logo=npm&logoColor=white" alt="npm" /></a>
-  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.23.0-blue?style=flat-square" alt="Version" /></a>
+  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.23.1-blue?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License" /></a>
 </p>
 
@@ -28,7 +28,7 @@
 <details>
 <summary><strong>Table of Contents</strong></summary>
 
-- [What's New in 1.23.0](#whats-new-in-1230)
+- [What's New in 1.23.1](#whats-new-in-1230)
 - [Cognition Layer: How AI Remembers](#cognition-layer-how-ai-remembers)
 - [Usage Examples](#usage-examples)
 - [What's Next](#whats-next)
@@ -52,11 +52,11 @@
 
 ---
 
-## What's New in 1.23.0
+## What's New in 1.23.1
 
 ### Cognition Layer &mdash; 8 AI Self-Improvement Tools
 
-An AI agent that uses kemdiCode MCP no longer starts from zero after each session. Version 1.23.0 adds 8 interconnected cognition tools that give the agent persistent self-awareness:
+An AI agent that uses kemdiCode MCP no longer starts from zero after each session. Version 1.23.1 adds 8 interconnected cognition tools that give the agent persistent self-awareness:
 
 | Tool | What it does |
 |:-----|:-------------|

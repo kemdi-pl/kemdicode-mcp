@@ -1,0 +1,236 @@
+#!/usr/bin/env bun
+/**
+ * KemdiCode MCP Server - Tool Latency Benchmark
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/**
+ * Tool Latency Benchmark Suite
+ *
+ * Measures latency of MCP tool calls over HTTP/SSE protocol.
+ * Tests multiple tools with multiple iterations to gather statistics.
+ */
+
+const SERVER_URL = 'http://127.0.0.1:3100';
+const ITERATIONS = 10;
+
+interface ToolTest {
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
+interface LatencyStats {
+  tool: string;
+  min: number;
+  avg: number;
+  max: number;
+  p95: number;
+  samples: number[];
+}
+
+const TOOLS_TO_TEST: ToolTest[] = [
+  { name: 'ping', arguments: {} },
+  { name: 'task-list', arguments: {} },
+  { name: 'file-read', arguments: { path: '/opt/kemdicode-mcp/package.json' } },
+  { name: 'git-status', arguments: {} },
+  { name: 'env-info', arguments: {} },
+  { name: 'project-info', arguments: {} },
+];
+
+/**
+ * Get SSE session ID from server
+ */
+async function getSessionId(): Promise<string> {
+  const response = await fetch(`${SERVER_URL}/sse`);
+  if (!response.ok) {
+    throw new Error(`Failed to connect to server: ${response.status}`);
+  }
+
+  // Extract session ID from response headers or body
+  const sessionHeader = response.headers.get('x-session-id');
+  if (sessionHeader) {
+    return sessionHeader;
+  }
+
+  // If not in header, it might be in the SSE stream
+  // For simplicity, we'll use a fixed session ID or generate one
+  return `bench-${Date.now()}`;
+}
+
+/**
+ * Call a tool and measure latency
+ */
+async function callTool(sessionId: string, tool: ToolTest): Promise<number> {
+  const startTime = performance.now();
+
+  const response = await fetch(`${SERVER_URL}/message`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'mcp-session-id': sessionId,
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: Math.floor(Math.random() * 1000000),
+      method: 'tools/call',
+      params: {
+        name: tool.name,
+        arguments: tool.arguments,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'Unknown error');
+    throw new Error(`Tool ${tool.name} failed: ${response.status} - ${errorText}`);
+  }
+
+  // Read the response to ensure it's complete
+  await response.text();
+
+  const endTime = performance.now();
+  return endTime - startTime;
+}
+
+/**
+ * Calculate statistics from latency samples
+ */
+function calculateStats(tool: string, samples: number[]): LatencyStats {
+  const sorted = [...samples].sort((a, b) => a - b);
+  const sum = sorted.reduce((acc, val) => acc + val, 0);
+  const avg = sum / sorted.length;
+  const min = sorted[0];
+  const max = sorted[sorted.length - 1];
+
+  // Calculate 95th percentile
+  const p95Index = Math.floor(sorted.length * 0.95);
+  const p95 = sorted[p95Index];
+
+  return { tool, min, avg, max, p95, samples: sorted };
+}
+
+/**
+ * Format number to fixed decimal places
+ */
+function formatMs(ms: number): string {
+  return ms.toFixed(2);
+}
+
+/**
+ * Print results table
+ */
+function printResults(results: LatencyStats[]) {
+  console.log('\n╔═══════════════════════════════════════════════════════════════╗');
+  console.log('║         KEMDICODE MCP - TOOL LATENCY BENCHMARK               ║');
+  console.log('╠═══════════════════════════════════════════════════════════════╣');
+  console.log(`║  Server: ${SERVER_URL.padEnd(50)} ║`);
+  console.log(`║  Iterations per tool: ${ITERATIONS.toString().padEnd(40)} ║`);
+  console.log('╚═══════════════════════════════════════════════════════════════╝\n');
+
+  // Table header
+  console.log('┌────────────────────┬─────────┬─────────┬─────────┬─────────┐');
+  console.log('│ Tool               │ Min (ms)│ Avg (ms)│ Max (ms)│ P95 (ms)│');
+  console.log('├────────────────────┼─────────┼─────────┼─────────┼─────────┤');
+
+  // Table rows
+  for (const result of results) {
+    const tool = result.tool.padEnd(18);
+    const min = formatMs(result.min).padStart(7);
+    const avg = formatMs(result.avg).padStart(7);
+    const max = formatMs(result.max).padStart(7);
+    const p95 = formatMs(result.p95).padStart(7);
+
+    console.log(`│ ${tool} │ ${min} │ ${avg} │ ${max} │ ${p95} │`);
+  }
+
+  console.log('└────────────────────┴─────────┴─────────┴─────────┴─────────┘\n');
+
+  // Summary statistics
+  const allSamples = results.flatMap(r => r.samples);
+  const totalCalls = allSamples.length;
+  const totalTime = allSamples.reduce((acc, val) => acc + val, 0);
+  const overallAvg = totalTime / totalCalls;
+
+  console.log('Summary:');
+  console.log(`  Total calls: ${totalCalls}`);
+  console.log(`  Overall average latency: ${formatMs(overallAvg)} ms`);
+  console.log(`  Total benchmark time: ${formatMs(totalTime)} ms\n`);
+}
+
+/**
+ * Main benchmark execution
+ */
+async function main() {
+  console.log('Starting tool latency benchmark...\n');
+
+  // Check server connectivity
+  try {
+    const response = await fetch(`${SERVER_URL}/sse`);
+    if (!response.ok) {
+      throw new Error(`Server returned status ${response.status}`);
+    }
+  } catch (error) {
+    console.error('❌ Error: Cannot connect to MCP server');
+    console.error(`   Make sure the server is running at ${SERVER_URL}`);
+    process.exit(1);
+  }
+
+  console.log('✓ Server is reachable');
+
+  // Get session ID
+  let sessionId: string;
+  try {
+    sessionId = await getSessionId();
+    console.log(`✓ Session ID: ${sessionId}\n`);
+  } catch (error) {
+    console.error('❌ Error: Failed to get session ID');
+    process.exit(1);
+  }
+
+  const results: LatencyStats[] = [];
+
+  // Test each tool
+  for (const tool of TOOLS_TO_TEST) {
+    process.stdout.write(`Testing ${tool.name}...`);
+    const samples: number[] = [];
+
+    try {
+      for (let i = 0; i < ITERATIONS; i++) {
+        const latency = await callTool(sessionId, tool);
+        samples.push(latency);
+
+        // Small delay between iterations
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      const stats = calculateStats(tool.name, samples);
+      results.push(stats);
+      process.stdout.write(` ✓ (avg: ${formatMs(stats.avg)} ms)\n`);
+    } catch (error) {
+      process.stdout.write(` ✗ FAILED\n`);
+      console.error(`   Error: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  // Print results
+  printResults(results);
+}
+
+// Run benchmark
+main().catch(error => {
+  console.error('Fatal error:', error);
+  process.exit(1);
+});
