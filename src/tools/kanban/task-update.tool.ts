@@ -29,6 +29,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { updateTask, getTask, TaskStatus, TaskPriority } from '../../kanban/index.js';
+import { isSilent } from '../../config/silent.js';
 
 const updateSchema = z.object({
   taskId: z.string().min(1).describe('Task ID'),
@@ -196,6 +197,14 @@ export const taskUpdateTool: UnifiedTool = {
 
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
+
+    // Silent mode: return only updated IDs
+    if (isSilent()) {
+      if (failed.length > 0) {
+        return JSON.stringify({ updated: successful.map((r) => r.taskId), errors: failed.map((r) => ({ id: r.taskId, error: r.error })) });
+      }
+      return JSON.stringify(successful.map((r) => r.taskId));
+    }
 
     const getStatusIcon = (s?: string) =>
       ({

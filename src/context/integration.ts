@@ -34,21 +34,17 @@ let contextEnabled = false;
 
 /**
  * Initialize context sharing
+ *
+ * @description Initializes the context storage with lazy Redis connection.
+ *              The actual connection is deferred until first use.
  */
 export async function initContext(config?: RedisConfig): Promise<boolean> {
   try {
-    const storage = getContextStorage(config);
-    const connected = await storage.connect();
-
-    if (connected) {
-      contextEnabled = true;
-      Logger.debug('Context sharing initialized');
-    } else {
-      Logger.warn('Context sharing disabled (Redis unavailable)');
-      contextEnabled = false;
-    }
-
-    return contextEnabled;
+    // Just create the storage instance - connection happens on first use
+    getContextStorage(config);
+    contextEnabled = true;
+    Logger.debug('Context sharing initialized (lazy connection)');
+    return true;
   } catch (error) {
     Logger.error('Failed to initialize context:', error);
     contextEnabled = false;
@@ -177,6 +173,7 @@ function generateSummary(toolName: string, output: unknown): string {
 
 /**
  * Share context after tool execution (auto-share)
+ * Optimized: Pass output directly without pre-serialization, let storage handle it lazily
  */
 export async function shareContext(
   toolName: string,
@@ -198,6 +195,7 @@ export async function shareContext(
     const storage = getContextStorage();
     const sessionId = getSessionId();
 
+    // Build entry - output stays as-is (string or object), serialization happens in storage
     const entry: McpContextEntry = {
       id: uuidv4(),
       sessionId,
@@ -206,7 +204,7 @@ export async function shareContext(
       timestamp: Date.now(),
       ttl: options.ttl ?? inferTtl(toolName),
       input,
-      output,
+      output, // No eager serialization - let storage.saveContext handle it
       summary: options.summary ?? generateSummary(toolName, output),
       tags: options.tags ?? inferTags(toolName),
       relatedFiles: options.relatedFiles,

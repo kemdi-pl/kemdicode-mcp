@@ -67,6 +67,8 @@ export class AgentMonitor {
   private messageHandlerRegistered = false;
   private alertHandlerRegistered = false;
   private statusHandlerRegistered = false;
+  // Reusable Map for alert deduplication
+  private alertDedupeMap = new Map<string, SupervisorAlert>();
 
   constructor(private readonly config: RedisConfig = {}) {}
 
@@ -164,10 +166,12 @@ export class AgentMonitor {
 
     try {
       const key = `${REDIS_KEYS.AGENTS}${agent.id}`;
-      await this.redis.setex(key, TTL.SESSION, JSON.stringify(agent));
 
-      // Add to session's agent list
-      await this.redis.sadd(`${REDIS_KEYS.AGENTS}session:${sessionId}`, agent.id);
+      // Use pipeline to batch agent registration operations
+      const pipeline = this.redis.pipeline();
+      pipeline.setex(key, TTL.SESSION, JSON.stringify(agent));
+      pipeline.sadd(`${REDIS_KEYS.AGENTS}session:${sessionId}`, agent.id);
+      await pipeline.exec();
 
       // Publish status update
       await this.publishStatusUpdate(agent);
@@ -316,16 +320,18 @@ export class AgentMonitor {
     };
 
     try {
-      // Store message in history
+      // Use pipeline to batch message storage operations
       const key = `${REDIS_KEYS.AGENT_MESSAGES}${sessionId}`;
-      await this.redis.zadd(key, message.timestamp, JSON.stringify(message));
-      await this.redis.expire(key, TTL.SESSION);
+      const pipeline = this.redis.pipeline();
 
-      // Publish to channel for real-time subscribers
-      await this.redis.publish(
+      pipeline.zadd(key, message.timestamp, JSON.stringify(message));
+      pipeline.expire(key, TTL.SESSION);
+      pipeline.publish(
         REDIS_KEYS.PREFIX + REDIS_KEYS.CHANNEL_MESSAGES,
         JSON.stringify(message)
       );
+
+      await pipeline.exec();
 
       Logger.debug(`Message sent: ${message.id} (${type})`);
       return message;
@@ -359,19 +365,20 @@ export class AgentMonitor {
     };
 
     try {
-      // Store alert
+      // Use pipeline to batch alert storage operations
       const key = sessionId
         ? `${REDIS_KEYS.AGENT_ALERTS}${sessionId}`
         : `${REDIS_KEYS.AGENT_ALERTS}global`;
 
-      await this.redis.zadd(key, alert.timestamp, JSON.stringify(alert));
-      await this.redis.expire(key, TTL.SESSION);
-
-      // Publish to alerts channel
-      await this.redis.publish(
+      const pipeline = this.redis.pipeline();
+      pipeline.zadd(key, alert.timestamp, JSON.stringify(alert));
+      pipeline.expire(key, TTL.SESSION);
+      pipeline.publish(
         REDIS_KEYS.PREFIX + REDIS_KEYS.CHANNEL_ALERTS,
         JSON.stringify(alert)
       );
+
+      await pipeline.exec();
 
       // Also send as message to each target agent
       const targets =
@@ -537,7 +544,12 @@ export class AgentMonitor {
 
     // Get pending alerts for all agents in session
     const alertSets = await Promise.all(agents.map((a) => this.getPendingAlerts(a.id, sessionId)));
-    const pendingAlerts = [...new Map(alertSets.flat().map((a) => [a.id, a])).values()];
+    // Reuse Map instead of creating new one
+    this.alertDedupeMap.clear();
+    for (const alert of alertSets.flat()) {
+      this.alertDedupeMap.set(alert.id, alert);
+    }
+    const pendingAlerts = [...this.alertDedupeMap.values()];
 
     return {
       sessionId,
@@ -667,13 +679,16 @@ export class AgentMonitor {
       };
 
       const key = `${REDIS_KEYS.AGENT_SUMMARY}${agentId}`;
-      await this.redis.setex(key, 3600, JSON.stringify(fullSummary)); // 1 hour TTL
 
-      // Publish update for real-time monitoring
-      await this.redis.publish(
+      // Use pipeline to batch summary update operations
+      const pipeline = this.redis.pipeline();
+      pipeline.setex(key, 3600, JSON.stringify(fullSummary)); // 1 hour TTL
+      pipeline.publish(
         REDIS_KEYS.PREFIX + REDIS_KEYS.CHANNEL_AGENT_SUMMARY,
         JSON.stringify(fullSummary)
       );
+
+      await pipeline.exec();
 
       Logger.debug(`Agent summary updated: ${agentId}`);
       return true;
@@ -772,8 +787,11 @@ export class AgentMonitor {
       // Higher priority = higher score, earlier timestamp = lower score within priority
       const score = (4 - priorityLevel[priority]) * 1e12 + message.createdAt;
 
-      await this.redis.zadd(key, score, JSON.stringify(message));
-      await this.redis.expire(key, TTL.SESSION);
+      // Use pipeline to batch queue operations
+      const pipeline = this.redis.pipeline();
+      pipeline.zadd(key, score, JSON.stringify(message));
+      pipeline.expire(key, TTL.SESSION);
+      await pipeline.exec();
 
       Logger.debug(`Message queued for ${targetAgentId}: ${message.id} (${priority})`);
       return message;
@@ -893,6 +911,14 @@ export class AgentMonitor {
   // SESSION OVERVIEW - Hierarchical view of session state
   // ═══════════════════════════════════════════════════════════════════════════
 
+  // Reusable object for board status to reduce allocations
+  private overviewByStatus: Record<TaskStatus, number> = {
+    backlog: 0,
+    in_progress: 0,
+    review: 0,
+    done: 0,
+  };
+
   /**
    * Get comprehensive overview of a session
    * Includes: workspaces, boards, agents, tasks, activity
@@ -943,19 +969,17 @@ export class AgentMonitor {
           const board = JSON.parse(boardData);
           const taskCount = await this.redis.zcard(`mcp:kanban:board:${boardId}:tasks`);
 
-          // Get tasks by status
-          const byStatus: Record<TaskStatus, number> = {
-            backlog: 0,
-            in_progress: 0,
-            review: 0,
-            done: 0,
-          };
+          // Reset reusable byStatus object
+          this.overviewByStatus.backlog = 0;
+          this.overviewByStatus.in_progress = 0;
+          this.overviewByStatus.review = 0;
+          this.overviewByStatus.done = 0;
 
           // Count tasks per status
           const statusKeys: TaskStatus[] = ['backlog', 'in_progress', 'review', 'done'];
           for (const status of statusKeys) {
             const count = await this.redis.scard(`mcp:kanban:status:${sessionId}:${status}`);
-            byStatus[status] = count;
+            this.overviewByStatus[status] = count;
           }
 
           // Get active agents on this board
@@ -968,7 +992,7 @@ export class AgentMonitor {
             name: board.name,
             workspaceId: board.workspaceId,
             taskCount,
-            byStatus,
+            byStatus: { ...this.overviewByStatus }, // Clone the reusable object
             activeAgents,
           });
         }

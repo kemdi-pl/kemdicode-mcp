@@ -29,6 +29,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { listTasks, TaskStatus, TaskPriority, resolveSessionId, resolveBoardId } from '../../kanban/index.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   sessionId: z.string().optional().describe('Session ID (auto-detected from connection if omitted)'),
@@ -98,6 +99,14 @@ export const taskListTool: UnifiedTool = {
       );
 
       Logger.debug(`task-list: found ${tasks.length} tasks for session ${sessionId}`);
+
+      // Silent mode: minimal task objects (use template for static shape to avoid object allocation + stringify)
+      if (isSilent()) {
+        const items = tasks.map((t) =>
+          `{"id":"${t.id}","title":"${String(t.title).replace(/"/g, '\\"')}","status":"${t.status}","priority":"${t.priority}","assignee":"${t.assignee ?? ''}"}`
+        ).join(',');
+        return `[${items}]`;
+      }
 
       return JSON.stringify({
         success: true,

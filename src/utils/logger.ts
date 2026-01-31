@@ -17,6 +17,7 @@
  */
 
 import { LOG_PREFIX } from '../constants.js';
+import { isSilent } from '../config/silent.js';
 import { randomUUID } from 'node:crypto';
 
 /**
@@ -269,6 +270,8 @@ export class Logger {
 
   /**
    * Core log function
+   * In silent mode: only ERROR level reaches stderr.
+   * INFO/WARN/DEBUG are suppressed to avoid terminal noise.
    */
   private static logInternal(
     level: LogLevel,
@@ -277,6 +280,9 @@ export class Logger {
     extra?: Record<string, unknown>
   ): void {
     if (!this.isLevelEnabled(level)) return;
+
+    // Silent mode: suppress everything except errors
+    if (isSilent() && level < LogLevel.ERROR) return;
 
     const formatted =
       this.config.format === 'json'
@@ -342,9 +348,11 @@ export class Logger {
   }
 
   /**
-   * Log tool invocation with structured data
+   * Log tool invocation with structured data.
+   * Skipped entirely in silent mode.
    */
   static toolInvocation(name: string, args: unknown): void {
+    if (isSilent()) return;
     this.debug(() => `Tool invoked: ${name}`, {
       tool: name,
       args: typeof args === 'object' ? (args as Record<string, unknown>) : { value: args },
@@ -555,7 +563,8 @@ export class Logger {
   }
 
   /**
-   * Tool execution logging with timing
+   * Tool execution logging with timing.
+   * In silent mode: only errors are logged. Start/end phases are suppressed.
    */
   static toolExecution(
     phase: 'start' | 'end' | 'error',
@@ -563,6 +572,9 @@ export class Logger {
     duration?: number,
     extra?: Record<string, unknown>
   ): void {
+    // Silent mode: skip start/end, only log errors
+    if (isSilent() && phase !== 'error') return;
+
     const msg = `Tool ${phase}: ${toolName}`;
 
     switch (phase) {

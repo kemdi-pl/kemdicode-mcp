@@ -20,6 +20,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { executeAI, parseFiles, type AgentType } from '../../ai/index.js';
 import { getEnhancedContextString } from '../../utils/projectContext.enhanced.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   files: z.string().describe('Main file to analyze (@path/file syntax)'),
@@ -58,7 +59,13 @@ export const analyzeDepsTool: UnifiedTool = {
       both: 'BOTH DIRECTIONS - What it uses and what uses it',
     };
 
-    const prompt = `${getEnhancedContextString()}
+    const silent = isSilent();
+
+    const prompt = silent
+      ? `${getEnhancedContextString()}
+Dependency analysis (${depth}, ${direction}): ${filesStr}
+Output: JSON {file, type, purpose, uses: [{class, type, path}], usedBy: [{class, type, path}]}. No markdown, no diagrams.`
+      : `${getEnhancedContextString()}
 # Dependency Analysis Request
 
 ## Files

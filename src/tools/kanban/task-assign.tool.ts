@@ -29,6 +29,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { assignTask } from '../../kanban/index.js';
+import { isSilent } from '../../config/silent.js';
 
 const assignmentSchema = z.object({
   taskId: z.string().min(1).describe('Task ID'),
@@ -121,6 +122,14 @@ export const taskAssignTool: UnifiedTool = {
 
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
+
+    // Silent mode: return assigned task IDs only
+    if (isSilent()) {
+      if (failed.length > 0) {
+        return JSON.stringify({ assigned: successful.map((r) => r.taskId), errors: failed.map((r) => r.error) });
+      }
+      return JSON.stringify(successful.map((r) => r.taskId));
+    }
 
     return JSON.stringify({
       success: failed.length === 0,

@@ -32,6 +32,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { fromNodeError, formatErrorResponse } from '../../utils/errors.js';
 import { validatePath, ValidationError, checkRateLimit } from '../../utils/validation.js';
+import { isSilent } from '../../config/silent.js';
 
 const fileItemSchema = z.object({
   path: z.string().min(1).describe('File path'),
@@ -227,6 +228,14 @@ export const fileWriteTool: UnifiedTool = {
 
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
+
+    // Silent mode: return written paths
+    if (isSilent()) {
+      if (failed.length > 0) {
+        return JSON.stringify({ written: successful.map((r) => r.path), errors: failed.map((r) => r.error) });
+      }
+      return JSON.stringify(successful.map((r) => r.path));
+    }
 
     return JSON.stringify({
       success: failed.length === 0,

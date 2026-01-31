@@ -34,6 +34,7 @@ import {
   isContextEnabled,
 } from '../../context/index.js';
 import { getContextStorage } from '../../context/storage.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   scope: z
@@ -273,6 +274,7 @@ export const sharedThoughtsTool: UnifiedTool = {
       entries = entries.slice(0, limit);
 
       if (entries.length === 0) {
+        if (isSilent()) return '[]';
         const storage = getContextStorage();
         const stats = await storage.getStats();
         return `## 🧠 Shared Knowledge Base
@@ -283,6 +285,10 @@ export const sharedThoughtsTool: UnifiedTool = {
 **Redis Stats:** ${stats.totalKeys || 0} total keys
 
 💡 **Tip:** Run some analysis tools (code-review, explain-code, etc.) to start building the shared knowledge base.`;
+      }
+
+      if (isSilent()) {
+        return JSON.stringify(entries.map((e) => ({ tool: e.toolName, summary: e.summary, tags: e.tags })));
       }
 
       // Format output

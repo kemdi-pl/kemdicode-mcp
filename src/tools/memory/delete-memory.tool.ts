@@ -29,6 +29,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { MEMORY_PREFIX, MEMORY_INDEX_PREFIX, getRedis, getProjectId } from './shared.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   names: z.array(z.string().min(1)).min(1).max(20).describe('Memory names to delete (1-20)'),
@@ -98,6 +99,14 @@ export const deleteMemoryTool: UnifiedTool = {
 
       const successful = results.filter((r) => r.success);
       const failed = results.filter((r) => !r.success);
+
+      // Silent mode: return deleted count
+      if (isSilent()) {
+        if (failed.length > 0) {
+          return JSON.stringify({ deleted: successful.length, errors: failed.map((r) => r.error) });
+        }
+        return JSON.stringify({ deleted: successful.length });
+      }
 
       return JSON.stringify({
         success: failed.length === 0,

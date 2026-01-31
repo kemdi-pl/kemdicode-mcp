@@ -27,6 +27,7 @@ import { UnifiedTool } from '../registry.js';
 import { getSessionManager } from '../../session/manager.js';
 import { getContextStorage } from '../../context/storage.js';
 import { getCurrentSessionId, clearCurrentSession } from '../../context/integration.js';
+import { isSilent } from '../../config/silent.js';
 
 const deleteItemSchema = z.object({
   sessionId: z.string().describe('Session ID to delete'),
@@ -106,6 +107,10 @@ export const sessionDeleteTool: UnifiedTool<typeof schema> = {
 
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
+
+    if (isSilent()) {
+      return JSON.stringify({ deleted: successful.length });
+    }
 
     return JSON.stringify({
       success: failed.length === 0,

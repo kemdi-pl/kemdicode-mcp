@@ -29,6 +29,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { listWorkspacesForSession, listAllWorkspaces } from '../../kanban/index.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   sessionId: z.string().optional().describe('Session ID filter, omit for all'),
@@ -69,6 +70,11 @@ export const workspaceListTool: UnifiedTool = {
         : await listAllWorkspaces({ limit: input.limit });
 
       Logger.debug(`workspace-list: found ${workspaces.length} workspaces`);
+
+      // Silent mode: compact format
+      if (isSilent()) {
+        return JSON.stringify(workspaces.map((ws) => ({ id: ws.id, name: ws.name })));
+      }
 
       return JSON.stringify({
         success: true,

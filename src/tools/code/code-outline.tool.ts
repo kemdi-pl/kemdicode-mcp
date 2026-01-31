@@ -30,6 +30,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
+import { isSilent } from '../../config/silent.js';
 
 /**
  * Outline node representing a code element
@@ -913,6 +914,12 @@ export const codeOutlineTool: UnifiedTool = {
 
     if (outline.length === 0) {
       return `No symbols found in ${filePath}`;
+    }
+
+    if (isSilent()) {
+      const flatSymbols = (nodes: OutlineNode[]): Array<{ name: string; type: string; line: number }> =>
+        nodes.flatMap((n) => [{ name: n.name, type: n.type, line: n.line }, ...flatSymbols(n.children || [])]);
+      return JSON.stringify(flatSymbols(outline));
     }
 
     const header = `# Code Outline: ${filePath}\n# Language: ${lang.toUpperCase()}\n\n`;

@@ -134,6 +134,17 @@ describe('process-list filter safety', () => {
 // ============================================================
 
 describe('env-info redaction', () => {
+  beforeEach(async () => {
+    // env-info tests expect markdown output (normal mode)
+    const { setOutputLevel } = await import('../../src/config/silent.js');
+    setOutputLevel('normal');
+  });
+
+  afterEach(async () => {
+    const { setOutputLevel } = await import('../../src/config/silent.js');
+    setOutputLevel('silent');
+  });
+
   it('should redact hostname and username by default', async () => {
     const { envInfoTool } = await import('../../src/tools/system/env-info.tool.js');
     const result = (await envInfoTool.execute({

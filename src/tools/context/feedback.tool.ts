@@ -31,6 +31,7 @@ import {
   provideFeedback,
   getSuggestionsForFile,
 } from '../../context/feedback-loop.js';
+import { isSilent } from '../../config/silent.js';
 import {
   getIterationContext,
   getIterationSummary,
@@ -89,6 +90,7 @@ export const feedbackTool: UnifiedTool = {
     switch (action) {
       case 'stats': {
         const stats = await getFeedbackStats();
+        if (isSilent()) return JSON.stringify(stats);
         return formatStats(stats);
       }
 

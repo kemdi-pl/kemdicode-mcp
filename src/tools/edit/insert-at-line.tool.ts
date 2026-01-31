@@ -30,6 +30,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { readFileLines, writeFileLines, validateLineNumber } from '../../utils/edit-utils.js';
 import { validateEditRequest, formatEditError } from './edit-shared.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   path: z.string().min(1).describe('File path'),
@@ -102,6 +103,10 @@ export const insertAtLineTool: UnifiedTool = {
       Logger.debug(
         `insert-at-line: inserted ${linesInserted} lines at line ${line} in ${validatedPath}`
       );
+
+      if (isSilent()) {
+        return JSON.stringify({ path: validatedPath, linesInserted });
+      }
 
       return JSON.stringify({
         success: true,

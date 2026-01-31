@@ -36,6 +36,7 @@ import {
   getRedis,
   getProjectId,
 } from './shared.js';
+import { isSilent } from '../../config/silent.js';
 
 const editItemSchema = z.object({
   name: z.string().min(1).describe('Memory name'),
@@ -169,6 +170,14 @@ export const editMemoryTool: UnifiedTool = {
 
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
+
+    // Silent mode: return edited names
+    if (isSilent()) {
+      if (failed.length > 0) {
+        return JSON.stringify({ edited: successful.map((r) => r.name), errors: failed.map((r) => r.error) });
+      }
+      return JSON.stringify(successful.map((r) => r.name));
+    }
 
     return JSON.stringify({
       success: failed.length === 0,

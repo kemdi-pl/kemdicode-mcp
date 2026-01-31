@@ -25,6 +25,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getSessionManager } from '../../session/manager.js';
+import { isSilent } from '../../config/silent.js';
 
 const sessionItemSchema = z.object({
   model: z.string().describe('AI model ID'),
@@ -93,6 +94,10 @@ export const sessionCreateTool: UnifiedTool<typeof schema> = {
 
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
+
+    if (isSilent()) {
+      return JSON.stringify(successful.map((r) => r.sessionId));
+    }
 
     return JSON.stringify({
       success: failed.length === 0,

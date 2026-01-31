@@ -20,6 +20,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { executeAI, parseFiles, type AgentType } from '../../ai/index.js';
 import { getEnhancedContextString } from '../../utils/projectContext.enhanced.js';
+import { isSilent } from '../../config/silent.js';
 
 const DEPTH_PROMPTS: Record<string, string> = {
   quick: `**QUICK OVERVIEW** - 2-3 sentences per method/class, main purpose, key dependencies`,
@@ -61,7 +62,13 @@ export const explainCodeTool: UnifiedTool = {
     const filesStr = String(files);
     const agent: AgentType = depth === 'quick' ? 'explore' : 'plan';
 
-    const prompt = `${getEnhancedContextString()}
+    const silent = isSilent();
+
+    const prompt = silent
+      ? `${getEnhancedContextString()}
+Explain code (${depth}, ${audience}): ${filesStr}
+Output: concise explanation, no markdown formatting, no diagrams.`
+      : `${getEnhancedContextString()}
 # Code Explanation Request
 
 ${DEPTH_PROMPTS[depth as string]}

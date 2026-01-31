@@ -32,6 +32,7 @@ import {
   isContextEnabled,
 } from '../../context/index.js';
 import { ServerIdentifier } from '../../context/types.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   from_server: z.string().optional().describe('Filter by source server ID'),
@@ -98,6 +99,10 @@ export const getSharedContextTool: UnifiedTool = {
         byServer[entry.server] = [];
       }
       byServer[entry.server].push(entry);
+    }
+
+    if (isSilent()) {
+      return JSON.stringify(formatted.map((e) => ({ server: e.server, tool: e.tool, summary: e.summary })));
     }
 
     return JSON.stringify(

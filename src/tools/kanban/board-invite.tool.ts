@@ -29,6 +29,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { addBoardMember, hasPermission, isBoardMember, BoardRole, resolveBoardId, resolveSessionId } from '../../kanban/index.js';
+import { isSilent } from '../../config/silent.js';
 
 const inviteItemSchema = z.object({
   boardId: z.string().min(1).describe('Board ID or "name:Board Name"'),
@@ -140,6 +141,14 @@ export const boardInviteTool: UnifiedTool = {
 
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
+
+    // Silent mode: return invited count
+    if (isSilent()) {
+      if (failed.length > 0) {
+        return JSON.stringify({ invited: successful.length, errors: failed.map((r) => r.error) });
+      }
+      return JSON.stringify({ invited: successful.length });
+    }
 
     return JSON.stringify({
       success: failed.length === 0,

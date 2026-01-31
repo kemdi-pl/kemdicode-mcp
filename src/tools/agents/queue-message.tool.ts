@@ -27,6 +27,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getAgentMonitor } from '../../context/agent-monitor.js';
 import type { MessagePriority } from '../../context/types.js';
+import { isSilent } from '../../config/silent.js';
 
 const messageSchema = z.object({
   targetAgentId: z.string().min(1).describe('Target agent ID'),
@@ -202,6 +203,10 @@ export const queueMessageTool: UnifiedTool = {
         high: '🟠',
         critical: '🔴',
       })[p] || '⚪';
+
+    if (isSilent()) {
+      return JSON.stringify({ queued: successful.length });
+    }
 
     return JSON.stringify({
       success: failed.length === 0,

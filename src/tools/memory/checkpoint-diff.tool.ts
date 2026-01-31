@@ -32,6 +32,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { type Checkpoint, CHECKPOINT_PREFIX, getRedis, getProjectId } from './shared.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   checkpointId: z.string().min(1).describe('Checkpoint ID to compare against'),
@@ -237,6 +238,10 @@ export const checkpointDiffTool: UnifiedTool = {
       Logger.debug(
         `checkpoint-diff: compared ${diffEntries.length} files for checkpoint '${checkpointId}'`
       );
+
+      if (isSilent()) {
+        return JSON.stringify({ modified, deleted, new: newFiles, files: diffEntries.filter((e) => e.status !== 'unchanged') });
+      }
 
       return JSON.stringify({
         success: true,

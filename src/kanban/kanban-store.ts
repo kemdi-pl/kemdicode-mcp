@@ -125,8 +125,10 @@ export async function createTask(input: CreateTaskInput): Promise<KanbanTask> {
   // Calculate score for sorting (priority + time)
   const score = PRIORITY_SCORES[task.priority] * 1000000000 + (1000000000 - now / 1000);
 
-  // Store task data
-  await client.hset(KANBAN_KEYS.task(taskId), {
+  // Use pipeline to batch all task creation operations
+  const pipeline = client.pipeline();
+
+  pipeline.hset(KANBAN_KEYS.task(taskId), {
     ...task,
     blockedBy: JSON.stringify(task.blockedBy),
     blocks: JSON.stringify(task.blocks),
@@ -134,14 +136,11 @@ export async function createTask(input: CreateTaskInput): Promise<KanbanTask> {
     labels: JSON.stringify(task.labels),
   });
 
-  // Add to session tasks ZSET
-  await client.zadd(KANBAN_KEYS.tasks(input.sessionId), score, taskId);
+  pipeline.zadd(KANBAN_KEYS.tasks(input.sessionId), score, taskId);
+  pipeline.sadd(KANBAN_KEYS.byStatus(input.sessionId, 'backlog'), taskId);
+  pipeline.expire(KANBAN_KEYS.task(taskId), DEFAULT_TASK_TTL);
 
-  // Add to status index
-  await client.sadd(KANBAN_KEYS.byStatus(input.sessionId, 'backlog'), taskId);
-
-  // Set TTL
-  await client.expire(KANBAN_KEYS.task(taskId), DEFAULT_TASK_TTL);
+  await pipeline.exec();
 
   // Emit event
   await emitEvent({
@@ -550,13 +549,16 @@ export async function assignTask(
 
   const client = await getRedis();
 
-  // Remove from old assignee
+  // Use pipeline to batch assignee update operations
+  const pipeline = client.pipeline();
+
   if (task.assignee) {
-    await client.srem(KANBAN_KEYS.byAgent(task.assignee), taskId);
+    pipeline.srem(KANBAN_KEYS.byAgent(task.assignee), taskId);
   }
 
-  // Add to new assignee
-  await client.sadd(KANBAN_KEYS.byAgent(assigneeId), taskId);
+  pipeline.sadd(KANBAN_KEYS.byAgent(assigneeId), taskId);
+
+  await pipeline.exec();
 
   await emitEvent({
     type: 'task-assigned',
@@ -789,14 +791,18 @@ export async function deleteTask(taskId: string): Promise<boolean> {
   const task = await getTask(taskId);
   if (!task) return false;
 
-  // Remove from all indices
-  await client.del(KANBAN_KEYS.task(taskId));
-  await client.zrem(KANBAN_KEYS.tasks(task.sessionId), taskId);
-  await client.srem(KANBAN_KEYS.byStatus(task.sessionId, task.status), taskId);
+  // Use pipeline to batch all deletion operations
+  const pipeline = client.pipeline();
+
+  pipeline.del(KANBAN_KEYS.task(taskId));
+  pipeline.zrem(KANBAN_KEYS.tasks(task.sessionId), taskId);
+  pipeline.srem(KANBAN_KEYS.byStatus(task.sessionId, task.status), taskId);
 
   if (task.assignee) {
-    await client.srem(KANBAN_KEYS.byAgent(task.assignee), taskId);
+    pipeline.srem(KANBAN_KEYS.byAgent(task.assignee), taskId);
   }
+
+  await pipeline.exec();
 
   // Remove blocking relationships
   for (const blockerId of task.blockedBy) {
@@ -864,12 +870,14 @@ async function removeBlocksRelation(blockerId: string, blockedId: string): Promi
 async function emitEvent(event: TaskEvent): Promise<void> {
   const client = await getRedis();
 
-  // Store in events list
-  await client.lpush(KANBAN_KEYS.events(event.sessionId), JSON.stringify(event));
-  await client.ltrim(KANBAN_KEYS.events(event.sessionId), 0, MAX_EVENTS - 1);
+  // Use pipeline to batch event storage operations
+  const pipeline = client.pipeline();
 
-  // Publish to channel
-  await client.publish(KANBAN_KEYS.channel, JSON.stringify(event));
+  pipeline.lpush(KANBAN_KEYS.events(event.sessionId), JSON.stringify(event));
+  pipeline.ltrim(KANBAN_KEYS.events(event.sessionId), 0, MAX_EVENTS - 1);
+  pipeline.publish(KANBAN_KEYS.channel, JSON.stringify(event));
+
+  await pipeline.exec();
 }
 
 /**

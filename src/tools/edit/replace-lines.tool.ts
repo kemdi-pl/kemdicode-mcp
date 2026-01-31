@@ -35,6 +35,7 @@ import {
   truncateForPreview,
 } from '../../utils/edit-utils.js';
 import { validateEditRequest, formatEditError } from './edit-shared.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   path: z.string().min(1).describe('File path'),
@@ -114,6 +115,10 @@ export const replaceLinesTool: UnifiedTool = {
       Logger.debug(
         `replace-lines: replaced lines ${startLine}-${endLine} (${originalLinesCount} -> ${newLinesCount} lines) in ${validatedPath}`
       );
+
+      if (isSilent()) {
+        return JSON.stringify({ path: validatedPath, lineDelta });
+      }
 
       return JSON.stringify({
         success: true,

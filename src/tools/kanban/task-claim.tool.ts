@@ -29,6 +29,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { claimTask, getAvailableTasks, resolveSessionId } from '../../kanban/index.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   taskId: z
@@ -97,6 +98,11 @@ export const taskClaimTool: UnifiedTool = {
       }
 
       Logger.debug(`task-claim: agent ${input.agentId} claimed task ${task.id}: ${task.title}`);
+
+      // Silent mode: return task ID and title only
+      if (isSilent()) {
+        return JSON.stringify({ id: task.id, title: task.title });
+      }
 
       return JSON.stringify({
         success: true,

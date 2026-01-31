@@ -29,6 +29,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { getTask } from '../../kanban/index.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   taskId: z.string().min(1).describe('Task ID'),
@@ -75,6 +76,19 @@ export const taskGetTool: UnifiedTool = {
       }
 
       Logger.debug(`task-get: retrieved task ${task.id}: ${task.title}`);
+
+      // Silent mode: core fields only
+      if (isSilent()) {
+        return JSON.stringify({
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          status: task.status,
+          priority: task.priority,
+          assignee: task.assignee,
+          blockedBy: task.blockedBy?.length ? task.blockedBy : undefined,
+        });
+      }
 
       return JSON.stringify({
         success: true,

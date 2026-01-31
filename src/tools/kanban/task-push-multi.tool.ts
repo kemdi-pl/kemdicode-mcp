@@ -30,6 +30,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { getTask, createTask, assignTask, TaskPriority, resolveSessionId, resolveBoardId } from '../../kanban/index.js';
+import { isSilent } from '../../config/silent.js';
 
 /** Target agent specification */
 const targetAgentSchema = z.object({
@@ -320,6 +321,15 @@ export const taskPushMultiTool: UnifiedTool = {
 
       const successCount = results.filter((r) => r.success).length;
       const failCount = results.filter((r) => !r.success).length;
+
+      // Silent mode: return task IDs only
+      if (isSilent()) {
+        const taskIds = results.filter((r) => r.success && r.taskId).map((r) => r.taskId);
+        if (failCount > 0) {
+          return JSON.stringify({ pushed: taskIds, errors: results.filter((r) => !r.success).map((r) => r.error) });
+        }
+        return JSON.stringify(taskIds);
+      }
 
       return JSON.stringify({
         success: failCount === 0,

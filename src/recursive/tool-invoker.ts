@@ -45,6 +45,9 @@ import {
 /** Current invocation context (per-request) */
 const contextStack = new Map<string, InvocationContext>();
 
+/** Reusable Map for batch parallel operations to reduce allocations */
+const batchContextCache = new Map<string, InvocationContext | undefined>();
+
 const getRedis = getSharedRedis;
 
 /**
@@ -351,17 +354,18 @@ export async function invokeBatch(
     // To avoid race conditions on the shared contextStack (all concurrent
     // invokeTool calls read/write the same agentId key), we give each
     // parallel operation a unique synthetic agentId so they don't interfere.
-    const baseContexts = new Map<string, InvocationContext | undefined>();
+    // Reuse Map to reduce allocations
+    batchContextCache.clear();
     for (const r of requests) {
-      if (!baseContexts.has(r.agentId)) {
-        baseContexts.set(r.agentId, contextStack.get(r.agentId));
+      if (!batchContextCache.has(r.agentId)) {
+        batchContextCache.set(r.agentId, contextStack.get(r.agentId));
       }
     }
     const results = await Promise.all(
       requests.map(async (r, idx) => {
         // Use a unique context key so parallel invocations don't race
         const isolatedAgentId = `${r.agentId}::batch-${idx}`;
-        const base = baseContexts.get(r.agentId);
+        const base = batchContextCache.get(r.agentId);
         if (base) {
           contextStack.set(isolatedAgentId, { ...base });
         }
@@ -377,7 +381,7 @@ export async function invokeBatch(
       })
     );
     // Restore original contexts after parallel batch completes
-    for (const [agentId, ctx] of baseContexts) {
+    for (const [agentId, ctx] of batchContextCache) {
       if (ctx) {
         contextStack.set(agentId, ctx);
       } else {

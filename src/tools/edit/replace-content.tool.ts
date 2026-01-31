@@ -34,6 +34,7 @@ import {
   ValidationError,
 } from '../../utils/validation.js';
 import { validateEditRequest, formatEditError } from './edit-shared.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   path: z.string().min(1).describe('File path'),
@@ -265,6 +266,10 @@ export const replaceContentTool: UnifiedTool = {
       await fs.writeFile(validatedPath, newContent, 'utf8');
 
       Logger.debug(`replace-content: replaced ${replacedCount} occurrences in ${validatedPath}`);
+
+      if (isSilent()) {
+        return JSON.stringify({ path: validatedPath, replacedCount });
+      }
 
       return JSON.stringify({
         success: true,

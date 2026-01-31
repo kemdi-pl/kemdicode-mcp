@@ -30,9 +30,15 @@
  */
 
 import { z } from 'zod';
-import { execSync } from 'child_process';
 import { platform, release, arch, cpus, totalmem, hostname, userInfo } from 'os';
 import { UnifiedTool } from '../registry.js';
+import { isSilent } from '../../config/silent.js';
+import { asyncExec } from '../../utils/async-exec.js';
+
+/**
+ * Module-level cache for environment info (cached indefinitely - static data)
+ */
+let cachedEnvInfo: EnvInfo | null = null;
 
 /**
  * Environment info structure
@@ -95,13 +101,9 @@ const schema = z.object({
 /**
  * Safely execute command and return output
  */
-function safeExec(command: string): string | undefined {
+async function safeExec(command: string): Promise<string | undefined> {
   try {
-    return execSync(command, {
-      encoding: 'utf-8',
-      timeout: 5000,
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
+    return await asyncExec(command, 5000);
   } catch {
     return undefined;
   }
@@ -110,8 +112,8 @@ function safeExec(command: string): string | undefined {
 /**
  * Get version from command output
  */
-function getVersion(command: string, pattern?: RegExp): string | undefined {
-  const output = safeExec(command);
+async function getVersion(command: string, pattern?: RegExp): Promise<string | undefined> {
+  const output = await safeExec(command);
   if (!output) return undefined;
 
   if (pattern) {
@@ -119,7 +121,6 @@ function getVersion(command: string, pattern?: RegExp): string | undefined {
     return match ? match[1] || match[0] : undefined;
   }
 
-  // Extract version number (common patterns)
   const versionMatch = output.match(/v?(\d+\.\d+(?:\.\d+)?(?:-[a-zA-Z0-9.]+)?)/);
   return versionMatch ? versionMatch[1] : output.split('\n')[0];
 }
@@ -127,7 +128,7 @@ function getVersion(command: string, pattern?: RegExp): string | undefined {
 /**
  * Collect environment information
  */
-function collectEnvInfo(): EnvInfo {
+async function collectEnvInfo(): Promise<EnvInfo> {
   const cpuInfo = cpus();
 
   return {
@@ -145,30 +146,30 @@ function collectEnvInfo(): EnvInfo {
     },
     runtime: {
       nodeVersion: process.version.replace('v', ''),
-      npmVersion: getVersion('npm --version'),
-      pnpmVersion: getVersion('pnpm --version'),
-      yarnVersion: getVersion('yarn --version'),
-      bunVersion: getVersion('bun --version'),
-      denoVersion: getVersion('deno --version', /deno\s+(\d+\.\d+\.\d+)/),
+      npmVersion: await getVersion('npm --version'),
+      pnpmVersion: await getVersion('pnpm --version'),
+      yarnVersion: await getVersion('yarn --version'),
+      bunVersion: await getVersion('bun --version'),
+      denoVersion: await getVersion('deno --version', /deno\s+(\d+\.\d+\.\d+)/),
     },
     languages: {
-      phpVersion: getVersion('php --version', /PHP\s+(\d+\.\d+\.\d+)/),
+      phpVersion: await getVersion('php --version', /PHP\s+(\d+\.\d+\.\d+)/),
       pythonVersion:
-        getVersion('python3 --version', /Python\s+(\d+\.\d+\.\d+)/) ||
-        getVersion('python --version', /Python\s+(\d+\.\d+\.\d+)/),
-      rubyVersion: getVersion('ruby --version', /ruby\s+(\d+\.\d+\.\d+)/),
-      goVersion: getVersion('go version', /go(\d+\.\d+(?:\.\d+)?)/),
-      rustVersion: getVersion('rustc --version', /rustc\s+(\d+\.\d+\.\d+)/),
-      javaVersion: getVersion('java -version 2>&1', /version\s+"?(\d+(?:\.\d+)*)"?/),
+        (await getVersion('python3 --version', /Python\s+(\d+\.\d+\.\d+)/)) ||
+        (await getVersion('python --version', /Python\s+(\d+\.\d+\.\d+)/)),
+      rubyVersion: await getVersion('ruby --version', /ruby\s+(\d+\.\d+\.\d+)/),
+      goVersion: await getVersion('go version', /go(\d+\.\d+(?:\.\d+)?)/),
+      rustVersion: await getVersion('rustc --version', /rustc\s+(\d+\.\d+\.\d+)/),
+      javaVersion: await getVersion('java -version 2>&1', /version\s+"?(\d+(?:\.\d+)*)"?/),
     },
     tools: {
-      gitVersion: getVersion('git --version', /git version\s+(\d+\.\d+\.\d+)/),
-      dockerVersion: getVersion('docker --version', /Docker version\s+(\d+\.\d+\.\d+)/),
-      composerVersion: getVersion(
+      gitVersion: await getVersion('git --version', /git version\s+(\d+\.\d+\.\d+)/),
+      dockerVersion: await getVersion('docker --version', /Docker version\s+(\d+\.\d+\.\d+)/),
+      composerVersion: await getVersion(
         'composer --version',
         /Composer\s+(?:version\s+)?(\d+\.\d+\.\d+)/
       ),
-      makeVersion: getVersion('make --version', /GNU Make\s+(\d+\.\d+)/),
+      makeVersion: await getVersion('make --version', /GNU Make\s+(\d+\.\d+)/),
     },
     env: {
       shell: process.env.SHELL || process.env.ComSpec || 'unknown',
@@ -297,7 +298,17 @@ export const envInfoTool: UnifiedTool = {
     const category = (args.category as string) || 'all';
     const allowSensitive = Boolean(args.allowSensitive);
 
-    const info = collectEnvInfo();
+    if (!cachedEnvInfo) {
+      cachedEnvInfo = await collectEnvInfo();
+    }
+
+    const info = cachedEnvInfo;
+    if (isSilent()) {
+      if (category !== 'all') {
+        return JSON.stringify((info as unknown as Record<string, unknown>)[category] ?? {});
+      }
+      return JSON.stringify({ os: `${info.os.platform} ${info.os.arch}`, node: info.runtime.nodeVersion, bun: info.runtime.bunVersion });
+    }
     return formatEnvInfo(info, category, detailed, allowSensitive);
   },
 };

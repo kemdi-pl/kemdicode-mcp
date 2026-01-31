@@ -34,6 +34,7 @@ import {
   truncateForPreview,
 } from '../../utils/edit-utils.js';
 import { validateEditRequest, formatEditError } from './edit-shared.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   path: z.string().min(1).describe('File path'),
@@ -102,6 +103,10 @@ export const deleteLinesTool: UnifiedTool = {
       Logger.debug(
         `delete-lines: deleted lines ${startLine}-${endLine} (${linesDeleted} lines) from ${validatedPath}`
       );
+
+      if (isSilent()) {
+        return JSON.stringify({ path: validatedPath, linesDeleted });
+      }
 
       return JSON.stringify({
         success: true,

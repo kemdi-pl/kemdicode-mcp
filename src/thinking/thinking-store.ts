@@ -131,13 +131,16 @@ export async function createChain(params: {
     updatedAt: now,
   };
 
+  // Use pipeline to batch chain creation operations
   const key = THINKING_KEYS.chain(chain.id);
-  await client.hset(key, serializeChain(chain));
-  await client.expire(key, THINKING_TTL);
+  const pipeline = client.pipeline();
 
-  // Add to indexes
-  await client.sadd(THINKING_KEYS.bySession(chain.sessionId), chain.id);
-  await client.sadd(THINKING_KEYS.byAgent(chain.agentId), chain.id);
+  pipeline.hset(key, serializeChain(chain));
+  pipeline.expire(key, THINKING_TTL);
+  pipeline.sadd(THINKING_KEYS.bySession(chain.sessionId), chain.id);
+  pipeline.sadd(THINKING_KEYS.byAgent(chain.agentId), chain.id);
+
+  await pipeline.exec();
 
   return chain;
 }
@@ -287,24 +290,29 @@ export async function branchChain(params: {
     updatedAt: now,
   };
 
-  // Save new chain
+  // Use pipeline to batch branch creation operations
   const key = THINKING_KEYS.chain(newChain.id);
-  await client.hset(key, serializeChain(newChain));
-  await client.expire(key, THINKING_TTL);
+  const pipeline = client.pipeline();
+
+  // Save new chain
+  pipeline.hset(key, serializeChain(newChain));
+  pipeline.expire(key, THINKING_TTL);
 
   // Add to indexes
-  await client.sadd(THINKING_KEYS.bySession(newChain.sessionId), newChain.id);
-  await client.sadd(THINKING_KEYS.byAgent(newChain.agentId), newChain.id);
+  pipeline.sadd(THINKING_KEYS.bySession(newChain.sessionId), newChain.id);
+  pipeline.sadd(THINKING_KEYS.byAgent(newChain.agentId), newChain.id);
 
   // Record branch in source chain's thought
   const sourceThought = sourceChain.thoughts[params.thoughtIndex];
   if (!sourceThought.branches) sourceThought.branches = [];
   sourceThought.branches.push(newChain.id);
 
-  await client.hset(THINKING_KEYS.chain(params.sourceChainId), {
+  pipeline.hset(THINKING_KEYS.chain(params.sourceChainId), {
     thoughts: JSON.stringify(sourceChain.thoughts),
     updatedAt: String(now),
   });
+
+  await pipeline.exec();
 
   return newChain;
 }

@@ -27,6 +27,7 @@ import { Logger } from '../../utils/logger.js';
 import { config } from '../../config/index.js';
 import { readFile } from 'node:fs/promises';
 import { recordSuggestion } from '../../context/feedback-loop.js';
+import { isSilent } from '../../config/silent.js';
 
 const FOCUS_MAP: Record<string, string> = {
   security: 'SECURITY: SQL injection, XSS, CSRF, auth bypass, hardcoded secrets',
@@ -177,6 +178,14 @@ ${fileContents}
         }
       }
 
+      if (isSilent()) {
+        return JSON.stringify({
+          mode: dryRun ? 'dry-run' : 'apply',
+          files: parsedFiles.length,
+          output,
+        });
+      }
+
       return JSON.stringify({
         success: true,
         mode: dryRun ? 'dry-run' : 'apply',
@@ -192,6 +201,10 @@ ${fileContents}
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       Logger.error(`auto-fix-agent: Error: ${message}`);
+
+      if (isSilent()) {
+        throw new Error(message);
+      }
 
       return JSON.stringify({
         success: false,

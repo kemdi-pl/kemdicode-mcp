@@ -49,6 +49,7 @@ import './tools/index.js';
 import { Command } from 'commander';
 import { Logger } from './utils/logger.js';
 import { config } from './config/index.js';
+import { initSilentFromEnv, setOutputLevel, getOutputLevel } from './config/silent.js';
 import { initContext, initAgentMonitor, getSessionId } from './context/index.js';
 import { initAIClient } from './ai/index.js';
 import { registerBuiltinProviders, setProviderConfig } from './ai/providers/registry.js';
@@ -160,14 +161,25 @@ async function main(): Promise<void> {
     .option('--no-context', 'Disable context sharing')
     .option('--port <port>', 'HTTP server port', String(defaults.port))
     .option('--host <host>', 'HTTP server host', defaults.host)
+    .option('-v, --verbose', 'Verbose mode: full output with decorations')
+    .option('--compact', 'Compact mode: essential fields only')
     .parse();
 
   const opts = program.opts();
+
+  // Default is silent. CLI flags override: --verbose for full output, --compact for middle ground.
+  initSilentFromEnv();
+  if (opts.verbose) setOutputLevel('normal');
+  else if (opts.compact) setOutputLevel('compact');
 
   // Load configuration from CLI args (merges with defaults and env vars)
   config.load(opts);
 
   const serverConfig = config.get('server');
+  const outputLevel = getOutputLevel();
+  if (outputLevel === 'normal') {
+    Logger.info(`Verbose mode enabled`);
+  }
   Logger.debug(`KemdiCode MCP v${VERSION} initialized with model: ${serverConfig.primaryModel}`);
 
   // Initialize context sharing (Redis)

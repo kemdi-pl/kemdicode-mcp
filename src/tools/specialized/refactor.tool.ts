@@ -21,6 +21,7 @@ import { UnifiedTool } from '../registry.js';
 import { executeAI, parseFiles } from '../../ai/index.js';
 import { getEnhancedContextString } from '../../utils/projectContext.enhanced.js';
 import { recordSuggestion } from '../../context/feedback-loop.js';
+import { isSilent } from '../../config/silent.js';
 
 const GOALS: Record<string, string> = {
   readability: `**READABILITY** - Better naming, shorter methods (max 15-20 lines), early returns, clear conditions`,
@@ -69,7 +70,13 @@ export const refactorTool: UnifiedTool = {
     if (!files?.toString().trim()) throw new Error('Files required. Use @path/file.php syntax.');
 
     const filesStr = String(files);
-    const prompt = `${getEnhancedContextString()}
+    const silent = isSilent();
+
+    const prompt = silent
+      ? `${getEnhancedContextString()}
+Refactor (${goal}, ${scope}): ${filesStr}
+Output: JSON array of {file, change, before, after, rationale}. No markdown.`
+      : `${getEnhancedContextString()}
 # Refactoring Request
 
 ${GOALS[goal as string]}

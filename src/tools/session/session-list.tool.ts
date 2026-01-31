@@ -25,6 +25,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getSessionManager } from '../../session/manager.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   projectType: z
@@ -69,7 +70,12 @@ export const sessionListTool: UnifiedTool<typeof schema> = {
     });
 
     if (sessions.length === 0) {
+      if (isSilent()) return '[]';
       return '## 📋 Active Sessions\n\nNo active sessions found.\n\n💡 **Tip:** Create a session with `session-create` tool.';
+    }
+
+    if (isSilent()) {
+      return JSON.stringify(sessions.map((s) => ({ id: s.sessionId, model: s.model, cwd: s.cwd })));
     }
 
     const lines: string[] = [

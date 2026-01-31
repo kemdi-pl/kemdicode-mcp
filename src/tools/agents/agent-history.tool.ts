@@ -25,6 +25,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getAgentMonitor } from '../../context/agent-monitor.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   sessionId: z.string().describe('Session ID'),
@@ -74,9 +75,14 @@ export const agentHistoryTool: UnifiedTool = {
     messages = messages.slice(0, limit);
 
     if (messages.length === 0) {
+      if (isSilent()) return '[]';
       return agentId
         ? `No messages found for agent ${agentId} in session ${sessionId}.`
         : `No messages found in session ${sessionId}.`;
+    }
+
+    if (isSilent()) {
+      return JSON.stringify(messages.map((m) => ({ type: m.type, from: m.fromAgentId, to: m.toAgentId, content: m.content })));
     }
 
     const lines: string[] = [

@@ -29,15 +29,32 @@ export { SSEEventType, type ProgressState, type ProgressData } from './types.js'
 const progressStates = new Map<string | number, ProgressState>();
 
 /**
- * Send SSE event to client
+ * Pre-serialized static SSE event type prefixes (avoid repeated string concatenation)
+ */
+const SSE_EVENT_PREFIXES: Record<SSEEventType, string> = {
+  [SSEEventType.CONNECTED]: 'event: connected\ndata: ',
+  [SSEEventType.PROGRESS]: 'event: progress\ndata: ',
+  [SSEEventType.RESULT]: 'event: result\ndata: ',
+  [SSEEventType.ERROR]: 'event: error\ndata: ',
+  [SSEEventType.KEEPALIVE]: 'event: keepalive\ndata: ',
+  [SSEEventType.LOG]: 'event: log\ndata: ',
+};
+
+/**
+ * Send SSE event to client with optimized serialization
  * @param res - HTTP response object
  * @param eventType - Type of SSE event
  * @param data - Event data
  */
 export function sendSSEEvent(res: ServerResponse, eventType: SSEEventType, data: unknown): void {
   if (res.writableEnded) return;
+
+  // Use pre-computed event prefix and only serialize data once
+  const prefix = SSE_EVENT_PREFIXES[eventType];
   const payload = typeof data === 'string' ? data : JSON.stringify(data);
-  res.write(`event: ${eventType}\ndata: ${payload}\n\n`);
+
+  // Single write operation with template literal (faster than concatenation)
+  res.write(`${prefix}${payload}\n\n`);
 }
 
 /**

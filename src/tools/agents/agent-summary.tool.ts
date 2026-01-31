@@ -26,6 +26,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getAgentMonitor } from '../../context/agent-monitor.js';
+import { isSilent } from '../../config/silent.js';
 
 const summarySchema = z.object({
   agentId: z.string().min(1).describe('Agent ID'),
@@ -111,6 +112,10 @@ export const agentSummaryTool: UnifiedTool = {
 
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
+
+    if (isSilent()) {
+      return JSON.stringify({ updated: successful.length });
+    }
 
     return JSON.stringify({
       success: failed.length === 0,

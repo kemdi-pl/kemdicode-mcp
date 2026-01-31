@@ -29,6 +29,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { type Checkpoint, CHECKPOINT_PREFIX, getRedis, getProjectId } from './shared.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   name: z.string().min(1).describe('Checkpoint name'),
@@ -81,6 +82,10 @@ export const checkpointRestoreTool: UnifiedTool = {
       const ttl = await client.ttl(checkpointKey);
 
       Logger.debug(`checkpoint-restore: retrieved '${name}' for project ${projectId}`);
+
+      if (isSilent()) {
+        return checkpoint.content;
+      }
 
       return JSON.stringify({
         success: true,

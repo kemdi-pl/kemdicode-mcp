@@ -28,6 +28,7 @@ import { UnifiedTool } from '../registry.js';
 import { getAgentMonitor } from '../../context/agent-monitor.js';
 import { MessagePriority } from '../../context/types.js';
 import { sanitizeTerminalOutput, wrapText } from '../../utils/format-helpers.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   agentIds: z.string().describe('Comma-separated agent IDs or "*" for broadcast'),
@@ -91,6 +92,10 @@ export const agentAlertTool: UnifiedTool = {
 
     if (!alert) {
       return 'Failed to send alert. Check Redis connection.';
+    }
+
+    if (isSilent()) {
+      return JSON.stringify({ id: alert.id });
     }
 
     const targetCount = targets === '*' ? 'all agents' : `${(targets as string[]).length} agent(s)`;

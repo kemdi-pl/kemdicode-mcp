@@ -10,6 +10,7 @@ import type { UnifiedTool } from '../registry.js';
 import { complete } from '../../ai/client.js';
 import { buildAgentMessages, type AgentType } from '../../ai/agents.js';
 import { loadAndFormatFiles, parseFiles } from '../../ai/file-context.js';
+import { isSilent } from '../../config/silent.js';
 
 const DEFAULT_SYNTHESIS_PROMPT = `<purpose>
 You are the CEO making a final decision based on input from your board of advisors.
@@ -96,14 +97,9 @@ async function execute(args: Record<string, unknown>): Promise<string> {
   const userPrompt = fileContext ? `${prompt}\n\n${fileContext}` : prompt;
   const messages = buildAgentMessages(agent as AgentType, userPrompt);
 
-  const output: string[] = [];
   const startTime = Date.now();
 
   // Phase 1: Send to all board members in parallel
-  output.push('# Consensus Decision\n');
-  output.push(`**Board members:** ${boardModels.length} models`);
-  output.push(`**CEO:** ${ceoModel}\n`);
-  output.push('---\n');
 
   const boardResults = await Promise.allSettled(
     boardModels.map(async (modelSpec) => {
@@ -125,35 +121,25 @@ async function execute(args: Record<string, unknown>): Promise<string> {
 
   // Collect board responses
   const boardResponsesXml: string[] = [];
-  output.push('## Board Member Responses\n');
 
   for (let i = 0; i < boardResults.length; i++) {
     const result = boardResults[i];
     const modelSpec = boardModels[i];
 
     if (result.status === 'fulfilled') {
-      const { content, duration } = result.value;
-      output.push(`### ${modelSpec} (${duration}ms)\n`);
-      output.push(content);
-      output.push('');
-
+      const { content } = result.value;
       boardResponsesXml.push(
         `<board-response>\n<model-name>${modelSpec}</model-name>\n<response>\n${content}\n</response>\n</board-response>`
       );
-    } else {
-      output.push(`### ${modelSpec} (FAILED)\n`);
-      output.push(
-        `**Error:** ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`
-      );
-      output.push('');
     }
   }
 
   // Phase 2: CEO synthesis
   if (boardResponsesXml.length === 0) {
-    output.push('\n## CEO Decision\n');
-    output.push('**No board responses received.** Cannot synthesize a decision.');
-    return output.join('\n');
+    if (isSilent()) {
+      return JSON.stringify({ error: 'no_board_responses' });
+    }
+    return '# Consensus Decision\n\n## CEO Decision\n\n**No board responses received.** Cannot synthesize a decision.';
   }
 
   const template = synthesisPrompt || DEFAULT_SYNTHESIS_PROMPT;
@@ -165,33 +151,66 @@ async function execute(args: Record<string, unknown>): Promise<string> {
     .replaceAll('{board_responses}', boardResponsesContent)
     .replaceAll('{original_prompt}', prompt);
 
-  output.push('---\n');
-  output.push('## CEO Decision\n');
-
   try {
     const ceoMessages = buildAgentMessages('plan' as AgentType, ceoPrompt);
-    const ceoStart = Date.now();
     const ceoResponse = await complete({
       model: ceoModel,
       messages: ceoMessages,
       temperature: 0.7,
-      maxTokens: maxTokens ? Math.min(maxTokens * 2, 32768) : 16384, // CEO gets more tokens, capped at 32K
+      maxTokens: maxTokens ? Math.min(maxTokens * 2, 32768) : 16384,
       stream: false,
     });
 
-    const ceoDuration = Date.now() - ceoStart;
-    output.push(`*Synthesized by ${ceoModel} in ${ceoDuration}ms*\n`);
+    const totalDuration = Date.now() - startTime;
+
+    // Silent mode - return only CEO decision
+    if (isSilent()) {
+      return JSON.stringify({
+        ceoDecision: ceoResponse.content,
+        boardCount: boardModels.length,
+        duration: totalDuration,
+      });
+    }
+
+    // Verbose mode - full output
+    const output: string[] = [];
+    output.push('# Consensus Decision\n');
+    output.push(`**Board members:** ${boardModels.length} models`);
+    output.push(`**CEO:** ${ceoModel}\n`);
+    output.push('---\n');
+
+    output.push('## Board Member Responses\n');
+    for (let i = 0; i < boardResults.length; i++) {
+      const result = boardResults[i];
+      const modelSpec = boardModels[i];
+
+      if (result.status === 'fulfilled') {
+        const { content, duration } = result.value;
+        output.push(`### ${modelSpec} (${duration}ms)\n`);
+        output.push(content);
+        output.push('');
+      } else {
+        output.push(`### ${modelSpec} (FAILED)\n`);
+        output.push(
+          `**Error:** ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`
+        );
+        output.push('');
+      }
+    }
+
+    output.push('---\n');
+    output.push('## CEO Decision\n');
+    output.push(`*Synthesized by ${ceoModel}*\n`);
     output.push(ceoResponse.content);
+    output.push(`\n---\n*Total time: ${totalDuration}ms*`);
+
+    return output.join('\n');
   } catch (error) {
-    output.push(
-      `**CEO synthesis failed:** ${error instanceof Error ? error.message : String(error)}`
-    );
+    if (isSilent()) {
+      return JSON.stringify({ error: error instanceof Error ? error.message : String(error) });
+    }
+    return `# Consensus Decision\n\n## CEO Decision\n\n**CEO synthesis failed:** ${error instanceof Error ? error.message : String(error)}`;
   }
-
-  const totalDuration = Date.now() - startTime;
-  output.push(`\n---\n*Total time: ${totalDuration}ms*`);
-
-  return output.join('\n');
 }
 
 export const consensusPromptTool: UnifiedTool = {

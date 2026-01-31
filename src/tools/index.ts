@@ -16,308 +16,665 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { registerTool } from './registry.js';
-import { askAITool } from './ask-ai.tool.js';
-import { pingTool, helpTool, planTool, buildTool } from './simple-tools.js';
-import { brainstormTool } from './brainstorm.tool.js';
-import { timeoutTestTool } from './timeout-test.tool.js';
-import { batchTool } from './batch.tool.js';
-import { pipelineTool } from './pipeline.tool.js';
-import {
-  codeReviewTool,
-  writeTestsTool,
-  explainCodeTool,
-  fixBugTool,
-  refactorTool,
-  autoFixTool,
-  autoFixAgentTool,
-  analyzeDepsTool,
-} from './specialized/index.js';
-import { getSharedContextTool, feedbackTool, sharedThoughtsTool } from './context/index.js';
-import {
-  agentListTool,
-  agentRegisterTool,
-  agentWatchTool,
-  agentAlertTool,
-  agentInjectTool,
-  agentHistoryTool,
-  monitorTool,
-  agentSummaryTool,
-  queueMessageTool,
-} from './agents/index.js';
-import {
-  gitStatusTool,
-  gitDiffTool,
-  gitLogTool,
-  gitBlameTool,
-  gitBranchTool,
-  gitAddTool,
-  gitCommitTool,
-  gitStashTool,
-} from './git/index.js';
-import {
-  fileReadTool,
-  fileWriteTool,
-  fileSearchTool,
-  fileTreeTool,
-  fileDiffTool,
-  fileDeleteTool,
-  fileMoveTool,
-  fileCopyTool,
-  fileBackupRestoreTool,
-} from './file/index.js';
-import {
-  findDefinitionTool,
-  findReferencesTool,
-  findSymbolsTool,
-  semanticSearchTool,
-  codeOutlineTool,
-  insertBeforeSymbolTool,
-  insertAfterSymbolTool,
-  renameSymbolTool,
-} from './code/index.js';
-import {
-  projectInfoTool,
-  runScriptTool,
-  checkTypesTool,
-  runLintTool,
-  runTestsTool,
-} from './project/index.js';
-import {
-  shellExecTool,
-  processListTool,
-  envInfoTool,
-  memoryUsageTool,
-  configTool,
-} from './system/index.js';
-import { mpcSplitTool, mpcDistributeTool, mpcReconstructTool, mpcStatusTool } from './mpc/index.js';
-import { rlRewardStatsTool, rlDopamineLogTool } from './rl/index.js';
-import {
-  graphQueryTool,
-  graphFindPathTool,
-  lociRecallTool,
-  sequenceRecommendTool,
-} from './loci/index.js';
-import {
-  insertAtLineTool,
-  deleteLinesTool,
-  replaceLinesTool,
-  replaceContentTool,
-} from './edit/index.js';
-import {
-  writeMemoryTool,
-  readMemoryTool,
-  listMemoriesTool,
-  deleteMemoryTool,
-  editMemoryTool,
-  checkpointSaveTool,
-  checkpointRestoreTool,
-  checkpointDiffTool,
-} from './memory/index.js';
-import {
-  taskCreateTool,
-  taskGetTool,
-  taskListTool,
-  taskClaimTool,
-  taskAssignTool,
-  taskUpdateTool,
-  taskDeleteTool,
-  taskCommentTool,
-  boardStatusTool,
-  taskPushMultiTool,
-  workspaceCreateTool,
-  workspaceListTool,
-  workspaceJoinTool,
-  workspaceLeaveTool,
-  workspaceDeleteTool,
-  boardCreateTool,
-  boardListTool,
-  boardShareTool,
-  boardMembersTool,
-  boardInviteTool,
-  boardDeleteTool,
-} from './kanban/index.js';
-import { aiConfigTool } from './system/ai-config.tool.js';
-import { aiModelsTool } from './system/ai-models.tool.js';
-import { invokeToolTool, invokeBatchTool, invocationLogTool } from './recursive/index.js';
-import { multiPromptTool, consensusPromptTool } from './multi-llm/index.js';
-import { thinkingChainTool } from './thinking/index.js';
-import {
-  sessionListTool,
-  sessionInfoTool,
-  sessionCreateTool,
-  sessionSwitchTool,
-  sessionDeleteTool,
-} from './session/index.js';
+import { registerLazyTool } from './registry.js';
+
+/**
+ * Lazy Tool Loader Registry
+ *
+ * Tools are registered with lazy loaders instead of being imported eagerly.
+ * This significantly reduces startup time by only loading tool modules when
+ * they are first invoked. Tool metadata (name, description) is stored statically
+ * for the ListTools MCP call without requiring module loading.
+ */
 
 // Core tools
-registerTool(askAITool);
-registerTool(planTool);
-registerTool(buildTool);
-registerTool(brainstormTool);
-registerTool(batchTool); // Multi-operation parallel execution
-registerTool(pipelineTool); // Sequential pipeline with step output chaining
+registerLazyTool({
+  name: 'ask-ai',
+  description: 'Direct AI API call with full control over model, prompt, and options',
+  loader: () => import('./ask-ai.tool.js').then((m) => m.askAITool),
+});
+registerLazyTool({
+  name: 'plan',
+  description: 'Deep analysis and planning mode using the plan agent',
+  loader: () => import('./simple-tools.js').then((m) => m.planTool),
+});
+registerLazyTool({
+  name: 'build',
+  description: 'Immediate code execution mode using the build agent',
+  loader: () => import('./simple-tools.js').then((m) => m.buildTool),
+});
+registerLazyTool({
+  name: 'brainstorm',
+  description: 'Creative ideation using SCAMPER and Design Thinking methodologies',
+  loader: () => import('./brainstorm.tool.js').then((m) => m.brainstormTool),
+});
+registerLazyTool({
+  name: 'batch',
+  description: 'Execute multiple tools in parallel for efficient multi-operation workflows',
+  loader: () => import('./batch.tool.js').then((m) => m.batchTool),
+});
+registerLazyTool({
+  name: 'pipeline',
+  description: 'Sequential tool execution pipeline with step output interpolation',
+  loader: () => import('./pipeline.tool.js').then((m) => m.pipelineTool),
+});
 
 // Specialized analysis tools
-registerTool(codeReviewTool);
-registerTool(writeTestsTool);
-registerTool(explainCodeTool);
-registerTool(fixBugTool);
-registerTool(refactorTool);
-registerTool(autoFixTool);
-registerTool(autoFixAgentTool);
-registerTool(analyzeDepsTool);
+registerLazyTool({
+  name: 'code-review',
+  description: 'Comprehensive code review for security, performance, and quality',
+  loader: () => import('./specialized/index.js').then((m) => m.codeReviewTool),
+});
+registerLazyTool({
+  name: 'write-tests',
+  description: 'Generate unit tests for code using AI',
+  loader: () => import('./specialized/index.js').then((m) => m.writeTestsTool),
+});
+registerLazyTool({
+  name: 'explain-code',
+  description: 'Explain code with varying detail levels (quick/detailed/deep)',
+  loader: () => import('./specialized/index.js').then((m) => m.explainCodeTool),
+});
+registerLazyTool({
+  name: 'fix-bug',
+  description: 'Root cause analysis and bug fixing with AI assistance',
+  loader: () => import('./specialized/index.js').then((m) => m.fixBugTool),
+});
+registerLazyTool({
+  name: 'refactor',
+  description: 'Code refactoring following SOLID principles and best practices',
+  loader: () => import('./specialized/index.js').then((m) => m.refactorTool),
+});
+registerLazyTool({
+  name: 'auto-fix',
+  description: 'Automatic code fixes using string replacement',
+  loader: () => import('./specialized/index.js').then((m) => m.autoFixTool),
+});
+registerLazyTool({
+  name: 'auto-fix-agent',
+  description: 'Multi-agent fixing with OpenAI Agents SDK using diff patching',
+  loader: () => import('./specialized/index.js').then((m) => m.autoFixAgentTool),
+});
+registerLazyTool({
+  name: 'analyze-deps',
+  description: 'Analyze project dependencies and detect issues',
+  loader: () => import('./specialized/index.js').then((m) => m.analyzeDepsTool),
+});
 
 // Context sharing & Learning
-registerTool(getSharedContextTool);
-registerTool(feedbackTool);
-registerTool(sharedThoughtsTool);
+registerLazyTool({
+  name: 'get-shared-context',
+  description: 'Retrieve shared context from other MCP servers',
+  loader: () => import('./context/index.js').then((m) => m.getSharedContextTool),
+});
+registerLazyTool({
+  name: 'feedback',
+  description: 'Record and retrieve feedback for learning loops',
+  loader: () => import('./context/index.js').then((m) => m.feedbackTool),
+});
+registerLazyTool({
+  name: 'shared-thoughts',
+  description: 'Access collective knowledge base from all agents',
+  loader: () => import('./context/index.js').then((m) => m.sharedThoughtsTool),
+});
 
 // Agent monitoring & supervision tools
-registerTool(agentListTool);
-registerTool(agentRegisterTool);
-registerTool(agentWatchTool);
-registerTool(agentAlertTool);
-registerTool(agentInjectTool);
-registerTool(agentHistoryTool);
-registerTool(monitorTool);
-registerTool(agentSummaryTool);
-registerTool(queueMessageTool);
+registerLazyTool({
+  name: 'agent-list',
+  description: 'List all active agents in the system',
+  loader: () => import('./agents/index.js').then((m) => m.agentListTool),
+});
+registerLazyTool({
+  name: 'agent-register',
+  description: 'Register one or more agents (batch: 1-20)',
+  loader: () => import('./agents/index.js').then((m) => m.agentRegisterTool),
+});
+registerLazyTool({
+  name: 'agent-watch',
+  description: 'Real-time monitoring of agent activity via Pub/Sub',
+  loader: () => import('./agents/index.js').then((m) => m.agentWatchTool),
+});
+registerLazyTool({
+  name: 'agent-alert',
+  description: 'Send alerts to specific agents or broadcast',
+  loader: () => import('./agents/index.js').then((m) => m.agentAlertTool),
+});
+registerLazyTool({
+  name: 'agent-inject',
+  description: 'Inject context or directives into running agents',
+  loader: () => import('./agents/index.js').then((m) => m.agentInjectTool),
+});
+registerLazyTool({
+  name: 'agent-history',
+  description: 'View message history for an agent',
+  loader: () => import('./agents/index.js').then((m) => m.agentHistoryTool),
+});
+registerLazyTool({
+  name: 'monitor',
+  description: 'Session monitoring with multiple views (overview/agents/tasks/hierarchy/activity)',
+  loader: () => import('./agents/index.js').then((m) => m.monitorTool),
+});
+registerLazyTool({
+  name: 'agent-summary',
+  description: 'Update agent summaries (batch: 1-20)',
+  loader: () => import('./agents/index.js').then((m) => m.agentSummaryTool),
+});
+registerLazyTool({
+  name: 'queue-message',
+  description: 'Queue messages to agents with priority (batch: 1-20, supports broadcast)',
+  loader: () => import('./agents/index.js').then((m) => m.queueMessageTool),
+});
 
 // Git operation tools
-registerTool(gitStatusTool);
-registerTool(gitDiffTool);
-registerTool(gitLogTool);
-registerTool(gitBlameTool);
-registerTool(gitBranchTool);
-registerTool(gitAddTool);
-registerTool(gitCommitTool);
-registerTool(gitStashTool);
+registerLazyTool({
+  name: 'git-status',
+  description: 'Show repository status (staged, unstaged, untracked files)',
+  loader: () => import('./git/index.js').then((m) => m.gitStatusTool),
+});
+registerLazyTool({
+  name: 'git-diff',
+  description: 'Show changes between commits, branches, or working tree',
+  loader: () => import('./git/index.js').then((m) => m.gitDiffTool),
+});
+registerLazyTool({
+  name: 'git-log',
+  description: 'View commit history with filters',
+  loader: () => import('./git/index.js').then((m) => m.gitLogTool),
+});
+registerLazyTool({
+  name: 'git-blame',
+  description: 'Show line-by-line authorship and commit history',
+  loader: () => import('./git/index.js').then((m) => m.gitBlameTool),
+});
+registerLazyTool({
+  name: 'git-branch',
+  description: 'List, create, delete, or switch branches',
+  loader: () => import('./git/index.js').then((m) => m.gitBranchTool),
+});
+registerLazyTool({
+  name: 'git-add',
+  description: 'Stage files for commit',
+  loader: () => import('./git/index.js').then((m) => m.gitAddTool),
+});
+registerLazyTool({
+  name: 'git-commit',
+  description: 'Create a new commit with staged changes',
+  loader: () => import('./git/index.js').then((m) => m.gitCommitTool),
+});
+registerLazyTool({
+  name: 'git-stash',
+  description: 'Stash management (push/pop/list/drop/apply/show)',
+  loader: () => import('./git/index.js').then((m) => m.gitStashTool),
+});
 
 // File operation tools
-registerTool(fileReadTool);
-registerTool(fileWriteTool);
-registerTool(fileSearchTool);
-registerTool(fileTreeTool);
-registerTool(fileDiffTool);
-registerTool(fileDeleteTool);
-registerTool(fileMoveTool);
-registerTool(fileCopyTool);
-registerTool(fileBackupRestoreTool);
+registerLazyTool({
+  name: 'file-read',
+  description: 'Read file with automatic encoding detection',
+  loader: () => import('./file/index.js').then((m) => m.fileReadTool),
+});
+registerLazyTool({
+  name: 'file-write',
+  description: 'Write file with automatic backup creation',
+  loader: () => import('./file/index.js').then((m) => m.fileWriteTool),
+});
+registerLazyTool({
+  name: 'file-search',
+  description: 'Search files using ripgrep with regex support',
+  loader: () => import('./file/index.js').then((m) => m.fileSearchTool),
+});
+registerLazyTool({
+  name: 'file-tree',
+  description: 'Generate directory tree structure',
+  loader: () => import('./file/index.js').then((m) => m.fileTreeTool),
+});
+registerLazyTool({
+  name: 'file-diff',
+  description: 'Compare two files and show differences',
+  loader: () => import('./file/index.js').then((m) => m.fileDiffTool),
+});
+registerLazyTool({
+  name: 'file-delete',
+  description: 'Delete files with security checks and dry-run support',
+  loader: () => import('./file/index.js').then((m) => m.fileDeleteTool),
+});
+registerLazyTool({
+  name: 'file-move',
+  description: 'Move or rename files with cross-filesystem support',
+  loader: () => import('./file/index.js').then((m) => m.fileMoveTool),
+});
+registerLazyTool({
+  name: 'file-copy',
+  description: 'Copy files with overwrite protection',
+  loader: () => import('./file/index.js').then((m) => m.fileCopyTool),
+});
+registerLazyTool({
+  name: 'file-backup-restore',
+  description: 'List and restore .bak backup files',
+  loader: () => import('./file/index.js').then((m) => m.fileBackupRestoreTool),
+});
 
 // Code intelligence tools
-registerTool(findDefinitionTool);
-registerTool(findReferencesTool);
-registerTool(findSymbolsTool);
-registerTool(semanticSearchTool);
-registerTool(codeOutlineTool);
+registerLazyTool({
+  name: 'find-definition',
+  description: 'Find symbol definitions using Tree-sitter AST',
+  loader: () => import('./code/index.js').then((m) => m.findDefinitionTool),
+});
+registerLazyTool({
+  name: 'find-references',
+  description: 'Find all usages of a symbol across codebase',
+  loader: () => import('./code/index.js').then((m) => m.findReferencesTool),
+});
+registerLazyTool({
+  name: 'find-symbols',
+  description: 'List all symbols in a file',
+  loader: () => import('./code/index.js').then((m) => m.findSymbolsTool),
+});
+registerLazyTool({
+  name: 'semantic-search',
+  description: 'AI-powered semantic code search',
+  loader: () => import('./code/index.js').then((m) => m.semanticSearchTool),
+});
+registerLazyTool({
+  name: 'code-outline',
+  description: 'Generate file structure outline',
+  loader: () => import('./code/index.js').then((m) => m.codeOutlineTool),
+});
 
 // Symbol editing tools
-registerTool(insertBeforeSymbolTool);
-registerTool(insertAfterSymbolTool);
-registerTool(renameSymbolTool);
+registerLazyTool({
+  name: 'insert-before-symbol',
+  description: 'Insert content before a symbol definition',
+  loader: () => import('./code/index.js').then((m) => m.insertBeforeSymbolTool),
+});
+registerLazyTool({
+  name: 'insert-after-symbol',
+  description: 'Insert content after a symbol block',
+  loader: () => import('./code/index.js').then((m) => m.insertAfterSymbolTool),
+});
+registerLazyTool({
+  name: 'rename-symbol',
+  description: 'Rename symbol across entire codebase with dry-run',
+  loader: () => import('./code/index.js').then((m) => m.renameSymbolTool),
+});
 
 // Project management tools
-registerTool(projectInfoTool);
-registerTool(runScriptTool);
-registerTool(checkTypesTool);
-registerTool(runLintTool);
-registerTool(runTestsTool);
+registerLazyTool({
+  name: 'project-info',
+  description: 'Get package.json or composer.json metadata',
+  loader: () => import('./project/index.js').then((m) => m.projectInfoTool),
+});
+registerLazyTool({
+  name: 'run-script',
+  description: 'Execute npm or composer scripts',
+  loader: () => import('./project/index.js').then((m) => m.runScriptTool),
+});
+registerLazyTool({
+  name: 'check-types',
+  description: 'Run TypeScript or PHPStan type checking',
+  loader: () => import('./project/index.js').then((m) => m.checkTypesTool),
+});
+registerLazyTool({
+  name: 'run-lint',
+  description: 'Run ESLint, PHPCS, or PHPStan linter',
+  loader: () => import('./project/index.js').then((m) => m.runLintTool),
+});
+registerLazyTool({
+  name: 'run-tests',
+  description: 'Run test suite (Jest, PHPUnit, etc.)',
+  loader: () => import('./project/index.js').then((m) => m.runTestsTool),
+});
 
 // System tools
-registerTool(shellExecTool);
-registerTool(processListTool);
-registerTool(envInfoTool);
-registerTool(memoryUsageTool);
-registerTool(configTool);
+registerLazyTool({
+  name: 'shell-exec',
+  description: 'Execute shell commands safely with timeout',
+  loader: () => import('./system/index.js').then((m) => m.shellExecTool),
+});
+registerLazyTool({
+  name: 'process-list',
+  description: 'List running processes',
+  loader: () => import('./system/index.js').then((m) => m.processListTool),
+});
+registerLazyTool({
+  name: 'env-info',
+  description: 'Get environment information (Node.js version, OS, etc.)',
+  loader: () => import('./system/index.js').then((m) => m.envInfoTool),
+});
+registerLazyTool({
+  name: 'memory-usage',
+  description: 'Get memory usage statistics',
+  loader: () => import('./system/index.js').then((m) => m.memoryUsageTool),
+});
+registerLazyTool({
+  name: 'config',
+  description: 'View or update server configuration',
+  loader: () => import('./system/index.js').then((m) => m.configTool),
+});
 
 // Utility tools
-registerTool(pingTool);
-registerTool(helpTool);
-registerTool(timeoutTestTool);
+registerLazyTool({
+  name: 'ping',
+  description: 'Health check endpoint',
+  loader: () => import('./simple-tools.js').then((m) => m.pingTool),
+});
+registerLazyTool({
+  name: 'help',
+  description: 'Get help information about available tools',
+  loader: () => import('./simple-tools.js').then((m) => m.helpTool),
+});
+registerLazyTool({
+  name: 'timeout-test',
+  description: 'Test timeout handling (development only)',
+  loader: () => import('./timeout-test.tool.js').then((m) => m.timeoutTestTool),
+});
 
 // MPC (Multi-Party Computation) tools
-registerTool(mpcSplitTool);
-registerTool(mpcDistributeTool);
-registerTool(mpcReconstructTool);
-registerTool(mpcStatusTool);
+registerLazyTool({
+  name: 'mpc-split',
+  description: 'Split secret into MPC shares',
+  loader: () => import('./mpc/index.js').then((m) => m.mpcSplitTool),
+});
+registerLazyTool({
+  name: 'mpc-distribute',
+  description: 'Distribute MPC shares to agents',
+  loader: () => import('./mpc/index.js').then((m) => m.mpcDistributeTool),
+});
+registerLazyTool({
+  name: 'mpc-reconstruct',
+  description: 'Reconstruct secret from MPC shares',
+  loader: () => import('./mpc/index.js').then((m) => m.mpcReconstructTool),
+});
+registerLazyTool({
+  name: 'mpc-status',
+  description: 'Get status of MPC operations',
+  loader: () => import('./mpc/index.js').then((m) => m.mpcStatusTool),
+});
 
 // RL (Reinforcement Learning) tools
-registerTool(rlRewardStatsTool);
-registerTool(rlDopamineLogTool);
+registerLazyTool({
+  name: 'rl-reward-stats',
+  description: 'Get reinforcement learning reward statistics',
+  loader: () => import('./rl/index.js').then((m) => m.rlRewardStatsTool),
+});
+registerLazyTool({
+  name: 'rl-dopamine-log',
+  description: 'View dopamine (reward) event log',
+  loader: () => import('./rl/index.js').then((m) => m.rlDopamineLogTool),
+});
 
 // Loci/Graph memory tools
-registerTool(graphQueryTool);
-registerTool(graphFindPathTool);
-registerTool(lociRecallTool);
-registerTool(sequenceRecommendTool);
+registerLazyTool({
+  name: 'graph-query',
+  description: 'Query the knowledge graph',
+  loader: () => import('./loci/index.js').then((m) => m.graphQueryTool),
+});
+registerLazyTool({
+  name: 'graph-find-path',
+  description: 'Find path between nodes in knowledge graph',
+  loader: () => import('./loci/index.js').then((m) => m.graphFindPathTool),
+});
+registerLazyTool({
+  name: 'loci-recall',
+  description: 'Recall memories from loci method of memory palace',
+  loader: () => import('./loci/index.js').then((m) => m.lociRecallTool),
+});
+registerLazyTool({
+  name: 'sequence-recommend',
+  description: 'Recommend next tool in sequence based on history',
+  loader: () => import('./loci/index.js').then((m) => m.sequenceRecommendTool),
+});
 
 // Line-based edit tools
-registerTool(insertAtLineTool);
-registerTool(deleteLinesTool);
-registerTool(replaceLinesTool);
-registerTool(replaceContentTool);
+registerLazyTool({
+  name: 'insert-at-line',
+  description: 'Insert content at specific line number',
+  loader: () => import('./edit/index.js').then((m) => m.insertAtLineTool),
+});
+registerLazyTool({
+  name: 'delete-lines',
+  description: 'Delete a range of lines',
+  loader: () => import('./edit/index.js').then((m) => m.deleteLinesTool),
+});
+registerLazyTool({
+  name: 'replace-lines',
+  description: 'Replace a range of lines with new content',
+  loader: () => import('./edit/index.js').then((m) => m.replaceLinesTool),
+});
+registerLazyTool({
+  name: 'replace-content',
+  description: 'Find and replace with regex support and dry-run',
+  loader: () => import('./edit/index.js').then((m) => m.replaceContentTool),
+});
 
 // Project memory tools
-registerTool(writeMemoryTool);
-registerTool(readMemoryTool);
-registerTool(listMemoriesTool);
-registerTool(deleteMemoryTool);
-registerTool(editMemoryTool);
+registerLazyTool({
+  name: 'write-memory',
+  description: 'Store named memory with tags and TTL',
+  loader: () => import('./memory/index.js').then((m) => m.writeMemoryTool),
+});
+registerLazyTool({
+  name: 'read-memory',
+  description: 'Retrieve memory by name',
+  loader: () => import('./memory/index.js').then((m) => m.readMemoryTool),
+});
+registerLazyTool({
+  name: 'list-memories',
+  description: 'List all project memories with filters',
+  loader: () => import('./memory/index.js').then((m) => m.listMemoriesTool),
+});
+registerLazyTool({
+  name: 'delete-memory',
+  description: 'Delete a memory entry',
+  loader: () => import('./memory/index.js').then((m) => m.deleteMemoryTool),
+});
+registerLazyTool({
+  name: 'edit-memory',
+  description: 'Modify memory content and tags',
+  loader: () => import('./memory/index.js').then((m) => m.editMemoryTool),
+});
 
 // Checkpoint tools
-registerTool(checkpointSaveTool);
-registerTool(checkpointRestoreTool);
-registerTool(checkpointDiffTool);
+registerLazyTool({
+  name: 'checkpoint-save',
+  description: 'Save temporary state snapshot to Redis (7-day TTL)',
+  loader: () => import('./memory/index.js').then((m) => m.checkpointSaveTool),
+});
+registerLazyTool({
+  name: 'checkpoint-restore',
+  description: 'Restore a previously saved checkpoint',
+  loader: () => import('./memory/index.js').then((m) => m.checkpointRestoreTool),
+});
+registerLazyTool({
+  name: 'checkpoint-diff',
+  description: 'Compare current files with saved checkpoint',
+  loader: () => import('./memory/index.js').then((m) => m.checkpointDiffTool),
+});
 
 // Kanban task management tools
-registerTool(taskCreateTool);
-registerTool(taskGetTool);
-registerTool(taskListTool);
-registerTool(taskClaimTool);
-registerTool(taskAssignTool);
-registerTool(taskUpdateTool);
-registerTool(taskDeleteTool);
-registerTool(taskCommentTool);
-registerTool(boardStatusTool);
-registerTool(taskPushMultiTool);
+registerLazyTool({
+  name: 'task-create',
+  description: 'Create tasks (batch: 1-20)',
+  loader: () => import('./kanban/index.js').then((m) => m.taskCreateTool),
+});
+registerLazyTool({
+  name: 'task-get',
+  description: 'Get full task details by ID',
+  loader: () => import('./kanban/index.js').then((m) => m.taskGetTool),
+});
+registerLazyTool({
+  name: 'task-list',
+  description: 'List tasks with filters (status, priority, assignee, boardId)',
+  loader: () => import('./kanban/index.js').then((m) => m.taskListTool),
+});
+registerLazyTool({
+  name: 'task-claim',
+  description: 'Worker claims an available task',
+  loader: () => import('./kanban/index.js').then((m) => m.taskClaimTool),
+});
+registerLazyTool({
+  name: 'task-assign',
+  description: 'Assign tasks to agents (batch: 1-20)',
+  loader: () => import('./kanban/index.js').then((m) => m.taskAssignTool),
+});
+registerLazyTool({
+  name: 'task-update',
+  description: 'Update tasks (batch: 1-20)',
+  loader: () => import('./kanban/index.js').then((m) => m.taskUpdateTool),
+});
+registerLazyTool({
+  name: 'task-delete',
+  description: 'Delete tasks (batch: 1-20)',
+  loader: () => import('./kanban/index.js').then((m) => m.taskDeleteTool),
+});
+registerLazyTool({
+  name: 'task-comment',
+  description: 'Add comments to tasks (batch: 1-20, append-only)',
+  loader: () => import('./kanban/index.js').then((m) => m.taskCommentTool),
+});
+registerLazyTool({
+  name: 'board-status',
+  description: 'Get board summary and statistics',
+  loader: () => import('./kanban/index.js').then((m) => m.boardStatusTool),
+});
+registerLazyTool({
+  name: 'task-push-multi',
+  description: 'Push task to N agents (assign/clone/notify)',
+  loader: () => import('./kanban/index.js').then((m) => m.taskPushMultiTool),
+});
 
 // Kanban workspace tools
-registerTool(workspaceCreateTool);
-registerTool(workspaceListTool);
-registerTool(workspaceJoinTool);
-registerTool(workspaceLeaveTool);
-registerTool(workspaceDeleteTool);
+registerLazyTool({
+  name: 'workspace-create',
+  description: 'Create workspace for cross-session collaboration',
+  loader: () => import('./kanban/index.js').then((m) => m.workspaceCreateTool),
+});
+registerLazyTool({
+  name: 'workspace-list',
+  description: 'List available workspaces',
+  loader: () => import('./kanban/index.js').then((m) => m.workspaceListTool),
+});
+registerLazyTool({
+  name: 'workspace-join',
+  description: 'Join session to workspace',
+  loader: () => import('./kanban/index.js').then((m) => m.workspaceJoinTool),
+});
+registerLazyTool({
+  name: 'workspace-leave',
+  description: 'Leave workspace',
+  loader: () => import('./kanban/index.js').then((m) => m.workspaceLeaveTool),
+});
+registerLazyTool({
+  name: 'workspace-delete',
+  description: 'Delete workspace (with ownership check, cascade option)',
+  loader: () => import('./kanban/index.js').then((m) => m.workspaceDeleteTool),
+});
 
 // Kanban board tools
-registerTool(boardCreateTool);
-registerTool(boardListTool);
-registerTool(boardShareTool);
-registerTool(boardMembersTool);
-registerTool(boardInviteTool);
-registerTool(boardDeleteTool);
+registerLazyTool({
+  name: 'board-create',
+  description: 'Create new board in session or workspace',
+  loader: () => import('./kanban/index.js').then((m) => m.boardCreateTool),
+});
+registerLazyTool({
+  name: 'board-list',
+  description: 'List boards (session + workspace)',
+  loader: () => import('./kanban/index.js').then((m) => m.boardListTool),
+});
+registerLazyTool({
+  name: 'board-share',
+  description: 'Share board with session or workspace',
+  loader: () => import('./kanban/index.js').then((m) => m.boardShareTool),
+});
+registerLazyTool({
+  name: 'board-members',
+  description: 'Manage board members',
+  loader: () => import('./kanban/index.js').then((m) => m.boardMembersTool),
+});
+registerLazyTool({
+  name: 'board-invite',
+  description: 'Invite agent to board with role',
+  loader: () => import('./kanban/index.js').then((m) => m.boardInviteTool),
+});
+registerLazyTool({
+  name: 'board-delete',
+  description: 'Delete board (with cascade task deletion option)',
+  loader: () => import('./kanban/index.js').then((m) => m.boardDeleteTool),
+});
 
 // Recursive tool invocation
-registerTool(invokeToolTool);
-registerTool(invokeBatchTool);
-registerTool(invocationLogTool);
+registerLazyTool({
+  name: 'invoke-tool',
+  description: 'Invoke MCP tool from agent context with safety checks',
+  loader: () => import('./recursive/index.js').then((m) => m.invokeToolTool),
+});
+registerLazyTool({
+  name: 'invoke-batch',
+  description: 'Batch invoke multiple tools (parallel/sequential)',
+  loader: () => import('./recursive/index.js').then((m) => m.invokeBatchTool),
+});
+registerLazyTool({
+  name: 'invocation-log',
+  description: 'View agent tool invocation history',
+  loader: () => import('./recursive/index.js').then((m) => m.invocationLogTool),
+});
 
 // Session management tools
-registerTool(sessionListTool);
-registerTool(sessionInfoTool);
-registerTool(sessionCreateTool);
-registerTool(sessionSwitchTool);
-registerTool(sessionDeleteTool);
+registerLazyTool({
+  name: 'session-list',
+  description: 'List all available sessions',
+  loader: () => import('./session/index.js').then((m) => m.sessionListTool),
+});
+registerLazyTool({
+  name: 'session-info',
+  description: 'Get current session information',
+  loader: () => import('./session/index.js').then((m) => m.sessionInfoTool),
+});
+registerLazyTool({
+  name: 'session-create',
+  description: 'Create a new session',
+  loader: () => import('./session/index.js').then((m) => m.sessionCreateTool),
+});
+registerLazyTool({
+  name: 'session-switch',
+  description: 'Switch to a different session',
+  loader: () => import('./session/index.js').then((m) => m.sessionSwitchTool),
+});
+registerLazyTool({
+  name: 'session-delete',
+  description: 'Delete a session and its data',
+  loader: () => import('./session/index.js').then((m) => m.sessionDeleteTool),
+});
 
 // System configuration tools
-registerTool(aiConfigTool);
-registerTool(aiModelsTool);
+registerLazyTool({
+  name: 'ai-config',
+  description: 'Manage AI provider settings and API keys',
+  loader: () => import('./system/ai-config.tool.js').then((m) => m.aiConfigTool),
+});
+registerLazyTool({
+  name: 'ai-models',
+  description: 'List and select AI models from provider',
+  loader: () => import('./system/ai-models.tool.js').then((m) => m.aiModelsTool),
+});
 
 // Multi-LLM tools
-registerTool(multiPromptTool);
-registerTool(consensusPromptTool);
+registerLazyTool({
+  name: 'multi-prompt',
+  description: 'Send same prompt to N models in parallel and collect responses',
+  loader: () => import('./multi-llm/index.js').then((m) => m.multiPromptTool),
+});
+registerLazyTool({
+  name: 'consensus-prompt',
+  description: 'CEO-and-Board pattern: board models respond, CEO synthesizes decision',
+  loader: () => import('./multi-llm/index.js').then((m) => m.consensusPromptTool),
+});
 
 // Thinking chain tools
-registerTool(thinkingChainTool);
+registerLazyTool({
+  name: 'thinking-chain',
+  description: 'Manage chains of thought with branching and forward-only constraint',
+  loader: () => import('./thinking/index.js').then((m) => m.thinkingChainTool),
+});
 
 export * from './registry.js';

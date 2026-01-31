@@ -30,6 +30,7 @@ import { spawn } from 'child_process';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { validatePath, ValidationError } from '../../utils/validation.js';
+import { isSilent } from '../../config/silent.js';
 
 /** Default timeout for diff (30 seconds) */
 const DIFF_TIMEOUT = 30_000;
@@ -454,6 +455,19 @@ export const fileDiffTool: UnifiedTool = {
 
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
+
+    // Silent mode: return raw diff or identical status
+    if (isSilent()) {
+      if (results.length === 1 && successful.length === 1) {
+        const r = successful[0];
+        if (r.identical) return '{"identical":true}';
+        return (r.rawDiff as string) || JSON.stringify(r.stats);
+      }
+      return JSON.stringify(results.map((r) => r.success
+        ? { identical: r.identical, stats: r.stats }
+        : { error: r.error }
+      ));
+    }
 
     return JSON.stringify({
       success: failed.length === 0,

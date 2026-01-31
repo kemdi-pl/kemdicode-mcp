@@ -30,6 +30,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { invokeTool, checkSafety, DEFAULT_POLICY } from '../../recursive/index.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   toolName: z.string().min(1).describe('Tool name to invoke'),
@@ -98,6 +99,10 @@ export const invokeToolTool: UnifiedTool = {
       const result = await invokeTool(request, DEFAULT_POLICY);
 
       Logger.debug(`invoke-tool: ${input.toolName} invoked by ${input.agentId}`);
+
+      if (isSilent()) {
+        return result.success ? String(result.result ?? '{}') : JSON.stringify({ error: result.error });
+      }
 
       return JSON.stringify({
         success: result.success,

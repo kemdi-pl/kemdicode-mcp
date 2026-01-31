@@ -29,6 +29,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { shareBoard, hasPermission, resolveBoardId, resolveWorkspaceId, resolveSessionId } from '../../kanban/index.js';
+import { isSilent } from '../../config/silent.js';
 
 const shareItemSchema = z.object({
   boardId: z.string().min(1).describe('Board ID or "name:Board Name"'),
@@ -125,6 +126,14 @@ export const boardShareTool: UnifiedTool = {
 
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
+
+    // Silent mode: return shared count
+    if (isSilent()) {
+      if (failed.length > 0) {
+        return JSON.stringify({ shared: successful.length, errors: failed.map((r) => r.error) });
+      }
+      return JSON.stringify({ shared: successful.length });
+    }
 
     return JSON.stringify({
       success: failed.length === 0,

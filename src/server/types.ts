@@ -31,6 +31,7 @@ export enum SSEEventType {
   ERROR = 'error',
   CONNECTED = 'connected',
   KEEPALIVE = 'keepalive',
+  LOG = 'log',
 }
 
 /**

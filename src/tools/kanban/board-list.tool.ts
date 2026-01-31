@@ -36,6 +36,7 @@ import {
   resolveSessionId,
   resolveWorkspaceId,
 } from '../../kanban/index.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   sessionId: z.string().optional().describe('Session ID (auto-detected from connection if omitted)'),
@@ -99,6 +100,15 @@ export const boardListTool: UnifiedTool = {
       }
 
       Logger.debug(`board-list: found ${boards.length} boards`);
+
+      // Silent mode: compact board list
+      if (isSilent()) {
+        return JSON.stringify(boards.map((board) => ({
+          id: board.id,
+          name: board.name,
+          tasks: board.taskCount,
+        })));
+      }
 
       return JSON.stringify({
         success: true,

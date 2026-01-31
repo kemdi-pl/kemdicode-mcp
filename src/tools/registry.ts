@@ -30,6 +30,7 @@ import { Tool, Prompt } from '@modelcontextprotocol/sdk/types.js';
 import { z, ZodError } from 'zod';
 import { shareContext, isContextEnabled } from '../context/index.js';
 import { Logger } from '../utils/logger.js';
+import { isSilent } from '../config/silent.js';
 import { McpError, InputValidationError, ToolExecutionError } from '../utils/errors.js';
 import { recordToolExecution } from '../rl/middleware.js';
 import type { BaseToolArguments } from '../types/tool-types.js';
@@ -243,16 +244,35 @@ export function createTypedTool<TSchema extends ZodSchema>(
 }
 
 /**
+ * Lazy tool loader entry
+ * Stores metadata and a loader function for deferred tool loading
+ */
+export interface LazyToolEntry {
+  /** Tool name (unique identifier) */
+  name: string;
+  /** Tool description (shown in ListTools) */
+  description: string;
+  /** Lazy loader function that imports and returns the tool */
+  loader: () => Promise<UnifiedTool>;
+  /** Whether the tool has been loaded yet */
+  loaded: boolean;
+  /** Cached tool instance (populated after first load) */
+  tool?: UnifiedTool;
+}
+
+/**
  * Tool Registry Manager Class
  *
  * Encapsulates tool storage with controlled access methods.
  * Provides a singleton pattern for centralized tool management.
+ * Supports both eager and lazy tool registration for optimized startup.
  *
  * @class ToolRegistryManager
  * @example
  * ```typescript
- * // Tools are registered via registerTool() function
+ * // Tools are registered via registerTool() or registerLazyTool() functions
  * registerTool(myTool);
+ * registerLazyTool({ name: 'my-tool', description: '...', loader: () => import('...') });
  *
  * // Access tools via exported functions
  * const tools = getToolDefinitions();
@@ -260,6 +280,7 @@ export function createTypedTool<TSchema extends ZodSchema>(
  */
 class ToolRegistryManager {
   private readonly tools: UnifiedTool[] = [];
+  private readonly lazyTools = new Map<string, LazyToolEntry>();
 
   /**
    * Register a new tool in the registry
@@ -287,35 +308,115 @@ class ToolRegistryManager {
   }
 
   /**
+   * Register a lazy-loaded tool
+   *
+   * @description Registers tool metadata without loading the full module.
+   *              The tool will be loaded on first execution.
+   * @param {LazyToolEntry} entry - Lazy tool registration entry
+   * @returns {void}
+   */
+  registerLazy(entry: Omit<LazyToolEntry, 'loaded' | 'tool'>): void {
+    if (this.exists(entry.name)) {
+      Logger.warn(`Tool '${entry.name}' already registered, skipping duplicate`);
+      return;
+    }
+    this.lazyTools.set(entry.name, { ...entry, loaded: false });
+  }
+
+  /**
+   * Load a lazy tool if not already loaded
+   *
+   * @description Executes the loader function and caches the result
+   * @param {string} name - Tool name to load
+   * @returns {Promise<UnifiedTool>} The loaded tool
+   * @throws {Error} If tool is not found in lazy registry
+   */
+  async loadLazy(name: string): Promise<UnifiedTool> {
+    const entry = this.lazyTools.get(name);
+    if (!entry) {
+      throw new Error(`Lazy tool '${name}' not found in registry`);
+    }
+
+    if (!entry.loaded) {
+      const tool = await entry.loader();
+      entry.tool = tool;
+      entry.loaded = true;
+      Logger.debug(`Lazy-loaded tool: ${name}`);
+    }
+
+    return entry.tool!;
+  }
+
+  /**
    * Check if a tool exists in the registry
    *
-   * @description Searches the registry for a tool with the given name
+   * @description Searches both eager and lazy registries for a tool with the given name
    * @param {string} name - Tool name to check
    * @returns {boolean} True if tool exists, false otherwise
    */
   exists(name: string): boolean {
-    return this.tools.some((t) => t.name === name);
+    return this.tools.some((t) => t.name === name) || this.lazyTools.has(name);
   }
 
   /**
-   * Find a tool by name
+   * Find a tool by name (async for lazy loading)
    *
-   * @description Retrieves a tool from the registry by its unique name
+   * @description Retrieves a tool from the registry by its unique name.
+   *              If the tool is lazy-loaded, it will be loaded on first access.
+   * @param {string} name - Tool name to find
+   * @returns {Promise<UnifiedTool | undefined>} The tool if found, undefined otherwise
+   */
+  async findAsync(name: string): Promise<UnifiedTool | undefined> {
+    // Check eager tools first
+    const eagerTool = this.tools.find((t) => t.name === name);
+    if (eagerTool) return eagerTool;
+
+    // Check lazy tools
+    if (this.lazyTools.has(name)) {
+      return await this.loadLazy(name);
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Find a tool by name (synchronous, for backward compatibility)
+   *
+   * @description Retrieves a tool from eager registry only.
+   *              For lazy tools, returns undefined. Use findAsync instead.
    * @param {string} name - Tool name to find
    * @returns {UnifiedTool | undefined} The tool if found, undefined otherwise
+   * @deprecated Use findAsync for full support including lazy tools
    */
   find(name: string): UnifiedTool | undefined {
     return this.tools.find((t) => t.name === name);
   }
 
   /**
-   * Get all registered tools
+   * Get all registered tools (eager only)
    *
-   * @description Returns a readonly array of all registered tools
+   * @description Returns a readonly array of eagerly loaded tools only.
+   *              Lazy tools are not included until they are loaded.
    * @returns {readonly UnifiedTool[]} Readonly array of all tools
    */
   getAll(): readonly UnifiedTool[] {
     return this.tools;
+  }
+
+  /**
+   * Get all tool metadata (both eager and lazy)
+   *
+   * @description Returns metadata for all registered tools without loading lazy ones.
+   *              Useful for ListTools MCP call.
+   * @returns {Array<{ name: string; description: string }>} Array of tool metadata
+   */
+  getAllMetadata(): Array<{ name: string; description: string }> {
+    const eager = this.tools.map((t) => ({ name: t.name, description: t.description }));
+    const lazy = Array.from(this.lazyTools.values()).map((e) => ({
+      name: e.name,
+      description: e.description,
+    }));
+    return [...eager, ...lazy];
   }
 
   /**
@@ -399,11 +500,49 @@ export const registerTool = (tool: UnifiedTool): void => {
   const isNew = !registryManager.exists(tool.name);
   registryManager.register(tool);
 
-  // Broadcast to connected clients if this is a newly registered tool (not during startup)
-  if (isNew && broadcastToolsChanged) {
-    broadcastToolsChanged().catch((err: unknown) => {
-      Logger.warn(`Failed to broadcast tools/list_changed: ${err instanceof Error ? err.message : String(err)}`);
-    });
+  // Invalidate tool definitions cache on new registration
+  if (isNew) {
+    invalidateToolDefinitionsCache();
+
+    // Broadcast to connected clients if this is a newly registered tool (not during startup)
+    if (broadcastToolsChanged) {
+      broadcastToolsChanged().catch((err: unknown) => {
+        Logger.warn(`Failed to broadcast tools/list_changed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    }
+  }
+};
+
+/**
+ * Register a lazy-loaded tool in the registry
+ *
+ * @description Registers tool metadata for lazy loading. The actual tool module
+ *              will only be loaded when the tool is first executed.
+ * @param {Omit<LazyToolEntry, 'loaded' | 'tool'>} entry - Lazy tool registration entry
+ * @returns {void}
+ * @example
+ * ```typescript
+ * registerLazyTool({
+ *   name: 'my-tool',
+ *   description: 'My lazy-loaded tool',
+ *   loader: async () => (await import('./my-tool.js')).myTool
+ * });
+ * ```
+ */
+export const registerLazyTool = (entry: Omit<LazyToolEntry, 'loaded' | 'tool'>): void => {
+  const isNew = !registryManager.exists(entry.name);
+  registryManager.registerLazy(entry);
+
+  // Invalidate tool definitions cache on new registration
+  if (isNew) {
+    invalidateToolDefinitionsCache();
+
+    // Broadcast to connected clients if this is a newly registered tool (not during startup)
+    if (broadcastToolsChanged) {
+      broadcastToolsChanged().catch((err: unknown) => {
+        Logger.warn(`Failed to broadcast tools/list_changed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    }
   }
 };
 
@@ -490,6 +629,25 @@ interface JsonSchemaShape {
 }
 
 /**
+ * Cache for JSON Schema conversions (computed once per tool)
+ * Key: tool name, Value: JSON Schema
+ */
+const schemaCache = new Map<string, { type: 'object'; properties: Record<string, object>; required: string[] }>();
+
+/**
+ * Cache for complete tool definitions array (invalidated on tool registration)
+ * This avoids regenerating the entire array on every ListTools request
+ */
+let toolDefinitionsCache: Tool[] | null = null;
+
+/**
+ * Invalidate the tool definitions cache (called when tools are registered/unregistered)
+ */
+function invalidateToolDefinitionsCache(): void {
+  toolDefinitionsCache = null;
+}
+
+/**
  * Validate that an object conforms to JsonSchemaShape
  *
  * @description Type guard to verify an unknown object matches the expected
@@ -512,9 +670,11 @@ function isJsonSchemaShape(obj: unknown): obj is JsonSchemaShape {
 /**
  * Get MCP tool definitions for protocol registration
  *
- * @description Converts all registered tools to MCP Tool format by transforming
- *              Zod schemas to JSON Schema format. Used during server initialization
- *              to expose available tools to MCP clients.
+ * @description Returns metadata for all tools (both eager and lazy) without loading.
+ *              This is used for the ListTools MCP call. Lazy tools use a permissive
+ *              schema that accepts any object - the actual validation happens when
+ *              the tool is executed and loaded. Results are cached until tools are
+ *              registered/unregistered.
  * @returns {Tool[]} Array of MCP Tool definitions with inputSchema
  * @example
  * ```typescript
@@ -523,29 +683,65 @@ function isJsonSchemaShape(obj: unknown): obj is JsonSchemaShape {
  * ```
  */
 export function getToolDefinitions(): Tool[] {
-  return getToolRegistry().map((tool) => {
-    // Use native Zod 4 toJSONSchema with runtime validation
-    const rawSchema = z.toJSONSchema(tool.zodSchema, { target: 'draft-07' });
+  // Return cached definitions if available (common case - tools rarely change at runtime)
+  if (toolDefinitionsCache) {
+    return toolDefinitionsCache;
+  }
 
-    if (!isJsonSchemaShape(rawSchema)) {
-      Logger.warn(`Invalid schema shape for tool '${tool.name}', using empty schema`);
-      return {
-        name: tool.name,
-        description: tool.description,
-        inputSchema: { type: 'object' as const, properties: {}, required: [] },
-      };
+  const definitions: Tool[] = [];
+
+  // Add eager tools with full schemas
+  for (const tool of getToolRegistry()) {
+    // Check cache first to avoid recomputing JSON Schema
+    let inputSchema = schemaCache.get(tool.name);
+
+    if (!inputSchema) {
+      // Use native Zod 4 toJSONSchema with runtime validation
+      const rawSchema = z.toJSONSchema(tool.zodSchema, { target: 'draft-07' });
+
+      if (!isJsonSchemaShape(rawSchema)) {
+        Logger.warn(`Invalid schema shape for tool '${tool.name}', using empty schema`);
+        inputSchema = { type: 'object' as const, properties: {}, required: [] };
+      } else {
+        inputSchema = {
+          type: 'object' as const,
+          properties: rawSchema.properties || {},
+          required: rawSchema.required || [],
+        };
+      }
+
+      // Cache the result
+      schemaCache.set(tool.name, inputSchema);
     }
 
-    return {
+    definitions.push({
       name: tool.name,
       description: tool.description,
+      inputSchema,
+    });
+  }
+
+  // Add lazy tools with permissive schemas (will be validated on execution)
+  const metadata = registryManager.getAllMetadata();
+  for (const meta of metadata) {
+    // Skip if already added as eager tool
+    if (definitions.some((d) => d.name === meta.name)) continue;
+
+    definitions.push({
+      name: meta.name,
+      description: meta.description,
+      // Permissive schema - validation happens at execution time
       inputSchema: {
         type: 'object' as const,
-        properties: rawSchema.properties || {},
-        required: rawSchema.required || [],
+        properties: {},
+        additionalProperties: true,
       },
-    };
-  });
+    });
+  }
+
+  // Cache the complete array
+  toolDefinitionsCache = definitions;
+  return definitions;
 }
 
 /**
@@ -591,45 +787,54 @@ export async function executeTool(
   args: ToolArguments,
   onProgress?: (output: string) => void
 ): Promise<string> {
-  const registry = getToolRegistry();
-  const tool = registry.find((t) => t.name === name);
-  if (!tool)
+  // Load tool (handles both eager and lazy tools)
+  const tool = await registryManager.findAsync(name);
+  if (!tool) {
+    const allTools = registryManager.getAllMetadata().map((m) => m.name);
     throw new ToolExecutionError(name, `Unknown tool: ${name}`, {
-      availableTools: registry.map((t) => t.name).slice(0, 10),
+      availableTools: allTools.slice(0, 10),
     });
+  }
 
-  // Start timing and log tool execution start
-  const startTime = Date.now();
-  Logger.toolExecution('start', name, undefined, {
-    argsKeys: maskSensitiveKeys(Object.keys(args)),
-    hasProgress: !!onProgress,
-  });
+  const silent = isSilent();
+
+  // Start timing - skip logging overhead in silent mode
+  const startTime = silent ? 0 : Date.now();
+  if (!silent) {
+    Logger.toolExecution('start', name, undefined, {
+      argsKeys: maskSensitiveKeys(Object.keys(args)),
+      hasProgress: !!onProgress,
+    });
+  }
 
   let result: string;
   let isError = false;
 
   try {
-    // Validate arguments against schema
-    const validatedArgs = tool.zodSchema.parse(args) as ToolArguments;
-    Logger.debug(() => `Tool ${name}: arguments validated`, { tool: name });
+    // Validate arguments against schema (skip in silent mode for performance)
+    const validatedArgs = silent ? (args as ToolArguments) : (tool.zodSchema.parse(args) as ToolArguments);
 
     result = await tool.execute(validatedArgs, onProgress);
 
-    // Log successful completion with timing
-    const duration = Date.now() - startTime;
-    Logger.toolExecution('end', name, duration, {
-      resultLength: result.length,
-      success: true,
-    });
+    if (!silent) {
+      // Log successful completion with timing
+      const duration = Date.now() - startTime;
+      Logger.toolExecution('end', name, duration, {
+        resultLength: result.length,
+        success: true,
+      });
 
-    // RL tracking (async, fire-and-forget — never blocks response)
-    recordToolExecution(name, args as Record<string, unknown>, true, duration).catch(() => {});
+      // RL tracking (async, fire-and-forget — never blocks response) - skip in silent mode
+      recordToolExecution(name, args as Record<string, unknown>, true, duration).catch(() => {});
+    }
   } catch (error) {
     isError = true;
-    const duration = Date.now() - startTime;
+    const duration = silent ? 0 : Date.now() - startTime;
 
-    // RL tracking for failures (fire-and-forget)
-    recordToolExecution(name, args as Record<string, unknown>, false, duration).catch(() => {});
+    // RL tracking for failures (fire-and-forget) - skip in silent mode
+    if (!silent) {
+      recordToolExecution(name, args as Record<string, unknown>, false, duration).catch(() => {});
+    }
 
     // Handle Zod validation errors
     if (error instanceof ZodError) {
@@ -670,8 +875,9 @@ export async function executeTool(
     throw new ToolExecutionError(name, String(error));
   }
 
-  // Auto-share context (async, don't block response)
-  if (isContextEnabled() && !tool.skipContextShare && !SKIP_SHARE_TOOLS.has(name)) {
+  // Auto-share context (async, don't block response) - skip in silent mode
+  // In silent mode, only share if tool explicitly sets skipContextShare: false
+  if (!silent && isContextEnabled() && !tool.skipContextShare && !SKIP_SHARE_TOOLS.has(name)) {
     shareContext(name, args as Record<string, unknown>, result, {
       errorState: isError,
     }).catch((err: unknown) => {

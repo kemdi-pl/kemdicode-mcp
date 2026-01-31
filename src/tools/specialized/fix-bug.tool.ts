@@ -21,6 +21,7 @@ import { UnifiedTool } from '../registry.js';
 import { executeAI, parseFiles } from '../../ai/index.js';
 import { getEnhancedContextString } from '../../utils/projectContext.enhanced.js';
 import { recordSuggestion } from '../../context/feedback-loop.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   files: z.string().describe('Files with the bug. Use @path/file syntax for multiple files, or plain paths separated by spaces'),
@@ -50,7 +51,16 @@ export const fixBugTool: UnifiedTool = {
     if (!description?.toString().trim()) throw new Error('Bug description required.');
 
     const filesStr = String(files);
-    const prompt = `${getEnhancedContextString()}
+    const silent = isSilent();
+
+    const prompt = silent
+      ? `${getEnhancedContextString()}
+Bug fix: ${description}
+${steps ? `Steps: ${steps}` : ''}
+${errorLog ? `Error: ${errorLog}` : ''}
+Files: ${filesStr}
+Output: JSON {rootCause: {file, line, cause}, fix: {before, after}, explanation}. No markdown.`
+      : `${getEnhancedContextString()}
 # Bug Fix Request
 
 ## Problem

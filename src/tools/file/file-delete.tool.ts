@@ -31,6 +31,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { fromNodeError, formatErrorResponse } from '../../utils/errors.js';
 import { validatePath, ValidationError, checkRateLimit } from '../../utils/validation.js';
+import { isSilent } from '../../config/silent.js';
 
 /**
  * Critical file/directory patterns that must never be deleted
@@ -214,6 +215,14 @@ export const fileDeleteTool: UnifiedTool = {
 
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
+
+    // Silent mode: return deleted count
+    if (isSilent()) {
+      if (failed.length > 0) {
+        return JSON.stringify({ deleted: successful.length, errors: failed.map((r) => r.error) });
+      }
+      return JSON.stringify({ deleted: successful.length });
+    }
 
     return JSON.stringify({
       success: failed.length === 0,

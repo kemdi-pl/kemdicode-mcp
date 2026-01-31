@@ -29,6 +29,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { getInvocationLog, getCurrentContext } from '../../recursive/index.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   agentId: z.string().min(1).describe('Agent ID'),
@@ -119,6 +120,10 @@ export const invocationLogTool: UnifiedTool = {
       }
 
       Logger.debug(`invocation-log: retrieved ${log.length} entries for agent ${input.agentId}`);
+
+      if (isSilent()) {
+        return JSON.stringify({ count: log.length, entries: log.map((e) => ({ tool: e.toolName, success: e.success })) });
+      }
 
       return JSON.stringify(result);
     } catch (error) {

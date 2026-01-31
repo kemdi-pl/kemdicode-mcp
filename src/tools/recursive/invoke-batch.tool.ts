@@ -30,6 +30,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { invokeBatch, DEFAULT_POLICY } from '../../recursive/index.js';
+import { isSilent } from '../../config/silent.js';
 
 const operationSchema = z.object({
   toolName: z.string().min(1).describe('Tool name to execute'),
@@ -90,6 +91,10 @@ export const invokeBatchTool: UnifiedTool = {
       Logger.debug(
         `invoke-batch: ${successCount}/${results.length} succeeded in ${totalDuration}ms`
       );
+
+      if (isSilent()) {
+        return JSON.stringify(results.map((r) => r.success ? r.result : { error: r.error }));
+      }
 
       return JSON.stringify({
         success: failureCount === 0,

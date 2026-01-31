@@ -25,6 +25,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getSessionManager } from '../../session/manager.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   sessionId: z.string().describe('Session ID'),
@@ -53,6 +54,10 @@ export const sessionInfoTool: UnifiedTool<typeof schema> = {
 
     if (!session) {
       return `❌ Session not found: ${sessionId}`;
+    }
+
+    if (isSilent()) {
+      return JSON.stringify({ id: session.sessionId, model: session.model, cwd: session.cwd, projectType: session.projectType });
     }
 
     const age = Math.floor((Date.now() - session.createdAt) / 1000);

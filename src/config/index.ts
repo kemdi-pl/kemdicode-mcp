@@ -42,6 +42,15 @@
 export { config } from './manager.js';
 export { DEFAULT_CONFIG } from './defaults.js';
 export { appConfigSchema, groupSchemas } from './schema.js';
+export {
+  isSilent,
+  isStrictSilent,
+  getOutputLevel,
+  setOutputLevel,
+  initSilentFromEnv,
+  resolveOutputLevel,
+  type OutputLevel,
+} from './silent.js';
 export type {
   AppConfig,
   ConfigGroup,

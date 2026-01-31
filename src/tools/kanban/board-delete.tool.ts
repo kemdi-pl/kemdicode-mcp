@@ -30,6 +30,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { deleteBoard, getBoard, listTasks, deleteTask, resolveSessionId, resolveBoardId } from '../../kanban/index.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   boardIds: z.array(z.string().min(1)).min(1).max(10).describe('Board IDs or "name:Board Name" to delete (1-10)'),
@@ -137,6 +138,14 @@ export const boardDeleteTool: UnifiedTool = {
 
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
+
+    // Silent mode: return deleted count
+    if (isSilent()) {
+      if (failed.length > 0) {
+        return JSON.stringify({ deleted: successful.length, errors: failed.map((r) => r.error) });
+      }
+      return JSON.stringify({ deleted: successful.length });
+    }
 
     return JSON.stringify({
       success: failed.length === 0,

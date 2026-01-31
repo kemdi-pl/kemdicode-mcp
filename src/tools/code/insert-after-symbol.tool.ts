@@ -40,6 +40,7 @@ import {
   findSymbolAuto,
   type SymbolLocation,
 } from './symbol-search.js';
+import { isSilent } from '../../config/silent.js';
 
 /** Languages that use braces for blocks */
 const BRACE_LANGUAGES = ['ts', 'php', 'go', 'rs'];
@@ -275,6 +276,10 @@ export const insertAfterSymbolTool: UnifiedTool = {
       Logger.debug(
         `insert-after-symbol: inserted ${contentLines.length} lines after '${symbol}' block at ${validatedPath}:${insertLine + 1}`
       );
+
+      if (isSilent()) {
+        return JSON.stringify({ file: validatedPath, linesInserted: contentLines.length });
+      }
 
       return JSON.stringify({
         success: true,

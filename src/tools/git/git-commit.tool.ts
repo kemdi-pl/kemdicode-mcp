@@ -28,6 +28,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { execGit, validateGitRepo, formatGitError } from '../../utils/git-utils.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   message: z.string().min(1).max(500).describe('Commit message'),
@@ -79,6 +80,9 @@ export const gitCommitTool: UnifiedTool = {
       // Get the commit hash for the summary
       const hash = execGit(['rev-parse', '--short', 'HEAD'], { cwd }).trim();
 
+      if (isSilent()) {
+        return hash;
+      }
       return `Commit ${hash} created successfully.\n\n${output.trim()}`;
     } catch (error) {
       return formatGitError(error, 'Git commit');

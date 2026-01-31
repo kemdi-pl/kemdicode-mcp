@@ -30,6 +30,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getAgentMonitor } from '../../context/agent-monitor.js';
+import { isSilent } from '../../config/silent.js';
 import type { SessionOverview } from '../../context/types.js';
 
 const schema = z.object({
@@ -360,6 +361,14 @@ export const monitorTool: UnifiedTool = {
           ...overview,
           boards: overview.boards.filter((b) => b.id === boardId),
         };
+      }
+
+      if (isSilent()) {
+        return JSON.stringify({
+          agents: overview.agents.length,
+          boards: overview.boards.length,
+          stats: overview.stats,
+        });
       }
 
       // Render appropriate view

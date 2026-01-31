@@ -39,6 +39,7 @@ import {
   getProjectId,
   getExistingCreatedAt,
 } from './shared.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   name: z
@@ -123,6 +124,10 @@ export const checkpointSaveTool: UnifiedTool = {
       await client.expire(indexKey, DEFAULT_CHECKPOINT_TTL);
 
       Logger.debug(`checkpoint-save: stored '${name}' for project ${projectId}`);
+
+      if (isSilent()) {
+        return JSON.stringify({ name, contentLength: content.length });
+      }
 
       return JSON.stringify({
         success: true,

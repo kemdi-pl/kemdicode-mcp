@@ -29,6 +29,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { leaveWorkspace, resolveSessionId, resolveWorkspaceId } from '../../kanban/index.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   workspaceId: z.string().min(1).describe('Workspace ID or "name:Workspace Name"'),
@@ -81,6 +82,11 @@ export const workspaceLeaveTool: UnifiedTool = {
       Logger.debug(
         `workspace-leave: session ${sessionId} left workspace ${resolvedWorkspaceId}`
       );
+
+      // Silent mode: return ok
+      if (isSilent()) {
+        return '{"ok":true}';
+      }
 
       return JSON.stringify({
         success: true,

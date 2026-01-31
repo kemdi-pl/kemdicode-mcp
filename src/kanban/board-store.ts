@@ -528,14 +528,12 @@ async function emitBoardEvent(event: BoardEvent): Promise<void> {
   const client = await getRedis();
   const eventKey = KANBAN_KEYS.boardEvents(event.boardId);
 
+  // Use pipeline to batch event storage and publishing
   const pipeline = client.pipeline();
 
-  // Store event
   pipeline.lpush(eventKey, JSON.stringify(event));
   pipeline.ltrim(eventKey, 0, MAX_BOARD_EVENTS - 1);
   pipeline.expire(eventKey, DEFAULT_TASK_TTL);
-
-  // Publish to board channel
   pipeline.publish(KANBAN_KEYS.boardChannel(event.boardId), JSON.stringify(event));
 
   await pipeline.exec();

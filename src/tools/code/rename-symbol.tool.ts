@@ -31,6 +31,7 @@ import { UnifiedTool } from '../registry.js';
 import { executeCommand } from '../../utils/commandExecutor.js';
 import { Logger } from '../../utils/logger.js';
 import { validatePath, ValidationError, checkRateLimit } from '../../utils/validation.js';
+import { isSilent } from '../../config/silent.js';
 
 /**
  * Get file type filters for ripgrep
@@ -304,6 +305,10 @@ export const renameSymbolTool: UnifiedTool = {
       Logger.debug(
         `rename-symbol: renamed '${oldName}' to '${newName}' in ${filesModified} files (${totalReplaced} occurrences)`
       );
+
+      if (isSilent()) {
+        return JSON.stringify({ filesChanged: filesModified, replaced: totalReplaced });
+      }
 
       return JSON.stringify({
         success: errors.length === 0,

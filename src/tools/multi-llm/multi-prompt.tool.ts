@@ -10,6 +10,7 @@ import type { UnifiedTool } from '../registry.js';
 import { complete } from '../../ai/client.js';
 import { buildAgentMessages, type AgentType } from '../../ai/agents.js';
 import { loadAndFormatFiles, parseFiles } from '../../ai/file-context.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   prompt: z.string().min(1).describe('Prompt for all models'),
@@ -66,6 +67,17 @@ async function execute(args: Record<string, unknown>): Promise<string> {
   );
 
   const totalDuration = Date.now() - startTime;
+
+  // Silent mode - return compact JSON
+  if (isSilent()) {
+    return JSON.stringify(
+      results.map((r, i) =>
+        r.status === 'fulfilled'
+          ? { model: models[i], content: r.value.content }
+          : { model: models[i], error: r.reason instanceof Error ? r.reason.message : String(r.reason) }
+      )
+    );
+  }
 
   // Format output
   const lines: string[] = [];

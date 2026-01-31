@@ -36,9 +36,13 @@ import {
   ValidationError,
   checkRateLimit,
 } from '../../utils/validation.js';
+import { isSilent } from '../../config/silent.js';
 
 /** Maximum file size to read (5MB) */
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+/** Reusable buffer for binary file detection (8KB) */
+const binaryDetectionBuffer = Buffer.alloc(8192);
 
 /** Common binary file extensions */
 const BINARY_EXTENSIONS = new Set([
@@ -135,13 +139,13 @@ async function isBinaryFile(filePath: string): Promise<boolean> {
   // Sample first 8KB for null bytes (binary indicator)
   try {
     const fd = await fs.open(filePath, 'r');
-    const buffer = Buffer.alloc(8192);
-    const { bytesRead } = await fd.read(buffer, 0, 8192, 0);
+    // Reuse pre-allocated buffer to reduce GC pressure
+    const { bytesRead } = await fd.read(binaryDetectionBuffer, 0, 8192, 0);
     await fd.close();
 
     // Check for null bytes (common in binary files)
     for (let i = 0; i < bytesRead; i++) {
-      if (buffer[i] === 0) {
+      if (binaryDetectionBuffer[i] === 0) {
         return true;
       }
     }
@@ -217,9 +221,11 @@ async function readSingleFile(
       return { success: false, error: 'Binary file detected', path: validatedPath, size: stats.size, isBinary: true };
     }
 
-    const buffer = await fs.readFile(validatedPath);
-    const detectedEncoding = detectEncoding(buffer);
-    const content = buffer.toString(encoding === 'utf-8' ? 'utf8' : (encoding as BufferEncoding));
+    // Use encoding option directly to avoid unnecessary conversions
+    const detectedEncoding = encoding === 'utf-8' ? 'utf-8' : encoding;
+    const content = await fs.readFile(validatedPath, {
+      encoding: encoding === 'utf-8' ? 'utf8' : (encoding as BufferEncoding)
+    });
 
     if (item.startLine !== undefined || item.endLine !== undefined) {
       const lines = content.split('\n');
@@ -302,6 +308,35 @@ export const fileReadTool: UnifiedTool = {
 
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
+
+    // Silent mode: return content directly without metadata wrappers
+    if (isSilent()) {
+      if (files.length === 1 && successful.length === 1) {
+        // Single file: return content or lines directly
+        const r = successful[0];
+        if (r.content) return r.content as string;
+        if (r.lines) return JSON.stringify(r.lines);
+      }
+      // Multiple files: compact array (use template for better perf on simple cases)
+      if (results.length <= 5) {
+        const items = results.map((r) => {
+          if (!r.success) {
+            const escapedPath = String(r.path).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            const escapedError = String(r.error).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            return `{"path":"${escapedPath}","error":"${escapedError}"}`;
+          }
+          const escapedPath = String(r.path).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+          // For content, fallback to JSON.stringify since it may be large/complex
+          return `{"path":"${escapedPath}","content":${JSON.stringify(r.content ?? r.lines)}}`;
+        }).join(',');
+        return `[${items}]`;
+      }
+      // Fallback for many files
+      return JSON.stringify(results.map((r) => r.success
+        ? { path: r.path, content: r.content ?? r.lines }
+        : { path: r.path, error: r.error }
+      ));
+    }
 
     return JSON.stringify({
       success: failed.length === 0,

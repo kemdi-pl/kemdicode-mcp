@@ -37,6 +37,7 @@ import {
   resolveBoardId,
   resolveSessionId,
 } from '../../kanban/index.js';
+import { isSilent } from '../../config/silent.js';
 
 const operationSchema = z.object({
   boardId: z.string().min(1).describe('Board ID or "name:Board Name"'),
@@ -219,6 +220,16 @@ export const boardMembersTool: UnifiedTool = {
 
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
+
+    // Silent mode: compact results
+    if (isSilent()) {
+      return JSON.stringify(results.map((r) => {
+        if (r.action === 'list' && r.success && 'members' in r) {
+          return { action: 'list', members: (r as { members: Array<{ agentId: string; role: string }> }).members.map((m) => ({ id: m.agentId, role: m.role })) };
+        }
+        return { action: r.action, success: r.success, error: 'error' in r ? r.error : undefined };
+      }));
+    }
 
     return JSON.stringify({
       success: failed.length === 0,

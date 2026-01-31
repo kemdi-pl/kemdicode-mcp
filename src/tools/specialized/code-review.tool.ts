@@ -26,6 +26,7 @@ import {
 } from '../../utils/projectContext.enhanced.js';
 import { detectLanguage, detectLanguageFromExtension } from '../../utils/languageDetection.js';
 import { recordSuggestion } from '../../context/feedback-loop.js';
+import { isSilent } from '../../config/silent.js';
 
 const FOCUS_PROMPTS: Record<string, string> = {
   security: `**FOCUS: SECURITY** - SQL Injection, XSS, CSRF, auth bypass, hardcoded secrets, OWASP Top 10`,
@@ -111,7 +112,14 @@ export const codeReviewTool: UnifiedTool = {
     // Auto-detect language using ML or extension
     const codeBlockLang = await detectLanguageFromFiles(filesStr);
 
-    const prompt = `${getEnhancedContextString()}
+    const silent = isSilent();
+
+    const prompt = silent
+      ? `${getEnhancedContextString()}
+Code review (${focus}${severity === 'critical' ? ', critical only' : ''}) for: ${filesStr}
+${withDeps ? 'Include dependency analysis.' : ''}
+Output: JSON array of {severity, file, line, category, problem, fix}. No markdown.`
+      : `${getEnhancedContextString()}
 # Code Review Request
 
 ${FOCUS_PROMPTS[focus as string]}

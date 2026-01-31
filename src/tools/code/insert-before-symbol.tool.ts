@@ -35,6 +35,7 @@ import {
   findSymbolAuto,
   type SymbolLocation,
 } from './symbol-search.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   symbol: z.string().min(1).describe('Symbol name'),
@@ -158,6 +159,10 @@ export const insertBeforeSymbolTool: UnifiedTool = {
       Logger.debug(
         `insert-before-symbol: inserted ${contentLines.length} lines before '${symbol}' at ${validatedPath}:${location.line}`
       );
+
+      if (isSilent()) {
+        return JSON.stringify({ file: validatedPath, linesInserted: contentLines.length });
+      }
 
       return JSON.stringify({
         success: true,

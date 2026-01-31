@@ -28,6 +28,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { execGit, validateGitRepo, formatGitError } from '../../utils/git-utils.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   cwd: z.string().optional().describe('Working directory'),
@@ -97,8 +98,10 @@ export const gitStatusTool: UnifiedTool = {
       }
 
       const result = output.trim();
-      if (format === 'json') {
-        return JSON.stringify({ success: true, output: result, tool: 'git-status' });
+      if (format === 'json' && !isSilent()) {
+        // Use template literal for static shape to avoid object allocation
+        const escapedResult = result.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+        return `{"success":true,"output":"${escapedResult}","tool":"git-status"}`;
       }
       return result;
     } catch (error) {

@@ -29,6 +29,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { getBoardSummary, resolveSessionId } from '../../kanban/index.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   sessionId: z.string().optional().describe('Session ID (auto-detected from connection if omitted)'),
@@ -69,6 +70,15 @@ export const boardStatusTool: UnifiedTool = {
       const summary = await getBoardSummary(sessionId);
 
       Logger.debug(`board-status: retrieved summary for session ${sessionId}`);
+
+      // Silent mode: compact stats only
+      if (isSilent()) {
+        return JSON.stringify({
+          total: summary.totalTasks,
+          byStatus: summary.byStatus,
+          blocked: summary.blockedTasks,
+        });
+      }
 
       return JSON.stringify({
         success: true,

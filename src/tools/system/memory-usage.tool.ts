@@ -29,9 +29,10 @@
 
 import { z } from 'zod';
 import { freemem, totalmem, platform } from 'os';
-import { execSync } from 'child_process';
 import * as v8 from 'v8';
 import { UnifiedTool } from '../registry.js';
+import { isSilent } from '../../config/silent.js';
+import { asyncExec } from '../../utils/async-exec.js';
 
 /**
  * Memory stats structure
@@ -85,12 +86,12 @@ function formatBytes(bytes: number): string {
 /**
  * Get swap memory info (Linux/macOS)
  */
-function getSwapInfo(): { total: number; used: number; free: number } | undefined {
+async function getSwapInfo(): Promise<{ total: number; used: number; free: number } | undefined> {
   const os = platform();
 
   try {
     if (os === 'linux') {
-      const output = execSync('free -b', { encoding: 'utf-8' });
+      const output = await asyncExec('free -b');
       const swapLine = output.split('\n').find((l) => l.startsWith('Swap:'));
       if (swapLine) {
         const parts = swapLine.split(/\s+/);
@@ -101,7 +102,7 @@ function getSwapInfo(): { total: number; used: number; free: number } | undefine
         };
       }
     } else if (os === 'darwin') {
-      const output = execSync('sysctl -n vm.swapusage', { encoding: 'utf-8' });
+      const output = await asyncExec('sysctl -n vm.swapusage');
       const match = output.match(
         /total\s*=\s*([\d.]+)M\s+used\s*=\s*([\d.]+)M\s+free\s*=\s*([\d.]+)M/
       );
@@ -123,21 +124,17 @@ function getSwapInfo(): { total: number; used: number; free: number } | undefine
 /**
  * Collect memory statistics
  */
-function collectMemoryStats(forceGC: boolean): MemoryStats {
-  // Force GC if requested and available
+async function collectMemoryStats(forceGC: boolean): Promise<MemoryStats> {
   if (forceGC && global.gc) {
     global.gc();
   }
 
-  // Process memory
   const processMemory = process.memoryUsage();
 
-  // System memory
   const totalMem = totalmem();
   const freeMem = freemem();
   const usedMem = totalMem - freeMem;
 
-  // V8 heap
   const heapStats = v8.getHeapStatistics();
 
   return {
@@ -161,7 +158,7 @@ function collectMemoryStats(forceGC: boolean): MemoryStats {
       mallocedMemory: heapStats.malloced_memory,
       peakMallocedMemory: heapStats.peak_malloced_memory,
     },
-    swap: getSwapInfo(),
+    swap: await getSwapInfo(),
   };
 }
 
@@ -273,15 +270,26 @@ export const memoryUsageTool: UnifiedTool = {
     const forceGC = Boolean(args.gc);
 
     if (forceGC && !global.gc) {
-      // GC not exposed - inform user
-      const stats = collectMemoryStats(false);
+      if (isSilent()) {
+        return JSON.stringify({ error: 'gc_unavailable' });
+      }
+      const stats = await collectMemoryStats(false);
       return (
         formatMemoryStats(stats, detailed) +
         '\n\n*Note: GC was requested but is not exposed. Start node with --expose-gc flag to enable.*'
       );
     }
 
-    const stats = collectMemoryStats(forceGC);
+    const stats = await collectMemoryStats(forceGC);
+
+    if (isSilent()) {
+      return JSON.stringify({
+        rss: formatBytes(stats.process.rss),
+        heap: formatBytes(stats.process.heapUsed),
+        sysMem: `${stats.system.usedPercent.toFixed(0)}%`,
+      });
+    }
+
     return formatMemoryStats(stats, detailed);
   },
 };

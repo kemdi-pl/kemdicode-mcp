@@ -26,10 +26,11 @@
  */
 
 import { z } from 'zod';
-import { execSync } from 'child_process';
 import { platform } from 'os';
 import { UnifiedTool } from '../registry.js';
+import { isSilent } from '../../config/silent.js';
 import { Logger } from '../../utils/logger.js';
+import { asyncExec } from '../../utils/async-exec.js';
 
 /**
  * Process info structure
@@ -103,13 +104,13 @@ function parseTasklistOutput(output: string): ProcessInfo[] {
 /**
  * Get process list
  */
-function getProcessList(all: boolean, filter?: string): ProcessInfo[] {
+async function getProcessList(all: boolean, filter?: string): Promise<ProcessInfo[]> {
   const os = platform();
 
   try {
     if (os === 'win32') {
       const cmd = 'tasklist /FO TABLE';
-      const output = execSync(cmd, { encoding: 'utf-8', maxBuffer: 1024 * 1024 * 10 });
+      const output = await asyncExec(cmd, 10000);
       let processes = parseTasklistOutput(output);
 
       if (filter) {
@@ -119,14 +120,9 @@ function getProcessList(all: boolean, filter?: string): ProcessInfo[] {
 
       return processes;
     } else {
-      // Linux/macOS
       const userFlag = all ? '-A' : '-u $(whoami)';
       const cmd = `ps ${userFlag} -o user,pid,%cpu,%mem,start,command --sort=-%cpu`;
-      const output = execSync(cmd, {
-        encoding: 'utf-8',
-        shell: '/bin/bash',
-        maxBuffer: 1024 * 1024 * 10,
-      });
+      const output = await asyncExec(cmd, 10000);
       let processes = parsePsOutput(output);
 
       if (filter) {
@@ -235,13 +231,15 @@ export const processListTool: UnifiedTool = {
     const limit = (args.limit as number) || 20;
     const all = Boolean(args.all);
 
-    const processes = getProcessList(all, filter);
+    const processes = await getProcessList(all, filter);
 
     if (processes.length === 0) {
-      if (filter) {
-        return `No processes found matching "${filter}"`;
-      }
-      return 'No processes found';
+      return filter ? `No processes matching "${filter}"` : 'No processes found';
+    }
+
+    if (isSilent()) {
+      const sorted = sortProcesses(processes, sortBy).slice(0, limit);
+      return JSON.stringify(sorted.map((p) => ({ pid: p.pid, cpu: p.cpu, mem: p.memory, cmd: p.command.slice(0, 60) })));
     }
 
     return formatProcessList(processes, sortBy, limit);

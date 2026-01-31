@@ -35,6 +35,7 @@ import {
   getRedis,
   getProjectId,
 } from './shared.js';
+import { isSilent } from '../../config/silent.js';
 
 /** Memory summary for listing */
 interface MemorySummary {
@@ -178,6 +179,11 @@ export const listMemoriesTool: UnifiedTool = {
       }
 
       Logger.debug(`list-memories: found ${memories.length} memories for project ${projectId}`);
+
+      // Silent mode: return names only (or names+tags in compact)
+      if (isSilent()) {
+        return JSON.stringify(memories.map((m) => ({ name: m.name, tags: m.tags })));
+      }
 
       return JSON.stringify({
         success: true,

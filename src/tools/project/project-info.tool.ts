@@ -26,10 +26,18 @@
  */
 
 import { z } from 'zod';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync } from 'fs';
 import { join, basename } from 'path';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
+import { isSilent } from '../../config/silent.js';
+import { cachedReadFile } from '../../utils/async-file.js';
+
+/**
+ * Module-level cache for project info (30s TTL)
+ */
+let cachedInfo: { data: ProjectInfo; cwd: string; timestamp: number } | null = null;
+const CACHE_TTL_MS = 30_000; // 30 seconds
 
 /**
  * Project type enumeration
@@ -72,9 +80,9 @@ const schema = z.object({
 /**
  * Parse package.json for Node.js projects
  */
-function parsePackageJson(filePath: string, includeDevDeps: boolean): ProjectInfo | null {
+async function parsePackageJson(filePath: string, includeDevDeps: boolean): Promise<ProjectInfo | null> {
   try {
-    const content = JSON.parse(readFileSync(filePath, 'utf-8'));
+    const content = JSON.parse(await cachedReadFile(filePath));
     const deps: DependencyInfo[] = [];
     const devDeps: DependencyInfo[] = [];
 
@@ -114,9 +122,9 @@ function parsePackageJson(filePath: string, includeDevDeps: boolean): ProjectInf
 /**
  * Parse composer.json for PHP projects
  */
-function parseComposerJson(filePath: string, includeDevDeps: boolean): ProjectInfo | null {
+async function parseComposerJson(filePath: string, includeDevDeps: boolean): Promise<ProjectInfo | null> {
   try {
-    const content = JSON.parse(readFileSync(filePath, 'utf-8'));
+    const content = JSON.parse(await cachedReadFile(filePath));
     const deps: DependencyInfo[] = [];
     const devDeps: DependencyInfo[] = [];
 
@@ -155,9 +163,9 @@ function parseComposerJson(filePath: string, includeDevDeps: boolean): ProjectIn
 /**
  * Parse Cargo.toml for Rust projects
  */
-function parseCargoToml(filePath: string, includeDevDeps: boolean): ProjectInfo | null {
+async function parseCargoToml(filePath: string, includeDevDeps: boolean): Promise<ProjectInfo | null> {
   try {
-    const content = readFileSync(filePath, 'utf-8');
+    const content = await cachedReadFile(filePath);
     const deps: DependencyInfo[] = [];
     const devDeps: DependencyInfo[] = [];
 
@@ -217,9 +225,9 @@ function parseCargoToml(filePath: string, includeDevDeps: boolean): ProjectInfo 
 /**
  * Parse pyproject.toml for Python projects
  */
-function parsePyprojectToml(filePath: string, includeDevDeps: boolean): ProjectInfo | null {
+async function parsePyprojectToml(filePath: string, includeDevDeps: boolean): Promise<ProjectInfo | null> {
   try {
-    const content = readFileSync(filePath, 'utf-8');
+    const content = await cachedReadFile(filePath);
     const deps: DependencyInfo[] = [];
     const devDeps: DependencyInfo[] = [];
 
@@ -280,9 +288,9 @@ function parsePyprojectToml(filePath: string, includeDevDeps: boolean): ProjectI
 /**
  * Parse go.mod for Go projects
  */
-function parseGoMod(filePath: string): ProjectInfo | null {
+async function parseGoMod(filePath: string): Promise<ProjectInfo | null> {
   try {
-    const content = readFileSync(filePath, 'utf-8');
+    const content = await cachedReadFile(filePath);
     const deps: DependencyInfo[] = [];
 
     // Parse module name
@@ -327,7 +335,7 @@ function parseGoMod(filePath: string): ProjectInfo | null {
 /**
  * Detect project type and parse configuration
  */
-function detectAndParseProject(cwd: string, includeDevDeps: boolean): ProjectInfo | null {
+async function detectAndParseProject(cwd: string, includeDevDeps: boolean): Promise<ProjectInfo | null> {
   const configFiles = [
     { file: 'package.json', parser: parsePackageJson },
     { file: 'composer.json', parser: parseComposerJson },
@@ -340,9 +348,9 @@ function detectAndParseProject(cwd: string, includeDevDeps: boolean): ProjectInf
     const filePath = join(cwd, file);
     if (existsSync(filePath)) {
       if (file === 'go.mod') {
-        return parseGoMod(filePath);
+        return await parseGoMod(filePath);
       }
-      return parser(filePath, includeDevDeps);
+      return await parser(filePath, includeDevDeps);
     }
   }
 
@@ -434,10 +442,28 @@ export const projectInfoTool: UnifiedTool = {
       throw new Error(`Directory not found: ${cwd}`);
     }
 
-    const info = detectAndParseProject(cwd, includeDevDeps);
+    // Check cache: valid if same CWD and within TTL
+    const now = Date.now();
+    if (cachedInfo && cachedInfo.cwd === cwd && now - cachedInfo.timestamp < CACHE_TTL_MS) {
+      const info = cachedInfo.data;
+      if (isSilent()) {
+        return JSON.stringify({ name: info.name, version: info.version, type: info.type, deps: info.dependencies.length });
+      }
+      return formatProjectInfo(info, includeScripts);
+    }
+
+    // Cache miss or expired - fetch fresh data
+    const info = await detectAndParseProject(cwd, includeDevDeps);
 
     if (!info) {
       return `No project configuration found in ${cwd}\nSearched for: package.json, composer.json, Cargo.toml, pyproject.toml, go.mod`;
+    }
+
+    // Update cache
+    cachedInfo = { data: info, cwd, timestamp: now };
+
+    if (isSilent()) {
+      return JSON.stringify({ name: info.name, version: info.version, type: info.type, deps: info.dependencies.length });
     }
 
     return formatProjectInfo(info, includeScripts);

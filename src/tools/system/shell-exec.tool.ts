@@ -45,6 +45,7 @@ import {
   checkRateLimit,
 } from '../../utils/validation.js';
 import { maskSensitiveData } from '../../utils/security.js';
+import { isSilent } from '../../config/silent.js';
 
 /**
  * List of dangerous commands that should be blocked
@@ -267,7 +268,9 @@ async function executeShellCommand(
       const duration = ((Date.now() - start) / 1000).toFixed(2);
       const output = stdout + (stderr ? `\nSTDERR:\n${stderr}` : '');
 
-      if (code === 0) {
+      if (isSilent()) {
+        resolve(output.trim());
+      } else if (code === 0) {
         resolve(output.trim() + `\n\n[Exit: 0, Duration: ${duration}s]`);
       } else {
         resolve(output.trim() + `\n\n[Exit: ${code}, Duration: ${duration}s]`);

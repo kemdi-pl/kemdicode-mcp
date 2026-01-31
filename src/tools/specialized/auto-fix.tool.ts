@@ -25,6 +25,7 @@ import { getEnhancedContextString } from '../../utils/projectContext.enhanced.js
 import { Logger } from '../../utils/logger.js';
 import { validatePath } from '../../utils/validation.js';
 import { recordSuggestion } from '../../context/feedback-loop.js';
+import { isSilent } from '../../config/silent.js';
 
 const FOCUS_MAP: Record<string, string> = {
   security: 'SECURITY: SQL injection, XSS, CSRF, auth bypass, hardcoded secrets',
@@ -304,6 +305,10 @@ Begin analysis:`;
       ).catch(() => {
         /* ignore errors */
       });
+    }
+
+    if (isSilent()) {
+      return JSON.stringify({ applied: successful.length, failed: failed.length });
     }
 
     return JSON.stringify({

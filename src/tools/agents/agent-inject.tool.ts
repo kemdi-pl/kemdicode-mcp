@@ -27,6 +27,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getAgentMonitor } from '../../context/agent-monitor.js';
 import { sanitizeTerminalOutput, wrapText } from '../../utils/format-helpers.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   agentId: z.string().describe('Target agent ID'),
@@ -102,6 +103,10 @@ export const agentInjectTool: UnifiedTool<typeof schema> = {
 
     if (!success) {
       return `Failed to inject ${type} into agent ${agentId}.`;
+    }
+
+    if (isSilent()) {
+      return JSON.stringify({ agentId, type });
     }
 
     const typeIcon = {

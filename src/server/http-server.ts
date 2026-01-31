@@ -126,14 +126,10 @@ export async function startHttpServer(host: string, port: number): Promise<Serve
     // Health check endpoint
     if (url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
+      // Optimize: Build JSON manually for simple health response (avoid JSON.stringify overhead)
+      const serverCfg = config.get('server');
       res.end(
-        JSON.stringify({
-          status: 'ok',
-          version: VERSION,
-          activeSessions: transports.size,
-          activeStreams: executionStreams.size,
-          model: config.get('server').primaryModel,
-        })
+        `{"status":"ok","version":"${VERSION}","activeSessions":${transports.size},"activeStreams":${executionStreams.size},"model":"${serverCfg.primaryModel}"}`
       );
       finishRequest(200);
       return;
@@ -142,6 +138,7 @@ export async function startHttpServer(host: string, port: number): Promise<Serve
     // List available tools endpoint
     if (url === '/tools' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
+      // getToolDefinitions() now returns cached result on subsequent calls
       res.end(JSON.stringify({ tools: getToolDefinitions() }));
       finishRequest(200);
       return;
@@ -160,18 +157,19 @@ export async function startHttpServer(host: string, port: number): Promise<Serve
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        lastSession: latest ? {
-          sessionId: latest.sessionId,
-          cwd: latest.config?.cwd,
-          lastTool: latest.activity.lastTool,
-          lastToolArgs: latest.activity.lastToolArgs,
-          lastToolAt: new Date(latest.activity.lastToolAt).toISOString(),
-          toolCount: latest.activity.toolCount,
-          description: `Session ${latest.sessionId}, last tool: ${latest.activity.lastTool}${latest.activity.lastToolArgs ? ' (' + latest.activity.lastToolArgs + ')' : ''}`,
-        } : null,
-        activeSessions: sessions.size,
-      }));
+      // Optimize: Build resume JSON manually to avoid object allocation
+      if (latest) {
+        const cwdJson = latest.config?.cwd ? `,"cwd":"${latest.config.cwd.replace(/"/g, '\\"')}"` : '';
+        const argsJson = latest.activity.lastToolArgs
+          ? `,"lastToolArgs":"${latest.activity.lastToolArgs.replace(/"/g, '\\"')}"`
+          : '';
+        const argsSuffix = latest.activity.lastToolArgs ? ` (${latest.activity.lastToolArgs})` : '';
+        res.end(
+          `{"lastSession":{"sessionId":"${latest.sessionId}"${cwdJson},"lastTool":"${latest.activity.lastTool}"${argsJson},"lastToolAt":"${new Date(latest.activity.lastToolAt).toISOString()}","toolCount":${latest.activity.toolCount},"description":"Session ${latest.sessionId}, last tool: ${latest.activity.lastTool}${argsSuffix}"},"activeSessions":${sessions.size}}`
+        );
+      } else {
+        res.end(`{"lastSession":null,"activeSessions":${sessions.size}}`);
+      }
       finishRequest(200);
       return;
     }
@@ -263,13 +261,11 @@ export async function startHttpServer(host: string, port: number): Promise<Serve
       // Send resume info if session has prior activity
       const activity = getSessionActivity(sseSessionId);
       if (activity) {
-        const resumeData = JSON.stringify({
-          sessionId: sseSessionId,
-          lastTool: activity.lastTool,
-          lastToolArgs: activity.lastToolArgs,
-          lastToolAt: new Date(activity.lastToolAt).toISOString(),
-          toolCount: activity.toolCount,
-        });
+        // Optimize: Manually build JSON for resume data (avoid object allocation + stringify)
+        const lastToolArgsJson = activity.lastToolArgs
+          ? `,"lastToolArgs":"${activity.lastToolArgs.replace(/"/g, '\\"')}"`
+          : '';
+        const resumeData = `{"sessionId":"${sseSessionId}","lastTool":"${activity.lastTool}"${lastToolArgsJson},"lastToolAt":"${new Date(activity.lastToolAt).toISOString()}","toolCount":${activity.toolCount}}`;
         res.write(`event: resume\ndata: ${resumeData}\n\n`);
       }
 
@@ -302,7 +298,7 @@ export async function startHttpServer(host: string, port: number): Promise<Serve
 
       if (!msgSessionId) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Missing sessionId' }));
+        res.end('{"error":"Missing sessionId"}');
         finishRequest(400);
         return;
       }
@@ -377,11 +373,11 @@ export async function startHttpServer(host: string, port: number): Promise<Serve
           getAllSessionServers().delete(mcpSessionId);
           Logger.sessionEvent('deleted', mcpSessionId, { source: 'explicit-delete' });
           res.writeHead(200);
-          res.end(JSON.stringify({ status: 'closed', sessionId: mcpSessionId }));
+          res.end(`{"status":"closed","sessionId":"${mcpSessionId}"}`);
           finishRequest(200);
         } else {
           res.writeHead(404);
-          res.end(JSON.stringify({ error: 'Session not found' }));
+          res.end('{"error":"Session not found"}');
           finishRequest(404);
         }
         return;
@@ -390,7 +386,7 @@ export async function startHttpServer(host: string, port: number): Promise<Serve
 
     // 404 for other routes
     res.writeHead(404);
-    res.end(JSON.stringify({ error: 'Not found' }));
+    res.end('{"error":"Not found"}');
     finishRequest(404);
   });
 

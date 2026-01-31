@@ -29,6 +29,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { createBoard, addBoardMember, resolveSessionId, resolveWorkspaceId } from '../../kanban/index.js';
+import { isSilent } from '../../config/silent.js';
 
 const boardItemSchema = z.object({
   name: z.string().min(1).max(100).describe('Board name'),
@@ -121,6 +122,14 @@ export const boardCreateTool: UnifiedTool = {
 
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
+
+    // Silent mode: return only board IDs
+    if (isSilent()) {
+      if (failed.length > 0) {
+        return JSON.stringify({ created: successful.map((r) => r.id), errors: failed.map((r) => r.error) });
+      }
+      return JSON.stringify(successful.map((r) => r.id));
+    }
 
     return JSON.stringify({
       success: failed.length === 0,

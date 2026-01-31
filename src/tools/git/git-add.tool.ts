@@ -27,6 +27,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { execGit, validateGitRepo, formatGitError } from '../../utils/git-utils.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   files: z
@@ -80,6 +81,10 @@ export const gitAddTool: UnifiedTool = {
       const stagedLines = status
         .split('\n')
         .filter((line) => line.length > 0 && line[0] !== ' ' && line[0] !== '?');
+
+      if (isSilent()) {
+        return `Staged ${files.length} file(s).`;
+      }
 
       const summary = stagedLines.length > 0
         ? `Staged ${files.length} file(s):\n${stagedLines.join('\n')}`

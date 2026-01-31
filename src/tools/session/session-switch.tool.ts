@@ -26,6 +26,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getSessionManager } from '../../session/manager.js';
 import { setCurrentSession, getCurrentSessionId } from '../../context/integration.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   sessionId: z.string().describe('Target session ID'),
@@ -76,6 +77,10 @@ export const sessionSwitchTool: UnifiedTool<typeof schema> = {
 
     // Set as current session
     setCurrentSession(sessionId);
+
+    if (isSilent()) {
+      return JSON.stringify({ sessionId, model: session.model });
+    }
 
     const lines: string[] = [
       '╔══════════════════════════════════════════════════════════════════╗',

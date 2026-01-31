@@ -39,6 +39,7 @@ import {
   getProjectId,
   getExistingCreatedAt,
 } from './shared.js';
+import { isSilent } from '../../config/silent.js';
 
 const memoryItemSchema = z.object({
   name: z
@@ -163,6 +164,14 @@ export const writeMemoryTool: UnifiedTool = {
 
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
+
+    // Silent mode: return only names
+    if (isSilent()) {
+      if (failed.length > 0) {
+        return JSON.stringify({ stored: successful.map((r) => r.name), errors: failed.map((r) => r.error) });
+      }
+      return JSON.stringify(successful.map((r) => r.name));
+    }
 
     return JSON.stringify({
       success: failed.length === 0,

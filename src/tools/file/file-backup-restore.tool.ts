@@ -33,6 +33,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { fromNodeError, formatErrorResponse } from '../../utils/errors.js';
 import { validatePath, ValidationError, checkRateLimit } from '../../utils/validation.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   action: z.enum(['list', 'restore']).describe('List available backups or restore one'),
@@ -160,6 +161,11 @@ export const fileBackupRestoreTool: UnifiedTool = {
     if (action === 'list') {
       try {
         const backups = await findBackups(validatedPath);
+
+        // Silent mode: return backup paths only
+        if (isSilent()) {
+          return JSON.stringify(backups.map((b) => b.path));
+        }
 
         return JSON.stringify({
           success: true,

@@ -29,6 +29,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { joinWorkspace, getWorkspace, resolveSessionId, resolveWorkspaceId } from '../../kanban/index.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   workspaceId: z.string().min(1).describe('Workspace ID or "name:Workspace Name"'),
@@ -83,6 +84,11 @@ export const workspaceJoinTool: UnifiedTool = {
       Logger.debug(
         `workspace-join: session ${sessionId} joined workspace ${resolvedWorkspaceId}`
       );
+
+      // Silent mode: return workspace ID only
+      if (isSilent()) {
+        return JSON.stringify({ id: resolvedWorkspaceId });
+      }
 
       return JSON.stringify({
         success: true,

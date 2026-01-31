@@ -34,6 +34,7 @@ import {
   formatGitError,
   enhanceGitErrorMessage,
 } from '../../utils/git-utils.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   cwd: z.string().optional().describe('Working directory'),
@@ -94,6 +95,7 @@ export const gitBranchTool: UnifiedTool = {
       switch (action) {
         case 'current': {
           const currentBranch = getCurrentBranch(cwd);
+          if (isSilent()) return currentBranch;
           return `Current branch: ${currentBranch}`;
         }
 
@@ -122,6 +124,10 @@ export const gitBranchTool: UnifiedTool = {
             return 'No branches found.';
           }
 
+          if (isSilent()) {
+            return output.trim();
+          }
+
           // Add header with current branch info
           const currentBranch = getCurrentBranch(cwd);
           const header = `Current branch: ${currentBranch}\n\nBranches:\n`;
@@ -148,6 +154,7 @@ export const gitBranchTool: UnifiedTool = {
           }
 
           execGit(createArgs, { cwd });
+          if (isSilent()) return name;
           return `Branch '${name}' created successfully.${startPoint ? ` Based on: ${startPoint}` : ''}`;
         }
 
@@ -167,6 +174,7 @@ export const gitBranchTool: UnifiedTool = {
           deleteArgs.push(name);
 
           execGit(deleteArgs, { cwd });
+          if (isSilent()) return name;
           return `Branch '${name}' deleted successfully.`;
         }
 

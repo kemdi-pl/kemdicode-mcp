@@ -67,6 +67,29 @@ export const PROTOCOL = {
 } as const;
 
 /**
+ * Silent mode configuration
+ *
+ * Environment variables:
+ * - KEMDICODE_SILENT: 1 | true | silent | compact (default: off)
+ *
+ * CLI flags:
+ * - --silent, -s: Enable silent mode (minimal output)
+ * - --compact: Enable compact mode (essential fields only)
+ */
+export const SILENT = {
+  /** Environment variable name */
+  ENV_VAR: 'KEMDICODE_SILENT',
+  /** Output levels */
+  LEVELS: {
+    SILENT: 'silent' as const,
+    COMPACT: 'compact' as const,
+    NORMAL: 'normal' as const,
+  },
+  /** Max response size in silent mode (bytes) */
+  MAX_RESPONSE_SIZE: 8192,
+} as const;
+
+/**
  * Logging configuration
  *
  * Environment variables:

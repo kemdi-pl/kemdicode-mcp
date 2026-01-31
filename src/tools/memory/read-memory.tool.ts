@@ -29,6 +29,7 @@ import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 import { type ProjectMemory, MEMORY_PREFIX, getRedis, getProjectId } from './shared.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   names: z.array(z.string().min(1)).min(1).max(20).describe('Memory names to retrieve (1-20)'),
@@ -109,6 +110,20 @@ export const readMemoryTool: UnifiedTool = {
 
       const successful = results.filter((r) => r.success);
       const failed = results.filter((r) => !r.success);
+
+      // Silent mode: return content directly
+      if (isSilent()) {
+        if (names.length === 1 && successful.length === 1) {
+          // Single memory: return content string directly
+          return successful[0].content as string;
+        }
+        // Multiple: return name->content map
+        const map: Record<string, string | null> = {};
+        for (const r of results) {
+          map[r.name] = r.success ? (r as { content: string }).content : null;
+        }
+        return JSON.stringify(map);
+      }
 
       return JSON.stringify({
         success: failed.length === 0,

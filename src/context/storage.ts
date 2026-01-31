@@ -60,6 +60,8 @@ export class ContextStorage {
   private readonly prefix: string;
   /** Connection status flag */
   private connected = false;
+  /** Connection promise for lazy initialization */
+  private connectPromise: Promise<boolean> | null = null;
 
   /**
    * Create a new ContextStorage instance
@@ -71,10 +73,11 @@ export class ContextStorage {
   }
 
   /**
-   * Initialize Redis connection
+   * Initialize Redis connection (lazy)
    *
    * @description Establishes connection to Redis with retry strategy. Uses
    *              environment variables as fallback for connection settings.
+   *              Connection is only established on first call (lazy initialization).
    * @returns {Promise<boolean>} True if connection succeeded, false otherwise
    * @throws {Error} Does not throw - returns false on failure
    * @example
@@ -84,10 +87,28 @@ export class ContextStorage {
    * ```
    */
   async connect(): Promise<boolean> {
+    // Already connected
     if (this.connected && this.redis) {
       return true;
     }
 
+    // Connection in progress - wait for it
+    if (this.connectPromise) {
+      return this.connectPromise;
+    }
+
+    // Start new connection
+    this.connectPromise = this._doConnect();
+    const result = await this.connectPromise;
+    this.connectPromise = null;
+    return result;
+  }
+
+  /**
+   * Internal connection implementation
+   * @private
+   */
+  private async _doConnect(): Promise<boolean> {
     try {
       this.redis = new Redis({
         host: this.config.host || process.env.REDIS_HOST || '127.0.0.1',
@@ -117,6 +138,21 @@ export class ContextStorage {
       this.connected = false;
       return false;
     }
+  }
+
+  /**
+   * Ensure Redis connection is established
+   *
+   * @description Lazy connection helper - connects if not already connected.
+   *              Called internally before any Redis operation.
+   * @returns {Promise<boolean>} True if connected, false otherwise
+   * @private
+   */
+  private async ensureConnected(): Promise<boolean> {
+    if (!this.connected || !this.redis) {
+      return await this.connect();
+    }
+    return true;
   }
 
   /**
@@ -169,7 +205,8 @@ export class ContextStorage {
    * ```
    */
   async saveContext(entry: McpContextEntry): Promise<boolean> {
-    if (!this.redis) {
+    // Lazy connect on first use
+    if (!(await this.ensureConnected()) || !this.redis) {
       Logger.warn('Context storage not connected, skipping save');
       return false;
     }
@@ -224,7 +261,7 @@ export class ContextStorage {
    * @returns {Promise<McpContextEntry | null>} The entry if found, null otherwise
    */
   async getContext(sessionId: string, entryId: string): Promise<McpContextEntry | null> {
-    if (!this.redis) return null;
+    if (!(await this.ensureConnected()) || !this.redis) return null;
 
     const startTime = Date.now();
     const key = `${REDIS_KEYS.CONTEXT}${sessionId}:${entryId}`;
@@ -261,7 +298,7 @@ export class ContextStorage {
    * ```
    */
   async queryContext(query: ContextQuery): Promise<McpContextEntry[]> {
-    if (!this.redis || !query.sessionId) return [];
+    if (!(await this.ensureConnected()) || !this.redis || !query.sessionId) return [];
 
     const startTime = Date.now();
 
@@ -355,7 +392,7 @@ export class ContextStorage {
    * @returns {Promise<McpContextEntry[]>} Array of entries, newest first
    */
   async getSessionHistory(sessionId: string, limit = 50): Promise<McpContextEntry[]> {
-    if (!this.redis) return [];
+    if (!(await this.ensureConnected()) || !this.redis) return [];
 
     try {
       // Get most recent entries (reverse order)
@@ -387,7 +424,7 @@ export class ContextStorage {
    * @returns {Promise<McpSession | null>} Session metadata or null if not found
    */
   async getSession(sessionId: string): Promise<McpSession | null> {
-    if (!this.redis) return null;
+    if (!(await this.ensureConnected()) || !this.redis) return null;
 
     try {
       const key = `${REDIS_KEYS.SESSION}${sessionId}`;
@@ -408,7 +445,7 @@ export class ContextStorage {
    * @returns {Promise<boolean>} True if update succeeded, false otherwise
    */
   async updateSession(session: McpSession): Promise<boolean> {
-    if (!this.redis) return false;
+    if (!(await this.ensureConnected()) || !this.redis) return false;
 
     try {
       const key = `${REDIS_KEYS.SESSION}${session.id}`;
@@ -430,7 +467,7 @@ export class ContextStorage {
    * @returns {Promise<boolean>} True if clear succeeded, false otherwise
    */
   async clearSession(sessionId: string): Promise<boolean> {
-    if (!this.redis) return false;
+    if (!(await this.ensureConnected()) || !this.redis) return false;
 
     const startTime = Date.now();
 
@@ -487,7 +524,7 @@ export class ContextStorage {
    * @returns {Promise<string | null>} Value or null if not found
    */
   async get(key: string): Promise<string | null> {
-    if (!this.redis) return null;
+    if (!(await this.ensureConnected()) || !this.redis) return null;
     try {
       return await this.redis.get(key);
     } catch {
@@ -506,7 +543,7 @@ export class ContextStorage {
    * @returns {Promise<boolean>} True if set succeeded, false otherwise
    */
   async set(key: string, value: string, ttlSeconds?: number): Promise<boolean> {
-    if (!this.redis) return false;
+    if (!(await this.ensureConnected()) || !this.redis) return false;
     try {
       if (ttlSeconds) {
         await this.redis.setex(key, ttlSeconds, value);
@@ -527,7 +564,7 @@ export class ContextStorage {
    * @returns {Promise<Record<string, number>>} Stats object with totalKeys and connected
    */
   async getStats(): Promise<Record<string, number>> {
-    if (!this.redis) return {};
+    if (!(await this.ensureConnected()) || !this.redis) return {};
 
     try {
       const info = await this.redis.info('keyspace');

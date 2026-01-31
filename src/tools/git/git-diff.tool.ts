@@ -28,6 +28,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { execGit, validateGitRepo, parseFileList, formatGitError } from '../../utils/git-utils.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   cwd: z.string().optional().describe('Working directory'),
@@ -149,7 +150,7 @@ export const gitDiffTool: UnifiedTool = {
       }
 
       const result = output.trim();
-      if (format === 'json') {
+      if (format === 'json' && !isSilent()) {
         return JSON.stringify({ success: true, output: result, tool: 'git-diff' });
       }
       return result;

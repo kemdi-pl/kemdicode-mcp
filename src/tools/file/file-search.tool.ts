@@ -37,6 +37,7 @@ import {
   checkRateLimit,
   quickPathCheck,
 } from '../../utils/validation.js';
+import { isSilent } from '../../config/silent.js';
 
 /** Maximum number of matches to return */
 const MAX_MATCHES = 500;
@@ -419,6 +420,18 @@ export const fileSearchTool: UnifiedTool = {
         if (result.totalMatches === 0) {
           result.success = true;
           result.matches = [];
+        }
+
+        // Silent mode: return matches/files/counts without metadata
+        if (isSilent()) {
+          if (result.files) {
+            resolve(JSON.stringify(result.files));
+          } else if (result.counts) {
+            resolve(JSON.stringify(result.counts));
+          } else {
+            resolve(JSON.stringify(result.matches?.map((m) => ({ file: m.file, line: m.line, content: m.content })) || []));
+          }
+          return;
         }
 
         resolve(JSON.stringify(result));

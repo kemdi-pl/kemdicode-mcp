@@ -21,6 +21,7 @@ import { UnifiedTool } from '../registry.js';
 import { executeAI, parseFiles } from '../../ai/index.js';
 import { getEnhancedContextString } from '../../utils/projectContext.enhanced.js';
 import { recordSuggestion } from '../../context/feedback-loop.js';
+import { isSilent } from '../../config/silent.js';
 
 const TYPE_PROMPTS: Record<string, string> = {
   unit: `**UNIT TESTS** - Test individual methods in isolation, mock dependencies, use PHPUnit assertions. Location: tests/Unit/`,
@@ -60,7 +61,13 @@ export const writeTestsTool: UnifiedTool = {
     if (!files?.toString().trim()) throw new Error('Files required. Use @path/file.php syntax.');
 
     const filesStr = String(files);
-    const prompt = `${getEnhancedContextString()}
+    const silent = isSilent();
+
+    const prompt = silent
+      ? `${getEnhancedContextString()}
+Generate tests (${type}, ${coverage}) for: ${filesStr}
+Output: raw test code only, no explanations, no markdown fences.`
+      : `${getEnhancedContextString()}
 # Generate Tests Request
 
 ${TYPE_PROMPTS[type as string]}

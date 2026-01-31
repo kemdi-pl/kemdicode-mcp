@@ -25,6 +25,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getAgentMonitor } from '../../context/agent-monitor.js';
+import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   sessionId: z.string().optional().describe('Filter by session ID (optional)'),
@@ -58,9 +59,14 @@ export const agentListTool: UnifiedTool = {
     const filtered = includeIdle ? agents : agents.filter((a) => a.status !== 'idle');
 
     if (filtered.length === 0) {
+      if (isSilent()) return '[]';
       return sessionId
         ? `No active agents found in session: ${sessionId}`
         : 'No active agents found in the system.';
+    }
+
+    if (isSilent()) {
+      return JSON.stringify(filtered.map((a) => ({ id: a.id, role: a.role, status: a.status })));
     }
 
     const lines: string[] = [

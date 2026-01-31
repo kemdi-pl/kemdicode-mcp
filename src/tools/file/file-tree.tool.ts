@@ -31,6 +31,7 @@ import { join, basename } from 'path';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { validatePath, ValidationError } from '../../utils/validation.js';
+import { isSilent } from '../../config/silent.js';
 
 /** Maximum entries to prevent memory issues */
 const MAX_ENTRIES = 5000;
@@ -448,6 +449,12 @@ export const fileTreeTool: UnifiedTool<typeof schema> = {
       result.totalDirs = stats.dirs;
       result.totalSize = stats.size;
       result.truncated = stats.entries >= treeArgs.maxEntries;
+
+      // Silent mode: return formatted tree string only
+      if (isSilent()) {
+        const formattedTree = formatTreeString(tree, '', true);
+        return formattedTree;
+      }
 
       // Also include a formatted string representation
       const formattedTree = formatTreeString(tree, '', true);

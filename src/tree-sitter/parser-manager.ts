@@ -110,6 +110,7 @@ let initialized = false;
 
 /**
  * Initialize the tree-sitter parser
+ * OPTIMIZATION: Already implements lazy loading - only initializes on first use
  */
 export async function initParser(): Promise<void> {
   if (initialized) return;
@@ -127,6 +128,7 @@ export async function initParser(): Promise<void> {
 
 /**
  * Load a language grammar
+ * OPTIMIZATION: Already implements lazy loading - only loads WASM on first use per language
  */
 export async function loadLanguage(language: TreeSitterLanguage): Promise<Language> {
   // Return cached language if available

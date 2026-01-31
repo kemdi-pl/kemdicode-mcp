@@ -26,7 +26,8 @@ export const pingTool: UnifiedTool = {
   name: 'ping',
   description: 'Echo test message',
   zodSchema: z.object({ prompt: z.string().default('pong') }),
-  execute: async (args) => executeCommand('echo', [String(args.prompt || 'pong')]),
+  // Optimize: direct return instead of subprocess spawn for simple echo
+  execute: async (args) => String(args.prompt || 'pong'),
 };
 
 export const helpTool: UnifiedTool = {
