@@ -29,6 +29,7 @@
 import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
 import { Logger } from '../utils/logger.js';
 import type { ConfidenceRecord, ConfidenceProfile } from './types.js';
+import { getCognitionEventBus } from './event-bus.js';
 import { COGNITION_KEYS, COGNITION_TTL } from './types.js';
 import { randomBytes } from 'crypto';
 
@@ -134,6 +135,22 @@ export class ConfidenceStore extends RedisBackedService {
         `[ConfidenceStore] Recorded ${id} (confidence=${record.confidence}, flagged=${flaggedForReview})`
       );
 
+
+      // Emit event for cross-tool reactions
+      getCognitionEventBus().emit({
+        type: fullRecord.confidence < 0.5 ? 'confidence:low' : 'confidence:recorded',
+        timestamp: fullRecord.timestamp,
+        sessionId: fullRecord.sessionId,
+        agentId: fullRecord.agentId,
+        sourceId: fullRecord.id,
+        sourceType: 'confidence',
+        payload: {
+          toolName: fullRecord.toolName,
+          confidence: fullRecord.confidence,
+          domain: fullRecord.domain,
+          flaggedForReview: fullRecord.flaggedForReview,
+        },
+      });
       return fullRecord;
     } catch (error) {
       Logger.error('[ConfidenceStore] Failed to record confidence:', error);
@@ -218,6 +235,17 @@ export class ConfidenceStore extends RedisBackedService {
       }
 
       Logger.info(`[ConfidenceStore] Updated outcome for ${id}: ${outcome}`);
+
+      // Emit outcome update event
+      getCognitionEventBus().emit({
+        type: 'confidence:outcome-updated',
+        timestamp: Date.now(),
+        sessionId: record.sessionId,
+        agentId: record.agentId,
+        sourceId: id,
+        sourceType: 'confidence',
+        payload: { outcome, confidenceId: id },
+      });
       return true;
     } catch (error) {
       Logger.error(`[ConfidenceStore] Failed to update outcome for ${id}:`, error);

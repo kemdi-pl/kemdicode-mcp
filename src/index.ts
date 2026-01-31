@@ -56,6 +56,7 @@ import { registerBuiltinProviders, setProviderConfig } from './ai/providers/regi
 import type { ProviderId } from './ai/providers/types.js';
 import { VERSION, type ServerConfig, startHttpServer, stopHttpServer, broadcastNotification } from './server/index.js';
 import { initToolsBroadcast, warmupLazySchemas } from './tools/registry.js';
+import { initCognitionEventHandlers } from './cognition/index.js';
 
 // Re-export for backwards compatibility
 export {
@@ -275,6 +276,9 @@ async function main(): Promise<void> {
   warmupLazySchemas().catch((err) => {
     Logger.warn(`Schema warmup failed: ${err instanceof Error ? err.message : String(err)}`);
   });
+
+  // Initialize cognition cross-tool event handlers
+  initCognitionEventHandlers();
 }
 
 main().catch((error) => {

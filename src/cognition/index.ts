@@ -36,7 +36,14 @@ export type {
   ContextBudgetEstimate,
 } from './types.js';
 
-export { COGNITION_KEYS, COGNITION_TTL } from './types.js';
+export { COGNITION_KEYS, COGNITION_TTL, COGNITION_LINK_KEYS } from './types.js';
+
+export type {
+  CognitionEvent,
+  CognitionEventType,
+  CognitionRecordType,
+  CognitionLink,
+} from './types.js';
 
 // Stores
 export { DecisionStore, getDecisionStore, resetDecisionStore } from './decision-store.js';
@@ -47,3 +54,12 @@ export { ErrorPatternStore, getErrorPatternStore, resetErrorPatternStore } from 
 export { SelfCritiqueStore, getSelfCritiqueStore, resetSelfCritiqueStore } from './self-critique-store.js';
 export { HandoffStore, getHandoffStore, resetHandoffStore } from './handoff-store.js';
 export { ContextBudgetManager, getContextBudgetManager, resetContextBudgetManager } from './context-budget-manager.js';
+
+// Event Bus
+export { CognitionEventBus, getCognitionEventBus, resetCognitionEventBus } from './event-bus.js';
+
+// Cross-Linker
+export { CognitionCrossLinker, getCrossLinker, resetCrossLinker } from './cross-linker.js';
+
+// Event Handlers
+export { initCognitionEventHandlers } from './event-handlers.js';

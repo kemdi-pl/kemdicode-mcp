@@ -30,6 +30,7 @@ import { RedisBackedService } from '../infrastructure/redis/redis-backed-service
 import { Logger } from '../utils/logger.js';
 import type { HandoffReport } from './types.js';
 import { COGNITION_KEYS, COGNITION_TTL } from './types.js';
+import { getCognitionEventBus } from './event-bus.js';
 import { randomBytes } from 'crypto';
 
 /**
@@ -103,6 +104,16 @@ export class HandoffStore extends RedisBackedService {
         await this.redis!.expire(latestKey, COGNITION_TTL.handoff);
       }
 
+      // Emit event for cross-tool reactions
+      getCognitionEventBus().emit({
+        type: 'handoff:created',
+        timestamp: full.timestamp,
+        sessionId: full.sessionId,
+        agentId: full.agentId,
+        sourceId: full.id,
+        sourceType: 'handoff',
+        payload: { intent: full.intent, confidence: full.confidence },
+      });
       return full;
     } catch (error) {
       Logger.error('[HandoffStore] Error creating handoff:', error);

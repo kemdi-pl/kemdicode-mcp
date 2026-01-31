@@ -46,6 +46,9 @@ const schema = z.object({
       'remove-component',
       'check-staleness',
       'refresh',
+      'impact-analysis',
+      'dependency-chain',
+      'invariant-check',
     ])
     .describe('Action to perform'),
   sessionId: z.string().describe('Session ID'),
@@ -605,6 +608,185 @@ export const mentalModelTool: UnifiedTool<typeof schema> = {
             success: true,
             modelId: input.modelId,
             message: 'Model refreshed. Stale marker cleared.',
+          });
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // IMPACT-ANALYSIS
+        // ─────────────────────────────────────────────────────────────────────
+        case 'impact-analysis': {
+          if (!input.modelId) {
+            return JSON.stringify({ success: false, error: 'modelId is required', code: 'MISSING_PARAM' });
+          }
+          if (!input.changedFiles || input.changedFiles.length === 0) {
+            return JSON.stringify({ success: false, error: 'changedFiles is required', code: 'MISSING_PARAM' });
+          }
+
+          const model = await store.get(input.modelId);
+          if (!model) {
+            return JSON.stringify({ success: false, error: `Model not found: ${input.modelId}`, code: 'NOT_FOUND' });
+          }
+
+          // Find directly affected components (by file overlap)
+          const directlyAffected = new Set<string>();
+          for (const comp of model.components) {
+            for (const file of input.changedFiles) {
+              const normalized = file.replace(/^@/, '').replace(/\\/g, '/');
+              if (comp.files.some((f) => f.replace(/^@/, '').replace(/\\/g, '/') === normalized)) {
+                directlyAffected.add(comp.name);
+              }
+            }
+          }
+
+          // BFS through relationships to find transitive impact
+          const transitivelyAffected = new Set<string>();
+          const queue = [...directlyAffected];
+          const visited = new Set<string>();
+
+          while (queue.length > 0) {
+            const current = queue.shift()!;
+            if (visited.has(current.toLowerCase())) continue;
+            visited.add(current.toLowerCase());
+
+            for (const rel of model.relationships) {
+              if (rel.to.toLowerCase() === current.toLowerCase() && !visited.has(rel.from.toLowerCase())) {
+                transitivelyAffected.add(rel.from);
+                queue.push(rel.from);
+              }
+              if (
+                rel.from.toLowerCase() === current.toLowerCase() &&
+                (rel.type === 'contains' || rel.type === 'extends') &&
+                !visited.has(rel.to.toLowerCase())
+              ) {
+                transitivelyAffected.add(rel.to);
+                queue.push(rel.to);
+              }
+            }
+          }
+
+          return JSON.stringify({
+            success: true,
+            modelId: input.modelId,
+            changedFiles: input.changedFiles,
+            directlyAffected: [...directlyAffected],
+            transitivelyAffected: [...transitivelyAffected].filter((c) => !directlyAffected.has(c)),
+            totalAffected: visited.size,
+            impactChain: [...visited],
+          });
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // DEPENDENCY-CHAIN
+        // ─────────────────────────────────────────────────────────────────────
+        case 'dependency-chain': {
+          if (!input.modelId || !input.componentName) {
+            return JSON.stringify({
+              success: false,
+              error: 'modelId and componentName are required',
+              code: 'MISSING_PARAM',
+            });
+          }
+
+          const model = await store.get(input.modelId);
+          if (!model) {
+            return JSON.stringify({ success: false, error: `Model not found: ${input.modelId}`, code: 'NOT_FOUND' });
+          }
+
+          // Forward: what componentName depends on
+          const dependencies: string[] = [];
+          const visitedDeps = new Set<string>();
+          const fwdQueue = [input.componentName];
+          while (fwdQueue.length > 0) {
+            const current = fwdQueue.shift()!;
+            if (visitedDeps.has(current.toLowerCase())) continue;
+            visitedDeps.add(current.toLowerCase());
+            for (const rel of model.relationships) {
+              if (
+                rel.from.toLowerCase() === current.toLowerCase() &&
+                (rel.type === 'depends-on' || rel.type === 'calls') &&
+                !visitedDeps.has(rel.to.toLowerCase())
+              ) {
+                dependencies.push(rel.to);
+                fwdQueue.push(rel.to);
+              }
+            }
+          }
+
+          // Backward: what depends on componentName
+          const dependents: string[] = [];
+          const visitedDependents = new Set<string>();
+          const bwdQueue = [input.componentName];
+          while (bwdQueue.length > 0) {
+            const current = bwdQueue.shift()!;
+            if (visitedDependents.has(current.toLowerCase())) continue;
+            visitedDependents.add(current.toLowerCase());
+            for (const rel of model.relationships) {
+              if (
+                rel.to.toLowerCase() === current.toLowerCase() &&
+                (rel.type === 'depends-on' || rel.type === 'calls') &&
+                !visitedDependents.has(rel.from.toLowerCase())
+              ) {
+                dependents.push(rel.from);
+                bwdQueue.push(rel.from);
+              }
+            }
+          }
+
+          return JSON.stringify({
+            success: true,
+            component: input.componentName,
+            dependencies,
+            dependents,
+          });
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // INVARIANT-CHECK
+        // ─────────────────────────────────────────────────────────────────────
+        case 'invariant-check': {
+          if (!input.modelId || !input.changedFiles || input.changedFiles.length === 0) {
+            return JSON.stringify({
+              success: false,
+              error: 'modelId and changedFiles are required',
+              code: 'MISSING_PARAM',
+            });
+          }
+
+          const model = await store.get(input.modelId);
+          if (!model) {
+            return JSON.stringify({ success: false, error: `Model not found: ${input.modelId}`, code: 'NOT_FOUND' });
+          }
+
+          const atRiskInvariants: Array<{ component: string; invariant: string; files: string[] }> = [];
+
+          for (const comp of model.components) {
+            const hasAffectedFile = comp.files.some((f) => {
+              const normalized = f.replace(/^@/, '').replace(/\\/g, '/');
+              return input.changedFiles!.some(
+                (cf) => cf.replace(/^@/, '').replace(/\\/g, '/') === normalized,
+              );
+            });
+
+            if (hasAffectedFile && comp.invariants.length > 0) {
+              for (const inv of comp.invariants) {
+                atRiskInvariants.push({
+                  component: comp.name,
+                  invariant: inv,
+                  files: comp.files,
+                });
+              }
+            }
+          }
+
+          return JSON.stringify({
+            success: true,
+            changedFiles: input.changedFiles,
+            atRiskInvariants,
+            totalInvariants: atRiskInvariants.length,
+            message:
+              atRiskInvariants.length > 0
+                ? `${atRiskInvariants.length} invariant(s) at risk. Review before committing.`
+                : 'No invariants affected by these changes.',
           });
         }
 

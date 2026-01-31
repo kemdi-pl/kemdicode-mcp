@@ -29,11 +29,12 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getSelfCritiqueStore } from '../../cognition/self-critique-store.js';
+import { getDecisionStore } from '../../cognition/decision-store.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 
 const schema = z.object({
-  action: z.enum(['reflect', 'get', 'list', 'lessons', 'trend']).describe('Action'),
+  action: z.enum(['reflect', 'get', 'list', 'lessons', 'trend', 'check-application']).describe('Action'),
   sessionId: z.string().describe('Session ID'),
   agentId: z.string().default('default-agent').describe('Agent ID'),
   // reflect
@@ -461,6 +462,74 @@ export const selfCritiqueTool: UnifiedTool<typeof schema> = {
           }
 
           lines.push(`\u2514${hr}\u2518`);
+
+          return lines.join('\n');
+        }
+
+        // ───────────────────────────────────────────────── check-application
+        case 'check-application': {
+          const lessons = await store.getLessonsLearned(50);
+          if (lessons.length === 0) {
+            return JSON.stringify({
+              success: true,
+              applied: [],
+              ignored: [],
+              message: 'No lessons found to check against.',
+            });
+          }
+
+          const decisionStore = getDecisionStore();
+          const recentDecisions = await decisionStore.listBySession(input.sessionId, 20);
+
+          const applied: Array<{ lesson: string; evidence: string }> = [];
+          const ignored: string[] = [];
+
+          for (const lesson of lessons) {
+            const lessonWords = new Set(
+              lesson.toLowerCase().split(/\s+/).filter((w) => w.length > 3),
+            );
+
+            let found = false;
+            for (const decision of recentDecisions) {
+              const decisionText =
+                `${decision.question} ${decision.chosen} ${decision.reasoning}`.toLowerCase();
+              const matchCount = [...lessonWords].filter((w) =>
+                decisionText.includes(w),
+              ).length;
+
+              if (matchCount >= 2) {
+                applied.push({
+                  lesson,
+                  evidence: `Decision "${decision.question}" (${decision.id})`,
+                });
+                found = true;
+                break;
+              }
+            }
+
+            if (!found) {
+              ignored.push(lesson);
+            }
+          }
+
+          const lines: string[] = [
+            '## Lesson Application Check',
+            `**Session:** ${input.sessionId}`,
+            `**Decisions analyzed:** ${recentDecisions.length}`,
+            `**Lessons checked:** ${lessons.length}`,
+            '',
+            `### Applied (${applied.length})`,
+          ];
+
+          for (const a of applied) {
+            lines.push(`- **Lesson:** ${a.lesson}`);
+            lines.push(`  **Evidence:** ${a.evidence}`);
+          }
+
+          lines.push('', `### Potentially Ignored (${ignored.length})`);
+          for (const lesson of ignored) {
+            lines.push(`- ${lesson}`);
+          }
 
           return lines.join('\n');
         }

@@ -30,6 +30,7 @@ import { RedisBackedService } from '../infrastructure/redis/redis-backed-service
 import { Logger } from '../utils/logger.js';
 import type { SelfCritique, CritiqueScope } from './types.js';
 import { COGNITION_KEYS, COGNITION_TTL } from './types.js';
+import { getCognitionEventBus } from './event-bus.js';
 import { randomBytes } from 'crypto';
 
 /**
@@ -92,6 +93,28 @@ export class SelfCritiqueStore extends RedisBackedService {
         await this.redis!.expire(sessionKey, COGNITION_TTL.critique);
       }
 
+      // Emit events for cross-tool reactions
+      const bus = getCognitionEventBus();
+      bus.emit({
+        type: 'critique:recorded',
+        timestamp: full.timestamp,
+        sessionId: full.sessionId,
+        agentId: full.agentId,
+        sourceId: full.id,
+        sourceType: 'critique',
+        payload: { scope: full.scope, lessonsLearned: full.lessonsLearned },
+      });
+      if (full.lessonsLearned.length > 0) {
+        bus.emit({
+          type: 'critique:lesson-learned',
+          timestamp: full.timestamp,
+          sessionId: full.sessionId,
+          agentId: full.agentId,
+          sourceId: full.id,
+          sourceType: 'critique',
+          payload: { lessons: full.lessonsLearned },
+        });
+      }
       return full;
     } catch (error) {
       Logger.error('[SelfCritiqueStore] Error recording critique:', error);

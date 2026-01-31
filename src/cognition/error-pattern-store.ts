@@ -31,6 +31,7 @@ import { RedisBackedService } from '../infrastructure/redis/redis-backed-service
 import { Logger } from '../utils/logger.js';
 import type { ErrorPattern, ErrorClassification } from './types.js';
 import { COGNITION_KEYS, COGNITION_TTL } from './types.js';
+import { getCognitionEventBus } from './event-bus.js';
 import { randomBytes } from 'crypto';
 
 /**
@@ -149,6 +150,16 @@ export class ErrorPatternStore extends RedisBackedService {
         await this.redis!.set(key, JSON.stringify(existing));
         // No TTL for error patterns (permanent)
 
+
+        // Emit merge/occurrence event
+        getCognitionEventBus().emit({
+          type: 'error:occurrence',
+          timestamp: Date.now(),
+          sessionId: pattern.sessionIds[0] || '',
+          sourceId: existing.id,
+          sourceType: 'error-pattern',
+          payload: { errorType: existing.errorType, occurrences: existing.occurrences },
+        });
         return existing;
       }
 
@@ -182,6 +193,22 @@ export class ErrorPatternStore extends RedisBackedService {
 
       // No TTL — error patterns are permanent (COGNITION_TTL.errorPattern === 0)
 
+
+      // Emit new error event
+      getCognitionEventBus().emit({
+        type: 'error:recorded',
+        timestamp: now,
+        sessionId: pattern.sessionIds[0] || '',
+        sourceId: full.id,
+        sourceType: 'error-pattern',
+        payload: {
+          errorType: full.errorType,
+          context: full.context,
+          symptoms: full.symptoms,
+          rootCause: full.rootCause,
+          fix: full.fix,
+        },
+      });
       return full;
     } catch (error) {
       Logger.error('[ErrorPatternStore] Error recording pattern:', error);
@@ -400,6 +427,22 @@ export class ErrorPatternStore extends RedisBackedService {
       // Sort by score descending
       scored.sort((a, b) => b.score - a.score);
 
+
+      // Emit match event if results found
+      if (scored.length > 0) {
+        getCognitionEventBus().emit({
+          type: 'error:matched',
+          timestamp: Date.now(),
+          sessionId: '',
+          sourceId: scored[0].pattern.id,
+          sourceType: 'error-pattern',
+          payload: {
+            matchedPatternId: scored[0].pattern.id,
+            fix: scored[0].pattern.fix,
+            matchCount: scored.length,
+          },
+        });
+      }
       return scored.map((s) => s.pattern);
     } catch (error) {
       Logger.error('[ErrorPatternStore] Error matching patterns:', error);

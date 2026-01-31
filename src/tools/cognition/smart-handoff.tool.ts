@@ -39,6 +39,11 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getHandoffStore } from '../../cognition/handoff-store.js';
+import { getIntentStore } from '../../cognition/intent-store.js';
+import { getDecisionStore } from '../../cognition/decision-store.js';
+import { getErrorPatternStore } from '../../cognition/error-pattern-store.js';
+import { getSelfCritiqueStore } from '../../cognition/self-critique-store.js';
+import { getMentalModelStore } from '../../cognition/mental-model-store.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
 
@@ -318,7 +323,97 @@ export const smartHandoffTool: UnifiedTool<typeof schema> = {
 
           Logger.debug(`smart-handoff: created ${report.id}`);
 
-          return formatHandoffReport(report);
+          // Auto-enrich with cognition snapshot
+          const enrichmentSections: string[] = [];
+          try {
+            // Active intent hierarchy
+            const intentStore = getIntentStore();
+            const activeIntent = await intentStore.getActiveIntent(input.sessionId);
+            if (activeIntent) {
+              const hierarchy = await intentStore.getHierarchy(activeIntent.id);
+              enrichmentSections.push('### Active Intent Hierarchy');
+              for (const intent of hierarchy) {
+                const indent = '  '.repeat(
+                  ['mission', 'goal', 'sub-goal', 'task'].indexOf(intent.level),
+                );
+                const drift =
+                  intent.driftAlerts.length > 0
+                    ? ` (${intent.driftAlerts.length} drift alerts)`
+                    : '';
+                enrichmentSections.push(
+                  `${indent}- [${intent.level.toUpperCase()}] ${intent.description}${drift}`,
+                );
+              }
+              enrichmentSections.push('');
+            }
+
+            // Recent decisions with outcomes
+            const decisionStore = getDecisionStore();
+            const decisions = await decisionStore.listBySession(input.sessionId, 5);
+            if (decisions.length > 0) {
+              enrichmentSections.push('### Recent Decisions');
+              for (const d of decisions) {
+                const outcome = d.outcome
+                  ? ` -> Outcome: ${d.outcome}`
+                  : ' -> (pending outcome)';
+                enrichmentSections.push(
+                  `- **${d.question}**: ${d.chosen} (conf=${d.confidence})${outcome}`,
+                );
+              }
+              enrichmentSections.push('');
+            }
+
+            // Recurring error patterns
+            const errorStore = getErrorPatternStore();
+            const patterns = await errorStore.listAll(5);
+            const recurring = patterns.filter((p) => p.occurrences > 1);
+            if (recurring.length > 0) {
+              enrichmentSections.push('### Recurring Error Patterns');
+              for (const p of recurring) {
+                enrichmentSections.push(
+                  `- [${p.errorType}] ${p.context} (${p.occurrences}x) -- Fix: ${p.fix.substring(0, 100)}`,
+                );
+              }
+              enrichmentSections.push('');
+            }
+
+            // Applicable lessons
+            const critiqueStore = getSelfCritiqueStore();
+            const lessons = await critiqueStore.getLessonsLearned(5);
+            if (lessons.length > 0) {
+              enrichmentSections.push('### Lessons Learned (apply these!)');
+              for (const lesson of lessons) {
+                enrichmentSections.push(`- ${lesson}`);
+              }
+              enrichmentSections.push('');
+            }
+
+            // Stale mental models
+            const modelStore = getMentalModelStore();
+            const models = await modelStore.listBySession(input.sessionId);
+            const staleModels = models.filter((m) => m.staleSince);
+            if (staleModels.length > 0) {
+              enrichmentSections.push('### Stale Mental Models');
+              for (const m of staleModels) {
+                enrichmentSections.push(
+                  `- "${m.name}" stale since ${new Date(m.staleSince!).toISOString()}`,
+                );
+              }
+              enrichmentSections.push('');
+            }
+          } catch (enrichErr) {
+            Logger.warn(`[smart-handoff] Non-critical enrichment error: ${enrichErr instanceof Error ? enrichErr.message : String(enrichErr)}`);
+          }
+
+          const baseReport = formatHandoffReport(report);
+          if (enrichmentSections.length > 0) {
+            return (
+              baseReport +
+              '\n\n---\n## Cognition Snapshot (auto-generated)\n\n' +
+              enrichmentSections.join('\n')
+            );
+          }
+          return baseReport;
         }
 
         // ─────────────────────────── GET ─────────────────────────────────

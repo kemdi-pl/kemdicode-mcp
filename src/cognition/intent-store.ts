@@ -30,6 +30,7 @@ import { RedisBackedService } from '../infrastructure/redis/redis-backed-service
 import { Logger } from '../utils/logger.js';
 import type { Intent, IntentLevel, IntentStatus, DriftAlert } from './types.js';
 import { COGNITION_KEYS, COGNITION_TTL } from './types.js';
+import { getCognitionEventBus } from './event-bus.js';
 import { randomBytes } from 'crypto';
 
 /**
@@ -158,6 +159,17 @@ export class IntentStore extends RedisBackedService {
       await pipeline.exec();
 
       Logger.debug(`IntentStore: created intent ${fullIntent.id} (${fullIntent.level})`);
+
+      // Emit event
+      getCognitionEventBus().emit({
+        type: 'intent:set',
+        timestamp: fullIntent.timestamp,
+        sessionId: fullIntent.sessionId,
+        agentId: fullIntent.agentId,
+        sourceId: fullIntent.id,
+        sourceType: 'intent',
+        payload: { level: fullIntent.level, description: fullIntent.description },
+      });
       return fullIntent;
     } catch (error) {
       Logger.error('[IntentStore] Failed to set intent:', error);
@@ -317,6 +329,19 @@ export class IntentStore extends RedisBackedService {
       // Auto-mark as drifted if drift score exceeds threshold
       if (alert.driftScore > 0.7) {
         intent.status = 'drifted';
+        getCognitionEventBus().emit({
+          type: 'intent:drifted',
+          timestamp: fullAlert.timestamp,
+          sessionId: intent.sessionId,
+          agentId: intent.agentId,
+          sourceId: intentId,
+          sourceType: 'intent',
+          payload: {
+            driftScore: alert.driftScore,
+            currentAction: alert.currentAction,
+            expectedDirection: alert.expectedDirection,
+          },
+        });
       }
 
       const key = COGNITION_KEYS.intent(intentId);

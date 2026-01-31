@@ -30,6 +30,7 @@ import { RedisBackedService } from '../infrastructure/redis/redis-backed-service
 import { Logger } from '../utils/logger.js';
 import type { MentalModel, ModelComponent, ModelRelationship } from './types.js';
 import { COGNITION_KEYS, COGNITION_TTL } from './types.js';
+import { getCognitionEventBus } from './event-bus.js';
 import { randomBytes } from 'crypto';
 
 /**
@@ -97,6 +98,15 @@ export class MentalModelStore extends RedisBackedService {
       await pipeline.exec();
 
       Logger.debug(`MentalModelStore: created model ${fullModel.id} "${fullModel.name}"`);
+      // Emit event for cross-tool reactions
+      getCognitionEventBus().emit({
+        type: 'model:created',
+        timestamp: now,
+        sessionId: fullModel.sessionId,
+        sourceId: fullModel.id,
+        sourceType: 'model',
+        payload: { name: fullModel.name },
+      });
       return fullModel;
     } catch (error) {
       Logger.error('MentalModelStore: failed to create model', error);
@@ -215,6 +225,14 @@ export class MentalModelStore extends RedisBackedService {
       }
 
       Logger.debug(`MentalModelStore: added component "${component.name}" to model ${modelId}`);
+      getCognitionEventBus().emit({
+        type: 'model:updated',
+        timestamp: Date.now(),
+        sessionId: model.sessionId,
+        sourceId: modelId,
+        sourceType: 'model',
+        payload: { name: model.name },
+      });
       return true;
     } catch (error) {
       Logger.error(`MentalModelStore: failed to add component to model ${modelId}`, error);
@@ -265,6 +283,14 @@ export class MentalModelStore extends RedisBackedService {
       Logger.debug(
         `MentalModelStore: added relationship ${relationship.from} --[${relationship.type}]--> ${relationship.to} to model ${modelId}`
       );
+      getCognitionEventBus().emit({
+        type: 'model:updated',
+        timestamp: Date.now(),
+        sessionId: model.sessionId,
+        sourceId: modelId,
+        sourceType: 'model',
+        payload: { name: model.name },
+      });
       return true;
     } catch (error) {
       Logger.error(`MentalModelStore: failed to add relationship to model ${modelId}`, error);
@@ -327,6 +353,14 @@ export class MentalModelStore extends RedisBackedService {
       }
 
       Logger.debug(`MentalModelStore: removed component "${componentName}" from model ${modelId}`);
+      getCognitionEventBus().emit({
+        type: 'model:updated',
+        timestamp: Date.now(),
+        sessionId: model.sessionId,
+        sourceId: modelId,
+        sourceType: 'model',
+        payload: { name: model.name },
+      });
       return true;
     } catch (error) {
       Logger.error(`MentalModelStore: failed to remove component from model ${modelId}`, error);
@@ -361,6 +395,14 @@ export class MentalModelStore extends RedisBackedService {
       }
 
       Logger.debug(`MentalModelStore: marked model ${modelId} as stale`);
+      getCognitionEventBus().emit({
+        type: 'model:stale',
+        timestamp: Date.now(),
+        sessionId: model.sessionId,
+        sourceId: modelId,
+        sourceType: 'model',
+        payload: { name: model.name },
+      });
       return true;
     } catch (error) {
       Logger.error(`MentalModelStore: failed to mark model ${modelId} as stale`, error);

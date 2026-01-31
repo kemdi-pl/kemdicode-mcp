@@ -370,3 +370,72 @@ export const COGNITION_TTL = {
   /** Budget snapshots: 1 day */
   budget: 86400,
 } as const;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cognition Event Bus
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type CognitionEventType =
+  | 'decision:recorded'
+  | 'confidence:recorded'
+  | 'confidence:low'
+  | 'confidence:outcome-updated'
+  | 'error:recorded'
+  | 'error:matched'
+  | 'error:occurrence'
+  | 'critique:recorded'
+  | 'critique:lesson-learned'
+  | 'intent:set'
+  | 'intent:drifted'
+  | 'handoff:created'
+  | 'model:created'
+  | 'model:stale'
+  | 'model:updated';
+
+export interface CognitionEvent<T = unknown> {
+  type: CognitionEventType;
+  timestamp: number;
+  sessionId: string;
+  agentId?: string;
+  /** The ID of the source record that triggered this event */
+  sourceId: string;
+  /** The type of the source record */
+  sourceType: string;
+  /** Arbitrary payload specific to the event type */
+  payload: T;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cross-Link Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type CognitionRecordType =
+  | 'decision'
+  | 'confidence'
+  | 'error-pattern'
+  | 'intent'
+  | 'critique'
+  | 'handoff'
+  | 'model';
+
+export interface CognitionLink {
+  sourceType: CognitionRecordType;
+  sourceId: string;
+  targetType: CognitionRecordType;
+  targetId: string;
+  /** Why this link exists */
+  reason: string;
+  createdAt: number;
+}
+
+export const COGNITION_LINK_KEYS = {
+  /** Forward links from a record */
+  links: (sourceType: string, sourceId: string) =>
+    `mcp:cognition:links:${sourceType}:${sourceId}`,
+  /** Reverse links to a record */
+  backlinks: (targetType: string, targetId: string) =>
+    `mcp:cognition:backlinks:${targetType}:${targetId}`,
+  /** Link detail */
+  detail: (srcType: string, srcId: string, tgtType: string, tgtId: string) =>
+    `mcp:cognition:link-detail:${srcType}:${srcId}:${tgtType}:${tgtId}`,
+} as const;

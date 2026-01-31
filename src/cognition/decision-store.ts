@@ -29,6 +29,7 @@ import { RedisBackedService } from '../infrastructure/redis/redis-backed-service
 import { Logger } from '../utils/logger.js';
 import type { Decision } from './types.js';
 import { COGNITION_KEYS, COGNITION_TTL } from './types.js';
+import { getCognitionEventBus } from './event-bus.js';
 import { randomBytes } from 'crypto';
 
 /**
@@ -101,6 +102,23 @@ export class DecisionStore extends RedisBackedService {
           COGNITION_TTL.decision
         );
       }
+
+      // Emit event for cross-tool reactions
+      getCognitionEventBus().emit({
+        type: 'decision:recorded',
+        timestamp: full.timestamp,
+        sessionId: full.sessionId,
+        agentId: full.agentId,
+        sourceId: full.id,
+        sourceType: 'decision',
+        payload: {
+          question: full.question,
+          chosen: full.chosen,
+          confidence: full.confidence,
+          tags: full.tags,
+          relatedFiles: full.relatedFiles,
+        },
+      });
 
       return full;
     } catch (error) {
