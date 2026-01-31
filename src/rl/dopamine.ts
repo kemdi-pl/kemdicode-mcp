@@ -24,6 +24,7 @@
  */
 
 import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
+import { Logger } from '../utils/logger.js';
 import type {
   DopamineSignal,
   DopamineTrigger,
@@ -104,7 +105,7 @@ export class DopamineEmitter extends RedisBackedService {
 
       return signal;
     } catch (error) {
-      console.error('[DopamineEmitter] Error emitting signal:', error);
+      Logger.error('[DopamineEmitter] Error emitting signal:', error);
       return null;
     }
   }
@@ -190,7 +191,7 @@ export class DopamineEmitter extends RedisBackedService {
         })
         .filter((s: DopamineSignal | null): s is DopamineSignal => s !== null);
     } catch (error) {
-      console.error('[DopamineEmitter] Error getting signals:', error);
+      Logger.error('[DopamineEmitter] Error getting signals:', error);
       return [];
     }
   }
@@ -247,7 +248,7 @@ export class DopamineEmitter extends RedisBackedService {
         recentSignals,
       };
     } catch (error) {
-      console.error('[DopamineEmitter] Error getting stats:', error);
+      Logger.error('[DopamineEmitter] Error getting stats:', error);
       return null;
     }
   }
@@ -263,7 +264,7 @@ export class DopamineEmitter extends RedisBackedService {
       await this.redis.del(key);
       return true;
     } catch (error) {
-      console.error('[DopamineEmitter] Error clearing signals:', error);
+      Logger.error('[DopamineEmitter] Error clearing signals:', error);
       return false;
     }
   }
@@ -291,7 +292,7 @@ export async function resetDopamineEmitter(): Promise<void> {
     try {
       await dopamineEmitter.disconnect();
     } catch (error) {
-      console.error('[DopamineEmitter] Error during disconnect:', error);
+      Logger.error('[DopamineEmitter] Error during disconnect:', error);
     }
   }
   dopamineEmitter = null;

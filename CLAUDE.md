@@ -8,7 +8,7 @@ After compaction or session start, always run `read-memory --names ["active-sess
 
 Model Context Protocol (MCP) server providing **120 specialized tools** for code analysis, generation, git operations, file management, line/symbol editing, project memory, multi-board kanban with workspaces, task comments, thinking chains, recursive tool invocation, pipelines, session monitoring, and multi-agent coordination.
 
-**Version:** 1.21.0
+**Version:** 1.22.0
 
 ## Architecture
 

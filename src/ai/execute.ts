@@ -14,6 +14,7 @@ import {
   type AgentType,
 } from './agents.js';
 import { loadFileContexts, formatFileContextForPrompt } from './file-context.js';
+import { Logger } from '../utils/logger.js';
 
 export interface ExecuteAIOptions {
   /** The prompt/question for the AI */
@@ -141,7 +142,7 @@ export async function executeAI(options: ExecuteAIOptions): Promise<string> {
   }
 
   const duration = Date.now() - startTime;
-  console.log(
+  Logger.debug(
     `[AI] ${agent} agent completed in ${duration}ms` +
       (response.usage ? ` (${response.usage.totalTokens} tokens)` : '')
   );

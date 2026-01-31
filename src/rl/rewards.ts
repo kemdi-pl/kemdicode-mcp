@@ -23,6 +23,7 @@
  */
 
 import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
+import { Logger } from '../utils/logger.js';
 import type {
   AgentState,
   ShapedReward,
@@ -168,7 +169,7 @@ export class RewardTracker extends RedisBackedService {
 
       return shaped;
     } catch (error) {
-      console.error('[RewardTracker] Error recording reward:', error);
+      Logger.error('[RewardTracker] Error recording reward:', error);
       return null;
     }
   }
@@ -252,7 +253,7 @@ export class RewardTracker extends RedisBackedService {
 
       await this.redis.eval(toolLua, 1, toolKey, action, safeReward.toString());
     } catch (error) {
-      console.error('[RewardTracker] Error updating stats:', error);
+      Logger.error('[RewardTracker] Error updating stats:', error);
     }
   }
 
@@ -276,7 +277,7 @@ export class RewardTracker extends RedisBackedService {
         })
         .filter((e: RewardHistoryEntry | null): e is RewardHistoryEntry => e !== null);
     } catch (error) {
-      console.error('[RewardTracker] Error getting history:', error);
+      Logger.error('[RewardTracker] Error getting history:', error);
       return [];
     }
   }
@@ -349,7 +350,7 @@ export class RewardTracker extends RedisBackedService {
         },
       };
     } catch (error) {
-      console.error('[RewardTracker] Error getting stats:', error);
+      Logger.error('[RewardTracker] Error getting stats:', error);
       return null;
     }
   }
@@ -405,7 +406,7 @@ export async function resetRewardTracker(): Promise<void> {
     try {
       await rewardTracker.disconnect();
     } catch (error) {
-      console.error('[RewardTracker] Error during disconnect:', error);
+      Logger.error('[RewardTracker] Error during disconnect:', error);
     }
   }
   rewardTracker = null;

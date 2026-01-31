@@ -23,6 +23,7 @@
  */
 
 import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
+import { Logger } from '../utils/logger.js';
 import type { AgentState } from './types.js';
 import { RL_KEYS } from './types.js';
 
@@ -85,7 +86,7 @@ export class StateTracker extends RedisBackedService {
 
       return this.parseState(data);
     } catch (error) {
-      console.error('[StateTracker] Error getting state:', error);
+      Logger.error('[StateTracker] Error getting state:', error);
       return null;
     }
   }
@@ -164,7 +165,7 @@ export class StateTracker extends RedisBackedService {
 
       return newState;
     } catch (error) {
-      console.error('[StateTracker] Error updating state:', error);
+      Logger.error('[StateTracker] Error updating state:', error);
       return null;
     }
   }
@@ -180,7 +181,7 @@ export class StateTracker extends RedisBackedService {
       await this.redis.hset(key, this.serializeState(state));
       return true;
     } catch (error) {
-      console.error('[StateTracker] Error saving state:', error);
+      Logger.error('[StateTracker] Error saving state:', error);
       return false;
     }
   }
@@ -207,7 +208,7 @@ export class StateTracker extends RedisBackedService {
       // Set TTL
       await this.redis.expire(key, this.config.historyTtl!);
     } catch (error) {
-      console.error('[StateTracker] Error adding to history:', error);
+      Logger.error('[StateTracker] Error adding to history:', error);
     }
   }
 
@@ -231,7 +232,7 @@ export class StateTracker extends RedisBackedService {
         })
         .filter((s: AgentState | null): s is AgentState => s !== null);
     } catch (error) {
-      console.error('[StateTracker] Error getting history:', error);
+      Logger.error('[StateTracker] Error getting history:', error);
       return [];
     }
   }
@@ -271,7 +272,7 @@ export class StateTracker extends RedisBackedService {
       await this.redis.del(stateKey, historyKey);
       return true;
     } catch (error) {
-      console.error('[StateTracker] Error resetting state:', error);
+      Logger.error('[StateTracker] Error resetting state:', error);
       return false;
     }
   }
@@ -341,7 +342,7 @@ export async function resetStateTracker(): Promise<void> {
     try {
       await stateTracker.disconnect();
     } catch (error) {
-      console.error('[StateTracker] Error during disconnect:', error);
+      Logger.error('[StateTracker] Error during disconnect:', error);
     }
   }
   stateTracker = null;

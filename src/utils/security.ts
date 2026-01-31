@@ -15,6 +15,7 @@
 
 import { randomBytes, createHmac, scryptSync, createCipheriv, createDecipheriv } from 'crypto';
 import { isBun } from '../runtime/index.js';
+import { Logger } from './logger.js';
 
 const ALGORITHM = 'aes-256-gcm';
 const KEY_LENGTH = 32;
@@ -34,7 +35,7 @@ export class SecureStorage {
     if (!actualSalt) {
       // Generate random salt per instance if not configured (ephemeral - not persisted)
       const ephemeralSalt = randomBytes(16).toString('hex');
-      console.warn(
+      Logger.warn(
         '[SecureStorage] No salt configured. Using ephemeral salt (secrets will not survive restart). ' +
         'Set SECURE_STORAGE_SALT env var for persistence. Generate with: openssl rand -hex 32'
       );

@@ -24,6 +24,7 @@
  */
 
 import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
+import { Logger } from '../utils/logger.js';
 import type {
   GraphNode,
   GraphEdge,
@@ -105,7 +106,7 @@ export class GraphStorage extends RedisBackedService {
 
       return fullNode;
     } catch (error) {
-      console.error('[GraphStorage] Error adding node:', error);
+      Logger.error('[GraphStorage] Error adding node:', error);
       return null;
     }
   }
@@ -132,7 +133,7 @@ export class GraphStorage extends RedisBackedService {
 
       return this.parseNode(data);
     } catch (error) {
-      console.error('[GraphStorage] Error getting node:', error);
+      Logger.error('[GraphStorage] Error getting node:', error);
       return null;
     }
   }
@@ -158,7 +159,7 @@ export class GraphStorage extends RedisBackedService {
       await this.redis.hset(key, updateData);
       return true;
     } catch (error) {
-      console.error('[GraphStorage] Error updating node:', error);
+      Logger.error('[GraphStorage] Error updating node:', error);
       return false;
     }
   }
@@ -194,7 +195,7 @@ export class GraphStorage extends RedisBackedService {
 
       return true;
     } catch (error) {
-      console.error('[GraphStorage] Error deleting node:', error);
+      Logger.error('[GraphStorage] Error deleting node:', error);
       return false;
     }
   }
@@ -219,7 +220,7 @@ export class GraphStorage extends RedisBackedService {
       ]);
 
       if (!fromExists || !toExists) {
-        console.error('[GraphStorage] Cannot add edge: one or both nodes do not exist');
+        Logger.error('[GraphStorage] Cannot add edge: one or both nodes do not exist');
         return null;
       }
 
@@ -252,7 +253,7 @@ export class GraphStorage extends RedisBackedService {
 
       return edge;
     } catch (error) {
-      console.error('[GraphStorage] Error adding edge:', error);
+      Logger.error('[GraphStorage] Error adding edge:', error);
       return null;
     }
   }
@@ -276,7 +277,7 @@ export class GraphStorage extends RedisBackedService {
 
       return this.parseEdge(data);
     } catch (error) {
-      console.error('[GraphStorage] Error getting edge:', error);
+      Logger.error('[GraphStorage] Error getting edge:', error);
       return null;
     }
   }
@@ -300,7 +301,7 @@ export class GraphStorage extends RedisBackedService {
 
       return true;
     } catch (error) {
-      console.error('[GraphStorage] Error deleting edge:', error);
+      Logger.error('[GraphStorage] Error deleting edge:', error);
       return false;
     }
   }
@@ -322,7 +323,7 @@ export class GraphStorage extends RedisBackedService {
 
       return edges;
     } catch (error) {
-      console.error('[GraphStorage] Error getting outgoing edges:', error);
+      Logger.error('[GraphStorage] Error getting outgoing edges:', error);
       return [];
     }
   }
@@ -344,7 +345,7 @@ export class GraphStorage extends RedisBackedService {
 
       return edges;
     } catch (error) {
-      console.error('[GraphStorage] Error getting incoming edges:', error);
+      Logger.error('[GraphStorage] Error getting incoming edges:', error);
       return [];
     }
   }
@@ -370,7 +371,7 @@ export class GraphStorage extends RedisBackedService {
         nodeIds = await this.redis.smembers(LOCI_KEYS.nodesBySession(options.sessionId));
       } else {
         // No filter - need to scan (expensive, avoid in production)
-        console.warn('[GraphStorage] Query without type or session filter - scanning all nodes');
+        Logger.warn('[GraphStorage] Query without type or session filter - scanning all nodes');
         return [];
       }
 
@@ -409,7 +410,7 @@ export class GraphStorage extends RedisBackedService {
 
       return nodes;
     } catch (error) {
-      console.error('[GraphStorage] Error querying nodes:', error);
+      Logger.error('[GraphStorage] Error querying nodes:', error);
       return [];
     }
   }
@@ -553,7 +554,7 @@ export function getGraphStorage(): GraphStorage {
  */
 export function resetGraphStorage(): void {
   if (graphStorage) {
-    graphStorage.disconnect().catch(console.error);
+    graphStorage.disconnect().catch((err) => Logger.error(err));
   }
   graphStorage = null;
 }

@@ -27,6 +27,7 @@
  */
 
 import { isBun } from './index.js';
+import { Logger } from '../utils/logger.js';
 import type { UnifiedRequest, UnifiedResponse, ServerOptions, RequestHandler } from './types.js';
 
 // Bun types
@@ -289,7 +290,7 @@ export async function startServer(
         if (isSSE) {
           // For SSE, start handler but return response immediately
           handlerPromise.catch((err) => {
-            console.error('SSE handler error:', err);
+            Logger.error('SSE handler error:', err);
             res.end();
           });
           return (res as BunSSEResponse).getResponse();
@@ -316,7 +317,7 @@ export async function startServer(
         const unifiedRes = wrapNodeResponse(res);
         await handler(unifiedReq, unifiedRes);
       } catch (error) {
-        console.error('Request handler error:', error);
+        Logger.error('Request handler error:', error);
         if (!res.writableEnded) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Internal Server Error' }));

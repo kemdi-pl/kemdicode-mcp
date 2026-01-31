@@ -19,7 +19,7 @@
 
 /**
  * ╔═══════════════════════════════════════════════════════════════════════════╗
- * ║                         KEMDICODE MCP SERVER v2.0                         ║
+ * ║                         KEMDICODE MCP SERVER v1.22.0                         ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
  * ║  Model Context Protocol server integrating AI CLI with Claude Code        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
@@ -225,10 +225,10 @@ async function main(): Promise<void> {
     if (isShuttingDown) return;
     isShuttingDown = true;
 
-    console.log(`${signal} received, shutting down gracefully...`);
+    Logger.debug(`${signal} received, shutting down gracefully...`);
 
     const shutdownTimeout = setTimeout(() => {
-      console.error('Shutdown timeout exceeded, forcing exit');
+      Logger.error('Shutdown timeout exceeded, forcing exit');
       process.exit(1);
     }, 10000);  // 10s timeout
 
@@ -239,11 +239,11 @@ async function main(): Promise<void> {
       const { getRedisConnectionManager } = await import('./infrastructure/redis/connection.js');
       const redisManager = getRedisConnectionManager();
       await redisManager.disconnect();
-      console.log('Redis connection closed');
-      console.log('Shutdown complete');
+      Logger.debug('Redis connection closed');
+      Logger.debug('Shutdown complete');
       process.exit(0);
     } catch (error) {
-      console.error('Error during shutdown:', error);
+      Logger.error('Error during shutdown:', error);
       process.exit(1);
     } finally {
       clearTimeout(shutdownTimeout);

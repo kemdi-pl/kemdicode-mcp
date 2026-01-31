@@ -18,6 +18,7 @@
 
 import type { Redis } from 'ioredis';
 import { getSharedRedis } from './connection.js';
+import { Logger } from '../../utils/logger.js';
 
 /**
  * Base class for services that depend on a shared Redis connection.
@@ -36,7 +37,7 @@ export abstract class RedisBackedService {
       this.redis = await getSharedRedis();
       this._connected = true;
     } catch (error) {
-      console.error(`[${this.serviceName}] Failed to connect to Redis:`, error);
+      Logger.error(`[${this.serviceName}] Failed to connect to Redis:`, error);
       this.redis = null;
       throw error;
     }

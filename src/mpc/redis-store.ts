@@ -23,6 +23,7 @@
  */
 
 import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
+import { Logger } from '../utils/logger.js';
 import type { MpcShare, MpcSecretMetadata, MpcSecretStatus } from './types.js';
 import { MPC_KEYS } from './types.js';
 import { getKeyManager, type EncryptedData } from './crypto.js';
@@ -77,7 +78,7 @@ export class MpcRedisStore extends RedisBackedService {
 
       return true;
     } catch (error) {
-      console.error('[MPC Store] Error saving secret metadata:', error);
+      Logger.error('[MPC Store] Error saving secret metadata:', error);
       return false;
     }
   }
@@ -111,7 +112,7 @@ export class MpcRedisStore extends RedisBackedService {
         verificationHash: data.verificationHash || undefined,
       };
     } catch (error) {
-      console.error('[MPC Store] Error getting secret metadata:', error);
+      Logger.error('[MPC Store] Error getting secret metadata:', error);
       return null;
     }
   }
@@ -127,7 +128,7 @@ export class MpcRedisStore extends RedisBackedService {
       await this.redis.hset(key, 'holders', JSON.stringify(holders));
       return true;
     } catch (error) {
-      console.error('[MPC Store] Error updating holders:', error);
+      Logger.error('[MPC Store] Error updating holders:', error);
       return false;
     }
   }
@@ -166,7 +167,7 @@ export class MpcRedisStore extends RedisBackedService {
 
       return true;
     } catch (error) {
-      console.error('[MPC Store] Error saving share:', error);
+      Logger.error('[MPC Store] Error saving share:', error);
       return false;
     }
   }
@@ -207,12 +208,12 @@ export class MpcRedisStore extends RedisBackedService {
             }
             encrypted = parsed as EncryptedData;
           } catch (parseError) {
-            console.error('[MPC Store] Invalid JSON in encrypted share:', parseError);
+            Logger.error('[MPC Store] Invalid JSON in encrypted share:', parseError);
             return null;
           }
           shareData = keyManager.decryptForSession(sessionId, encrypted);
         } catch (decryptError) {
-          console.error('[MPC Store] Error decrypting share:', decryptError);
+          Logger.error('[MPC Store] Error decrypting share:', decryptError);
           return null;
         }
       }
@@ -228,7 +229,7 @@ export class MpcRedisStore extends RedisBackedService {
         encrypted: isEncrypted,
       };
     } catch (error) {
-      console.error('[MPC Store] Error getting share:', error);
+      Logger.error('[MPC Store] Error getting share:', error);
       return null;
     }
   }
@@ -273,7 +274,7 @@ export class MpcRedisStore extends RedisBackedService {
 
       return secrets;
     } catch (error) {
-      console.error('[MPC Store] Error getting session secrets:', error);
+      Logger.error('[MPC Store] Error getting session secrets:', error);
       return [];
     }
   }
@@ -288,7 +289,7 @@ export class MpcRedisStore extends RedisBackedService {
       const indexKey = MPC_KEYS.agentIndex(agentId);
       return await this.redis.smembers(indexKey);
     } catch (error) {
-      console.error('[MPC Store] Error getting agent secrets:', error);
+      Logger.error('[MPC Store] Error getting agent secrets:', error);
       return [];
     }
   }
@@ -350,7 +351,7 @@ export class MpcRedisStore extends RedisBackedService {
 
       return true;
     } catch (error) {
-      console.error('[MPC Store] Error deleting secret:', error);
+      Logger.error('[MPC Store] Error deleting secret:', error);
       return false;
     }
   }
@@ -375,7 +376,7 @@ export function getMpcStore(): MpcRedisStore {
  */
 export function resetMpcStore(): void {
   if (mpcStore) {
-    mpcStore.disconnect().catch(console.error);
+    mpcStore.disconnect().catch((err) => Logger.error(err));
   }
   mpcStore = null;
 }

@@ -23,6 +23,7 @@
  */
 
 import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
+import { Logger } from '../utils/logger.js';
 import type { ToolSequence, SequenceRecommendation } from './types.js';
 import { LOCI_KEYS } from './types.js';
 import { randomBytes } from 'crypto';
@@ -109,7 +110,7 @@ export class SequenceTracker extends RedisBackedService {
         await this.checkAndRecordPattern(sessionId, chain);
       }
     } catch (error) {
-      console.error('[SequenceTracker] Error recording tool execution:', error);
+      Logger.error('[SequenceTracker] Error recording tool execution:', error);
     }
   }
 
@@ -135,7 +136,7 @@ export class SequenceTracker extends RedisBackedService {
 
       await this.redis.hset(key, field, JSON.stringify(data));
     } catch (error) {
-      console.error('[SequenceTracker] Error updating transition matrix:', error);
+      Logger.error('[SequenceTracker] Error updating transition matrix:', error);
     }
   }
 
@@ -195,7 +196,7 @@ export class SequenceTracker extends RedisBackedService {
         await this.redis.expire(sequencesKey, this.config.sequenceTtl!);
       }
     } catch (error) {
-      console.error('[SequenceTracker] Error checking pattern:', error);
+      Logger.error('[SequenceTracker] Error checking pattern:', error);
     }
   }
 
@@ -271,7 +272,7 @@ export class SequenceTracker extends RedisBackedService {
         alternatives,
       };
     } catch (error) {
-      console.error('[SequenceTracker] Error getting recommendation:', error);
+      Logger.error('[SequenceTracker] Error getting recommendation:', error);
       return null;
     }
   }
@@ -304,7 +305,7 @@ export class SequenceTracker extends RedisBackedService {
           return scoreB - scoreA;
         });
     } catch (error) {
-      console.error('[SequenceTracker] Error getting sequences:', error);
+      Logger.error('[SequenceTracker] Error getting sequences:', error);
       return [];
     }
   }
@@ -337,7 +338,7 @@ export class SequenceTracker extends RedisBackedService {
 
       return stats.sort((a, b) => b.count - a.count);
     } catch (error) {
-      console.error('[SequenceTracker] Error getting transition stats:', error);
+      Logger.error('[SequenceTracker] Error getting transition stats:', error);
       return [];
     }
   }
@@ -353,7 +354,7 @@ export class SequenceTracker extends RedisBackedService {
       await this.redis.del(key);
       return true;
     } catch (error) {
-      console.error('[SequenceTracker] Error clearing chain:', error);
+      Logger.error('[SequenceTracker] Error clearing chain:', error);
       return false;
     }
   }
@@ -378,7 +379,7 @@ export function getSequenceTracker(): SequenceTracker {
  */
 export function resetSequenceTracker(): void {
   if (sequenceTracker) {
-    sequenceTracker.disconnect().catch(console.error);
+    sequenceTracker.disconnect().catch((err) => Logger.error(err));
   }
   sequenceTracker = null;
 }

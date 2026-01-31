@@ -1,6 +1,6 @@
 {
   "name": "kemdicode-mcp",
-  "version": "1.21.0",
+  "version": "1.22.0",
   "description": "Model Context Protocol (MCP) server with 100+ tools for code analysis, AI agents, git operations, multi-agent coordination, and kanban task management",
   "type": "module",
   "main": "dist/index.js",

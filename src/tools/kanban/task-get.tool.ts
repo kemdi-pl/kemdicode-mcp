@@ -28,7 +28,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
-import { getTask, resolveSessionId } from '../../kanban/index.js';
+import { getTask } from '../../kanban/index.js';
 
 const schema = z.object({
   taskId: z.string().min(1).describe('Task ID'),

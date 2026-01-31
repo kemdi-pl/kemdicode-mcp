@@ -19,6 +19,7 @@
 import type { ServerResponse } from 'node:http';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { PROTOCOL } from '../constants.js';
+import { Logger } from '../utils/logger.js';
 import { SSEEventType, type ProgressState, type ProgressData } from './types.js';
 
 // Re-export for convenience
@@ -129,14 +130,14 @@ export function startProgress(
         );
         if (progressPromise && typeof progressPromise.catch === 'function') {
           progressPromise.catch((err: Error) => {
-            console.error(`[Progress] Error sending progress: ${err}`);
+            Logger.error(`[Progress] Error sending progress: ${err}`);
             clearInterval(interval);
             progressStates.delete(requestId);
           });
         }
       }
     } catch (error) {
-      console.error(`[Progress] Error in progress interval: ${error}`);
+      Logger.error(`[Progress] Error in progress interval: ${error}`);
       clearInterval(interval);
       progressStates.delete(requestId);
     }

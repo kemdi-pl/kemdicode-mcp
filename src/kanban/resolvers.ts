@@ -28,7 +28,7 @@
  */
 
 import { Logger } from '../utils/logger.js';
-import { listBoardsForSession, listAccessibleBoards } from './board-store.js';
+import { listAccessibleBoards } from './board-store.js';
 import { listWorkspacesForSession, listAllWorkspaces } from './workspace-store.js';
 
 /**

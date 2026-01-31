@@ -8,6 +8,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import { resolve, extname, basename, relative } from 'node:path';
 import { existsSync } from 'node:fs';
+import { Logger } from '../utils/logger.js';
 
 export interface FileContext {
   path: string;
@@ -191,14 +192,14 @@ export async function loadFileContext(
     const absolutePath = projectRoot ? resolve(projectRoot, filePath) : resolve(filePath);
 
     if (!existsSync(absolutePath)) {
-      console.warn(`File not found: ${absolutePath}`);
+      Logger.warn(`File not found: ${absolutePath}`);
       return null;
     }
 
     // Check file size
     const stats = await stat(absolutePath);
     if (stats.size > MAX_FILE_SIZE) {
-      console.warn(`File too large (${stats.size} bytes): ${absolutePath}`);
+      Logger.warn(`File too large (${stats.size} bytes): ${absolutePath}`);
       return null;
     }
 
@@ -221,7 +222,7 @@ export async function loadFileContext(
       truncated,
     };
   } catch (error) {
-    console.warn(`Error loading file ${filePath}:`, error);
+    Logger.warn(`Error loading file ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   }
 }

@@ -23,6 +23,7 @@
  */
 
 import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
+import { Logger } from '../utils/logger.js';
 import type { Loci, LociCategory, LociRecall, GraphNode, LociTemplate } from './types.js';
 import { LOCI_KEYS, LOCI_TEMPLATES } from './types.js';
 import { getGraphStorage } from './graph-storage.js';
@@ -116,7 +117,7 @@ export class LociManager extends RedisBackedService {
 
       return loci;
     } catch (error) {
-      console.error('[LociManager] Error creating loci:', error);
+      Logger.error('[LociManager] Error creating loci:', error);
       return null;
     }
   }
@@ -131,7 +132,7 @@ export class LociManager extends RedisBackedService {
   ): Promise<Loci | null> {
     const template = LOCI_TEMPLATES[templateName];
     if (!template) {
-      console.error(`[LociManager] Template not found: ${templateName}`);
+      Logger.error(`[LociManager] Template not found: ${templateName}`);
       return null;
     }
 
@@ -164,7 +165,7 @@ export class LociManager extends RedisBackedService {
 
       return this.parseLoci(data);
     } catch (error) {
-      console.error('[LociManager] Error getting loci:', error);
+      Logger.error('[LociManager] Error getting loci:', error);
       return null;
     }
   }
@@ -183,7 +184,7 @@ export class LociManager extends RedisBackedService {
 
       return this.getLoci(lociId);
     } catch (error) {
-      console.error('[LociManager] Error getting loci by name:', error);
+      Logger.error('[LociManager] Error getting loci by name:', error);
       return null;
     }
   }
@@ -206,7 +207,7 @@ export class LociManager extends RedisBackedService {
 
       return true;
     } catch (error) {
-      console.error('[LociManager] Error adding node to loci:', error);
+      Logger.error('[LociManager] Error adding node to loci:', error);
       return false;
     }
   }
@@ -230,7 +231,7 @@ export class LociManager extends RedisBackedService {
 
       return true;
     } catch (error) {
-      console.error('[LociManager] Error removing node from loci:', error);
+      Logger.error('[LociManager] Error removing node from loci:', error);
       return false;
     }
   }
@@ -253,7 +254,7 @@ export class LociManager extends RedisBackedService {
 
       return true;
     } catch (error) {
-      console.error('[LociManager] Error adding child to loci:', error);
+      Logger.error('[LociManager] Error adding child to loci:', error);
       return false;
     }
   }
@@ -275,7 +276,7 @@ export class LociManager extends RedisBackedService {
 
       return lociList.sort((a, b) => a.order - b.order);
     } catch (error) {
-      console.error('[LociManager] Error getting loci by category:', error);
+      Logger.error('[LociManager] Error getting loci by category:', error);
       return [];
     }
   }
@@ -297,7 +298,7 @@ export class LociManager extends RedisBackedService {
 
       return lociList.sort((a, b) => a.order - b.order);
     } catch (error) {
-      console.error('[LociManager] Error getting session loci:', error);
+      Logger.error('[LociManager] Error getting session loci:', error);
       return [];
     }
   }
@@ -363,7 +364,7 @@ export class LociManager extends RedisBackedService {
         suggestedNext: suggestedNext.slice(0, 5),
       };
     } catch (error) {
-      console.error('[LociManager] Error recalling from loci:', error);
+      Logger.error('[LociManager] Error recalling from loci:', error);
       return null;
     }
   }
@@ -420,7 +421,7 @@ export class LociManager extends RedisBackedService {
 
       return true;
     } catch (error) {
-      console.error('[LociManager] Error deleting loci:', error);
+      Logger.error('[LociManager] Error deleting loci:', error);
       return false;
     }
   }
@@ -502,7 +503,7 @@ export function getLociManager(): LociManager {
  */
 export function resetLociManager(): void {
   if (lociManager) {
-    lociManager.disconnect().catch(console.error);
+    lociManager.disconnect().catch((err) => Logger.error(err));
   }
   lociManager = null;
 }

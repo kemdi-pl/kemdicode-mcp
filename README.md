@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/kemdicode-mcp"><img src="https://img.shields.io/badge/npm-kemdicode--mcp-CB3837?style=flat-square&logo=npm&logoColor=white" alt="npm" /></a>
-  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.21.0-blue?style=flat-square" alt="Version" /></a>
+  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.22.0-blue?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License" /></a>
 </p>
 
@@ -28,7 +28,7 @@
 <details>
 <summary><strong>Table of Contents</strong></summary>
 
-- [What's New in 1.21.0](#whats-new-in-1210)
+- [What's New in 1.22.0](#whats-new-in-1220)
 - [Usage Examples](#usage-examples)
 - [Highlights](#highlights)
 - [Compatibility](#compatibility)
@@ -50,21 +50,18 @@
 
 ---
 
-## What's New in 1.21.0
+## What's New in 1.22.0
 
-### Thinking Chain Tool
+### Code Quality Modernization
 
-New `thinking-chain` tool for structured reasoning with forward-only constraint:
+- **console → Logger migration** &mdash; all runtime `console.*` calls replaced with structured `Logger` utility across 14 files (~70 call sites)
+- **Zero runtime console.* outside Logger** &mdash; only JSDoc examples and `logger.ts` itself use `console.*`
+- **ESLint warnings fixed** &mdash; removed unused imports in `kanban/resolvers.ts` and `task-get.tool.ts`
+- **Version header corrected** &mdash; stale `v2.0` banner in `index.ts` updated to match actual version
 
-- **7 actions** &mdash; `start`, `think`, `branch`, `revise`, `conclude`, `get`, `list`
-- **Forward-only** &mdash; thoughts are appended sequentially; backtracking is blocked until the latest thought reaches **≥90% confidence** or you revise the last thought
-- **Branching** &mdash; fork a new chain from any thought to explore alternative hypotheses without modifying the original chain
-- **Revision tracking** &mdash; revisions are appended as new thoughts with `revisedFrom` reference, preserving the full reasoning history
-- **Confidence tracking** &mdash; every thought has a 0-100% confidence score with optional reasoning
-- **Visual display** &mdash; `get` action renders the chain with box-drawing UI showing thought flow, branches, revisions, and conclusion
-- **Redis-backed** &mdash; 7-day TTL, indexed by session and agent
+### What was in 1.21.0
 
-New `thinking` tool category added to the registry.
+- **Thinking Chain Tool** &mdash; `thinking-chain` with 7 actions (`start`, `think`, `branch`, `revise`, `conclude`, `get`, `list`), forward-only constraint (backtracking blocked until ≥90% confidence), branching, revision tracking, confidence scores, box-drawing visual display, Redis-backed with 7-day TTL
 
 ### What was in 1.20.0
 
