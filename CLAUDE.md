@@ -6,9 +6,9 @@ After compaction or session start, always run `read-memory --names ["active-sess
 
 ## Overview
 
-Model Context Protocol (MCP) server providing **119 specialized tools** for code analysis, generation, git operations, file management, line/symbol editing, project memory, multi-board kanban with workspaces, task comments, recursive tool invocation, pipelines, session monitoring, and multi-agent coordination.
+Model Context Protocol (MCP) server providing **120 specialized tools** for code analysis, generation, git operations, file management, line/symbol editing, project memory, multi-board kanban with workspaces, task comments, thinking chains, recursive tool invocation, pipelines, session monitoring, and multi-agent coordination.
 
-**Version:** 1.20.1
+**Version:** 1.21.0
 
 ## Architecture
 
@@ -64,6 +64,10 @@ src/
 │   ├── manager.ts           # Session lifecycle
 │   ├── cwd-resolver.ts      # Project path resolution
 │   └── types.ts             # Session types
+├── thinking/                # Thinking chain system
+│   ├── types.ts             # ThinkingChain, Thought, THINKING_KEYS
+│   ├── thinking-store.ts    # Redis CRUD with forward-only constraint
+│   └── index.ts             # Module exports
 ├── tools/
 │   ├── registry.ts          # Unified tool interface, Zod schemas
 │   ├── index.ts             # Tool registration
@@ -79,6 +83,7 @@ src/
 │   ├── recursive/           # Recursive invocation (3 tools)
 │   ├── specialized/         # AI analysis (8 tools)
 │   ├── multi-llm/           # Multi-provider LLM tools (2 tools)
+│   ├── thinking/            # Thinking chain (1 tool)
 │   └── system/              # System tools (7 tools)
 ├── types/                   # Shared type definitions
 │   ├── tool-types.ts
@@ -266,6 +271,11 @@ src/
 | `get-shared-context` | Context from other servers |
 | `feedback` | Feedback loop tracking |
 | `batch` | Parallel tool execution |
+
+### Thinking Chain (1 tool)
+| Tool | Description |
+|------|-------------|
+| `thinking-chain` | Register and manage chains of thought with branching and forward-only constraint (actions: start, think, branch, revise, conclude, get, list) |
 
 ## Key Components
 

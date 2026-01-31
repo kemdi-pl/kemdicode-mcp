@@ -161,7 +161,8 @@ export type ToolCategory =
   | 'loci'
   | 'mpc'
   | 'session'
-  | 'rl';
+  | 'rl'
+  | 'thinking';
 
 /** Tool metadata for discovery, categorization and search */
 export interface ToolMetadata {

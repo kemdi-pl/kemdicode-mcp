@@ -8,11 +8,4 @@
  * (at your option) any later version.
  */
 
-/**
- * Central version file for the entire project.
- * All version references should import from this file.
- *
- * @module version
- */
-
-export const VERSION = '1.21.0';
+export { thinkingChainTool } from './thinking-chain.tool.js';

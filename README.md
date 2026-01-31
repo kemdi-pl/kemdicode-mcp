@@ -5,12 +5,12 @@
 <h3 align="center">Model Context Protocol Server for AI-Powered Development</h3>
 
 <p align="center">
-  119 tools &bull; 7 LLM providers &bull; multi-agent orchestration &bull; kanban &bull; project memory
+  120 tools &bull; 7 LLM providers &bull; multi-agent orchestration &bull; kanban &bull; project memory
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/kemdicode-mcp"><img src="https://img.shields.io/badge/npm-kemdicode--mcp-CB3837?style=flat-square&logo=npm&logoColor=white" alt="npm" /></a>
-  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.20.1-blue?style=flat-square" alt="Version" /></a>
+  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.21.0-blue?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License" /></a>
 </p>
 
@@ -23,12 +23,12 @@
 
 ---
 
-**kemdiCode MCP** is a [Model Context Protocol](https://modelcontextprotocol.io/) server that gives AI agents and IDE assistants access to **119 specialized tools** for code analysis, generation, git operations, file management, AST-aware editing, project memory, multi-board kanban, task comments, and multi-agent coordination.
+**kemdiCode MCP** is a [Model Context Protocol](https://modelcontextprotocol.io/) server that gives AI agents and IDE assistants access to **120 specialized tools** for code analysis, generation, git operations, file management, AST-aware editing, project memory, multi-board kanban, task comments, and multi-agent coordination.
 
 <details>
 <summary><strong>Table of Contents</strong></summary>
 
-- [What's New in 1.20.0](#whats-new-in-1200)
+- [What's New in 1.21.0](#whats-new-in-1210)
 - [Usage Examples](#usage-examples)
 - [Highlights](#highlights)
 - [Compatibility](#compatibility)
@@ -50,49 +50,29 @@
 
 ---
 
-## What's New in 1.20.0
+## What's New in 1.21.0
 
-### 14 New Tools
+### Thinking Chain Tool
 
-- **Git workflow** &mdash; `git-add` (stage files), `git-commit` (create commits), `git-stash` (full stash management: push/pop/list/drop/apply/show)
-- **Kanban CRUD** &mdash; `task-get` (full task details), `task-delete` (batch 1-20), `task-comment` (append-only notes with author tracking), `board-delete` (cascade option), `workspace-delete` (ownership verification)
-- **File operations** &mdash; `file-delete` (security checks, critical file protection, dry-run), `file-move` (cross-filesystem), `file-copy` (overwrite protection), `file-backup-restore` (list/restore `.bak` files)
-- **Orchestration** &mdash; `pipeline` (sequential tool execution with `{{stepId.result}}` interpolation, max 10 steps), `checkpoint-diff` (compare current files with saved checkpoint)
+New `thinking-chain` tool for structured reasoning with forward-only constraint:
 
-### Task Comments System
+- **7 actions** &mdash; `start`, `think`, `branch`, `revise`, `conclude`, `get`, `list`
+- **Forward-only** &mdash; thoughts are appended sequentially; backtracking is blocked until the latest thought reaches **≥90% confidence** or you revise the last thought
+- **Branching** &mdash; fork a new chain from any thought to explore alternative hypotheses without modifying the original chain
+- **Revision tracking** &mdash; revisions are appended as new thoughts with `revisedFrom` reference, preserving the full reasoning history
+- **Confidence tracking** &mdash; every thought has a 0-100% confidence score with optional reasoning
+- **Visual display** &mdash; `get` action renders the chain with box-drawing UI showing thought flow, branches, revisions, and conclusion
+- **Redis-backed** &mdash; 7-day TTL, indexed by session and agent
 
-New append-only notes for kanban tasks &mdash; agents can add progress notes without overwriting the task description:
-- `TaskNote` type: `id`, `author`, `content`, `createdAt`
-- `task-comment` tool: batch 1-20 comments, shorthand mode `{ taskId, author, content }`
-- `task-get` returns `notes` array and `noteCount`
+New `thinking` tool category added to the registry.
 
-### Metadata for All 119 Tools
+### What was in 1.20.0
 
-Every tool now has a `metadata` block with `category`, `tags`, `examples` (realistic args), and `relatedTools`. The `help` tool generates a categorized listing from this metadata. 4 new categories: `loci`, `mpc`, `session`, `rl`.
-
-### UX Improvements
-
-- **Auto-sessionId** &mdash; `sessionId` is now optional in all kanban/workspace tools; auto-detected from the MCP connection
-- **Name lookup** &mdash; use board/workspace names instead of UUIDs (`"name:My Board"` or just `"My Board"`)
-- **Shorthand mode** &mdash; `file-read` and `write-memory` accept single-item format without array wrapper
-- **git-status / git-diff** &mdash; new `format` parameter (`text` / `json`)
-- **batch tool** &mdash; configurable `maxResultLength` (up to 50,000 chars, default 5,000)
-- **help tool** &mdash; rewritten with categorized tool listing from registry
-- **Progress reporting** &mdash; fixed in `run-lint`
-- **Cross-references** &mdash; `auto-fix` ↔ `replace-content` descriptions link to each other
-
-### Bug Fixes
-
-- Race condition in `task-comment` when multiple comments target the same task (Promise.all → sequential)
-- Emoji fix: raw priority/status in data fields, separate `priorityIcon`/`statusIcon` fields
-
-### What was in 1.19.0
-
-- **Batch/Multi-Item Support for 14 Tools** &mdash; all single-item tools now accept arrays for parallel batch operations (1-20 items each). All return per-item success/failure with structured results.
-- **Memory Tools: Redis Pipeline Optimization** &mdash; `read-memory` and `delete-memory` use Redis pipelines, eliminating N+1 issues.
-- **5 Critical Bug Fixes** &mdash; memory leak in `sessionHistory`, recursion context restoration, Pub/Sub handler leak, Redis connection leak, race condition in `claimTask`.
-- **5 Performance Improvements** &mdash; session write-back throttling, kanban/context N+1 → pipeline, rate-limit cleanup, shared Redis pooling.
-- **Security** &mdash; hardcoded salt removed, command injection fix, template injection prevention, ANSI escape protection, input validation hardening.
+- **14 New Tools** &mdash; `git-add`, `git-commit`, `git-stash`, `task-get`, `task-delete`, `task-comment`, `board-delete`, `workspace-delete`, `file-delete`, `file-move`, `file-copy`, `file-backup-restore`, `pipeline`, `checkpoint-diff`
+- **Task Comments System** &mdash; append-only notes for kanban tasks with `TaskNote` type, batch 1-20 comments, `task-get` returns notes
+- **Metadata for All Tools** &mdash; every tool now has `category`, `tags`, `examples`, `relatedTools`. 4 new categories: `loci`, `mpc`, `session`, `rl`
+- **UX Improvements** &mdash; auto-sessionId, board/workspace name lookup, shorthand mode, `format` param for git tools, configurable batch `maxResultLength`, rewritten `help` tool
+- **Bug Fixes** &mdash; race condition in `task-comment` (Promise.all → sequential), emoji fix in priority/status fields
 
 ---
 
@@ -373,7 +353,7 @@ ai-config --action test
 
 ## Tool Reference
 
-> **119 tools** across 20 categories.
+> **120 tools** across 21 categories.
 
 | Category | # | Tools |
 |:---------|:-:|:------|
@@ -396,6 +376,7 @@ ai-config --action test
 | **Session** | 5 | `session-list` `session-info` `session-create` `session-switch` `session-delete` |
 | **MPC Security** | 4 | `mpc-split` `mpc-distribute` `mpc-reconstruct` `mpc-status` |
 | **RL Learning** | 2 | `rl-reward-stats` `rl-dopamine-log` |
+| **Thinking Chain** | 1 | `thinking-chain` |
 | **Knowledge Graph** | 4 | `graph-query` `graph-find-path` `loci-recall` `sequence-recommend` |
 | **System** | 10 | `shell-exec` `process-list` `env-info` `memory-usage` `ai-config` `ai-models` `config` `ping` `help` `timeout-test` |
 
@@ -410,7 +391,7 @@ ai-config --action test
 | **Clients** | Claude Code, Cursor, KiroCode, RooCode | Connect via SSE + JSON-RPC (MCP Protocol) |
 | **HTTP Server** | `:3100` (Bun or Node.js) | Routes: `/sse`, `/message`, `/resume`, `/stream` |
 | **Session Manager** | Per-client isolation | CWD injection, activity tracking, `/resume` for post-compaction recovery, SSE keep-alive |
-| **Tool Registry** | 119 tools, 20 categories | Zod schema validation, auto JSON Schema generation, runtime registration with `tools/list_changed` broadcast, full metadata (category, tags, examples, relatedTools) |
+| **Tool Registry** | 120 tools, 21 categories | Zod schema validation, auto JSON Schema generation, runtime registration with `tools/list_changed` broadcast, full metadata (category, tags, examples, relatedTools) |
 | **Provider Registry** | 7 LLM providers | OpenAI, Anthropic, Gemini (native SDKs) + Groq, DeepSeek, Ollama, OpenRouter (OpenAI-compatible). Lazy init, hot-reload, unified thinking tokens |
 | **Tree-sitter AST** | 19 languages | WASM parsers, symbol navigation, rename, insert before/after, indentation detection |
 | **Runtime Abstraction** | Bun / Node.js | Auto-detection at startup. Unified HTTP (`Bun.serve` / `node:http`), process spawning (`Bun.spawn` / `child_process`) |
@@ -471,7 +452,7 @@ ai-config --action test
 | `src/session/` | `manager.ts` | Session create / destroy / cleanup lifecycle |
 | | `cwd-resolver.ts` | Project path resolution priority chain |
 | `src/tools/` | `registry.ts` | `UnifiedTool` interface, Zod &rarr; JSON Schema, broadcast on register |
-| | `index.ts` | Central tool registration (119 tools) |
+| | `index.ts` | Central tool registration (120 tools, 21 categories) |
 | | `pipeline.tool.ts` | Sequential tool execution with `{{stepId.result}}` interpolation |
 | `src/tools/agents/` | 9 tools | `agent-register`, `agent-watch`, `agent-alert`, `agent-inject`, `monitor`, `agent-summary`, `queue-message`, `agent-list`, `agent-history` |
 | `src/tools/code/` | 8 tools | `find-definition`, `find-references`, `find-symbols`, `code-outline`, `insert-before-symbol`, `insert-after-symbol`, `rename-symbol`, `semantic-search` |
@@ -490,6 +471,8 @@ ai-config --action test
 | `src/tools/loci/` | 4 tools | `graph-query`, `graph-find-path`, `loci-recall`, `sequence-recommend` |
 | `src/tools/mpc/` | 4 tools | `mpc-split`, `mpc-distribute`, `mpc-reconstruct`, `mpc-status` |
 | `src/tools/rl/` | 2 tools | `rl-reward-stats`, `rl-dopamine-log` |
+| `src/tools/thinking/` | 1 tool | `thinking-chain` |
+| `src/thinking/` | Store + types | `ThinkingChain`, `Thought` types, Redis-backed store with forward-only constraint |
 | `src/utils/` | `commandExecutor.ts` | Process spawning with timeout, SIGTERM &rarr; SIGKILL |
 | | `file-utils.ts` | Read/write with encoding detection (UTF-8, UTF-16, Latin1) |
 | | `edit-utils.ts` | Line-based editing helpers |
