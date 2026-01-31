@@ -6,9 +6,9 @@ After compaction or session start, always run `read-memory --names ["active-sess
 
 ## Overview
 
-Model Context Protocol (MCP) server providing **120 specialized tools** for code analysis, generation, git operations, file management, line/symbol editing, project memory, multi-board kanban with workspaces, task comments, thinking chains, recursive tool invocation, pipelines, session monitoring, and multi-agent coordination.
+Model Context Protocol (MCP) server providing **124 specialized tools** for code analysis, generation, git operations, file management, line/symbol editing, project memory, cognition & self-improvement, multi-board kanban with workspaces, task comments, thinking chains, recursive tool invocation, pipelines, session monitoring, and multi-agent coordination.
 
-**Version:** 1.22.0
+**Version:** 1.23.0
 
 ## Architecture
 
@@ -64,6 +64,20 @@ src/
 │   ├── manager.ts           # Session lifecycle
 │   ├── cwd-resolver.ts      # Project path resolution
 │   └── types.ts             # Session types
+├── cognition/               # AI self-awareness infrastructure
+│   ├── types.ts             # Decision, Confidence, MentalModel, Intent, ErrorPattern, etc.
+│   ├── decision-store.ts    # Decision journal with outcome tracking
+│   ├── confidence-store.ts  # Confidence tracking with calibration profiles
+│   ├── mental-model-store.ts # System architecture mental models
+│   ├── intent-store.ts      # Goal hierarchy with drift detection
+│   ├── error-pattern-store.ts # Cross-session error pattern database
+│   ├── self-critique-store.ts # Post-session reflection and lessons
+│   ├── handoff-store.ts     # Structured session handoff reports
+│   ├── context-budget-manager.ts # Context window budget estimation
+│   ├── event-bus.ts         # In-process EventEmitter for cross-tool events
+│   ├── cross-linker.ts      # Bidirectional Redis links between records
+│   ├── event-handlers.ts    # 9 reactive cross-tool event handlers
+│   └── index.ts             # Module exports
 ├── thinking/                # Thinking chain system
 │   ├── types.ts             # ThinkingChain, Thought, THINKING_KEYS
 │   ├── thinking-store.ts    # Redis CRUD with forward-only constraint
@@ -73,18 +87,23 @@ src/
 │   ├── index.ts             # Tool registration
 │   ├── agents/              # Agent monitoring (9 tools)
 │   ├── code/                # Code navigation + symbol editing (9 tools)
+│   ├── cognition/           # AI self-improvement (8 tools)
 │   ├── context/             # Context sharing (4 tools)
 │   ├── edit/                # Line-based editing (4 tools)
-│   ├── file/                # File operations (5 tools)
-│   ├── git/                 # Git operations (5 tools)
-│   ├── kanban/              # Kanban: tasks, boards, workspaces (16 tools)
-│   ├── memory/              # Project memory (5 tools)
+│   ├── file/                # File operations (9 tools)
+│   ├── git/                 # Git operations (8 tools)
+│   ├── kanban/              # Kanban: tasks, boards, workspaces (21 tools)
+│   ├── loci/                # Knowledge graph + resurrection (4 tools)
+│   ├── memory/              # Project memory (8 tools)
+│   ├── mpc/                 # Multi-party computation (4 tools)
+│   ├── multi-llm/           # Multi-provider LLM tools (2 tools)
 │   ├── project/             # Project management (5 tools)
 │   ├── recursive/           # Recursive invocation (3 tools)
+│   ├── rl/                  # Reinforcement learning (2 tools)
+│   ├── session/             # Session management (5 tools)
 │   ├── specialized/         # AI analysis (8 tools)
-│   ├── multi-llm/           # Multi-provider LLM tools (2 tools)
 │   ├── thinking/            # Thinking chain (1 tool)
-│   └── system/              # System tools (7 tools)
+│   └── system/              # System tools (10 tools)
 ├── types/                   # Shared type definitions
 │   ├── tool-types.ts
 │   ├── file-types.ts
@@ -102,6 +121,18 @@ src/
 ```
 
 ## Tool Categories
+
+### Cognition (8 tools)
+| Tool | Description |
+|------|-------------|
+| `decision-journal` | Record decisions with reasoning, alternatives, and outcome tracking |
+| `confidence-tracker` | Track confidence levels, flag low-confidence actions for human review |
+| `mental-model` | Build persistent mental models with impact-analysis, dependency-chain, invariant-check |
+| `intent-tracker` | Goal hierarchy (mission → goal → sub-goal → task) with drift detection |
+| `error-pattern` | Cross-session error database with pattern matching and fix lookup |
+| `self-critique` | Post-session reflection, lessons learned, check-application for lesson tracking |
+| `smart-handoff` | Structured handoff reports with auto-enriched cognition snapshot |
+| `context-budget` | Context window budget estimation and prioritization |
 
 ### AI Agents (4 tools)
 | Tool | Agent | Description |
