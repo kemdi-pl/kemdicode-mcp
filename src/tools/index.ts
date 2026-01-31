@@ -677,4 +677,46 @@ registerLazyTool({
   loader: () => import('./thinking/index.js').then((m) => m.thinkingChainTool),
 });
 
+// Cognition tools (AI Self-Improvement)
+registerLazyTool({
+  name: 'confidence-tracker',
+  description: 'Track confidence levels to know when to ask humans for help',
+  loader: () => import('./cognition/index.js').then((m) => m.confidenceTrackerTool),
+});
+registerLazyTool({
+  name: 'decision-journal',
+  description: 'Record decisions with reasoning, alternatives, and outcomes',
+  loader: () => import('./cognition/index.js').then((m) => m.decisionJournalTool),
+});
+registerLazyTool({
+  name: 'mental-model',
+  description: 'Build and query persistent mental models of system architecture',
+  loader: () => import('./cognition/index.js').then((m) => m.mentalModelTool),
+});
+registerLazyTool({
+  name: 'error-pattern',
+  description: 'Cross-session error pattern database for learning from mistakes',
+  loader: () => import('./cognition/index.js').then((m) => m.errorPatternTool),
+});
+registerLazyTool({
+  name: 'intent-tracker',
+  description: 'Track goal hierarchy to never lose the human\'s actual intent',
+  loader: () => import('./cognition/index.js').then((m) => m.intentTrackerTool),
+});
+registerLazyTool({
+  name: 'smart-handoff',
+  description: 'Structured context transfer protocol for session handoffs',
+  loader: () => import('./cognition/index.js').then((m) => m.smartHandoffTool),
+});
+registerLazyTool({
+  name: 'self-critique',
+  description: 'Post-session reflection and efficiency tracking',
+  loader: () => import('./cognition/index.js').then((m) => m.selfCritiqueTool),
+});
+registerLazyTool({
+  name: 'context-budget',
+  description: 'Manage context window budget — decide what to keep vs evict',
+  loader: () => import('./cognition/index.js').then((m) => m.contextBudgetTool),
+});
+
 export * from './registry.js';

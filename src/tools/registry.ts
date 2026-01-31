@@ -163,7 +163,8 @@ export type ToolCategory =
   | 'mpc'
   | 'session'
   | 'rl'
-  | 'thinking';
+  | 'thinking'
+  | 'cognition';
 
 /** Tool metadata for discovery, categorization and search */
 export interface ToolMetadata {
