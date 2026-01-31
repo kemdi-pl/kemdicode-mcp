@@ -6,9 +6,9 @@ After compaction or session start, always run `read-memory --names ["active-sess
 
 ## Overview
 
-Model Context Protocol (MCP) server providing **100+ specialized tools** for code analysis, generation, git operations, file management, line/symbol editing, project memory, multi-board kanban with workspaces, recursive tool invocation, session monitoring, and multi-agent coordination.
+Model Context Protocol (MCP) server providing **119 specialized tools** for code analysis, generation, git operations, file management, line/symbol editing, project memory, multi-board kanban with workspaces, task comments, recursive tool invocation, pipelines, session monitoring, and multi-agent coordination.
 
-**Version:** 1.19.0
+**Version:** 1.20.1
 
 ## Architecture
 
@@ -148,7 +148,7 @@ src/
 | `auto-fix-agent` | Multi-agent fixing with OpenAI Agents SDK (diff patching) |
 | `write-tests` | Test generation |
 
-### Project Memory (7 tools)
+### Project Memory (8 tools)
 | Tool | Description |
 |------|-------------|
 | `write-memory` | Store named memory with tags and TTL |
@@ -158,8 +158,9 @@ src/
 | `edit-memory` | Modify content and tags |
 | `checkpoint-save` | Save temporary state snapshot to Redis (7-day TTL) |
 | `checkpoint-restore` | Restore a previously saved checkpoint |
+| `checkpoint-diff` | Compare current files with saved checkpoint |
 
-### Git Operations (5 tools)
+### Git Operations (8 tools)
 | Tool | Description |
 |------|-------------|
 | `git-status` | Repository status |
@@ -167,8 +168,11 @@ src/
 | `git-log` | Commit history with filters |
 | `git-blame` | Line-by-line history |
 | `git-branch` | Branch management |
+| `git-add` | Stage files for commit |
+| `git-commit` | Create commits |
+| `git-stash` | Stash management (push/pop/list/drop/apply/show) |
 
-### File Operations (5 tools)
+### File Operations (9 tools)
 | Tool | Description |
 |------|-------------|
 | `file-read` | Read with encoding detection |
@@ -176,6 +180,10 @@ src/
 | `file-search` | Ripgrep search |
 | `file-tree` | Directory tree |
 | `file-diff` | Compare two files |
+| `file-delete` | Delete with security checks and dry-run |
+| `file-move` | Move/rename with cross-filesystem support |
+| `file-copy` | Copy with overwrite protection |
+| `file-backup-restore` | List/restore .bak backups |
 
 ### Project Management (5 tools)
 | Tool | Description |
@@ -197,26 +205,30 @@ src/
 | `ai-models` | List/select AI models from provider |
 | `ping` | Health check |
 
-### Kanban Tasks (7 tools)
+### Kanban Tasks (10 tools)
 | Tool | Description |
 |------|-------------|
 | `task-create` | Create 1-20 tasks at once (batch) |
+| `task-get` | Get full task details by ID |
 | `task-list` | List tasks with filters (status, priority, assignee, boardId) |
 | `task-update` | Update 1-20 tasks at once (batch) |
+| `task-delete` | Delete 1-20 tasks (batch) |
+| `task-comment` | Add notes/comments to tasks (batch 1-20, append-only) |
 | `task-claim` | Worker claims an available task |
 | `task-assign` | Assign 1-20 tasks to agents at once (batch) |
 | `task-push-multi` | Push task to N agents (assign/clone/notify) |
 | `board-status` | Get board summary and statistics |
 
-### Kanban Workspaces (4 tools)
+### Kanban Workspaces (5 tools)
 | Tool | Description |
 |------|-------------|
 | `workspace-create` | Create workspace for cross-session collaboration |
 | `workspace-list` | List available workspaces |
 | `workspace-join` | Join session to workspace |
 | `workspace-leave` | Leave workspace |
+| `workspace-delete` | Delete workspace (with ownership check, cascade option) |
 
-### Kanban Boards (5 tools)
+### Kanban Boards (6 tools)
 | Tool | Description |
 |------|-------------|
 | `board-create` | Create new board in session/workspace |
@@ -224,6 +236,12 @@ src/
 | `board-share` | Share board with session/workspace |
 | `board-members` | Manage board members |
 | `board-invite` | Invite agent with role |
+| `board-delete` | Delete board (with cascade task deletion option) |
+
+### Orchestration (1 tool)
+| Tool | Description |
+|------|-------------|
+| `pipeline` | Sequential tool execution with `{{stepId.result}}` interpolation (max 10 steps) |
 
 ### Recursive Tool Invocation (3 tools)
 | Tool | Description |

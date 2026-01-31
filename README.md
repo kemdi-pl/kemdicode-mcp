@@ -5,12 +5,12 @@
 <h3 align="center">Model Context Protocol Server for AI-Powered Development</h3>
 
 <p align="center">
-  103 tools &bull; 7 LLM providers &bull; multi-agent orchestration &bull; kanban &bull; project memory
+  119 tools &bull; 7 LLM providers &bull; multi-agent orchestration &bull; kanban &bull; project memory
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/kemdicode-mcp"><img src="https://img.shields.io/badge/npm-kemdicode--mcp-CB3837?style=flat-square&logo=npm&logoColor=white" alt="npm" /></a>
-  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.19.0-blue?style=flat-square" alt="Version" /></a>
+  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.20.1-blue?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License" /></a>
 </p>
 
@@ -23,12 +23,12 @@
 
 ---
 
-**kemdiCode MCP** is a [Model Context Protocol](https://modelcontextprotocol.io/) server that gives AI agents and IDE assistants access to **100+ specialized tools** for code analysis, generation, git operations, file management, AST-aware editing, project memory, multi-board kanban, and multi-agent coordination.
+**kemdiCode MCP** is a [Model Context Protocol](https://modelcontextprotocol.io/) server that gives AI agents and IDE assistants access to **119 specialized tools** for code analysis, generation, git operations, file management, AST-aware editing, project memory, multi-board kanban, task comments, and multi-agent coordination.
 
 <details>
 <summary><strong>Table of Contents</strong></summary>
 
-- [What's New in 1.19.0](#whats-new-in-1190)
+- [What's New in 1.20.0](#whats-new-in-1200)
 - [Usage Examples](#usage-examples)
 - [Highlights](#highlights)
 - [Compatibility](#compatibility)
@@ -50,27 +50,49 @@
 
 ---
 
-## What's New in 1.19.0
+## What's New in 1.20.0
 
-- **Batch/Multi-Item Support for 14 Tools** &mdash; all single-item tools now accept arrays for parallel batch operations: `board-create` (1-10), `board-share` (1-10), `board-invite` (1-20), `board-members` (1-20 ops), `workspace-create` (1-5), `write-memory` (1-20), `read-memory` (1-20), `delete-memory` (1-20), `edit-memory` (1-10), `file-read` (1-20), `file-write` (1-20), `file-diff` (1-10 pairs), `session-create` (1-10), `session-delete` (1-10). All return per-item success/failure with structured results.
-- **Memory Tools: Redis Pipeline Optimization** &mdash; `read-memory` and `delete-memory` batch operations use Redis pipelines instead of sequential queries, eliminating N+1 performance issues.
-- **5 Critical Bug Fixes** &mdash; memory leak in `sessionHistory` Map (LRU eviction), recursion context restoration in `tool-invoker`, Pub/Sub handler leak in `agent-monitor`, Redis connection leak in kanban subscriber, race condition in `claimTask` blocker validation.
-- **5 Performance Improvements** &mdash; session write-back throttling (dirty flag + 5min threshold), kanban `listTasks` N+1 → Redis pipeline, context `queryContext` N+1 → pipeline, rate-limit map cleanup timer, shared Redis connection pooling.
-- **2 Security Fixes** &mdash; hardcoded salt fallback removed (now throws on missing `SECURE_STORAGE_SALT`), command injection risk in `projectContext.enhanced.ts` fixed (switched to `execFile`).
-- **Template Injection Prevention** &mdash; `consensus-prompt` fixed reversed `replaceAll` order to prevent user prompt from injecting `{board_responses}` placeholder. CEO `maxTokens` capped at 32K.
-- **ANSI Escape Injection Protection** &mdash; new `sanitizeTerminalOutput()` utility applied to `agent-alert` and `agent-inject` to prevent terminal escape sequence injection via user-controlled strings.
-- **Shared Memory Module** &mdash; extracted duplicated types, constants, and helpers from 7 memory tools into `src/tools/memory/shared.ts`, eliminating 6x duplication.
-- **Shared Format Helpers** &mdash; new `src/utils/format-helpers.ts` with `sanitizeTerminalOutput()`, `wrapText()`, `priorityIcon()`, `statusIcon()` shared across agent tools.
-- **Input Validation Hardening** &mdash; prototype pollution prevention in `agent-register` metadata keys, octal mode regex validation in `file-write`, ref flag injection prevention in `git-log`, content size limits (1MB) in `queue-message`.
+### 14 New Tools
 
-### What was in 1.18.0
+- **Git workflow** &mdash; `git-add` (stage files), `git-commit` (create commits), `git-stash` (full stash management: push/pop/list/drop/apply/show)
+- **Kanban CRUD** &mdash; `task-get` (full task details), `task-delete` (batch 1-20), `task-comment` (append-only notes with author tracking), `board-delete` (cascade option), `workspace-delete` (ownership verification)
+- **File operations** &mdash; `file-delete` (security checks, critical file protection, dry-run), `file-move` (cross-filesystem), `file-copy` (overwrite protection), `file-backup-restore` (list/restore `.bak` files)
+- **Orchestration** &mdash; `pipeline` (sequential tool execution with `{{stepId.result}}` interpolation, max 10 steps), `checkpoint-diff` (compare current files with saved checkpoint)
 
-- **Checkpoint Save/Restore** &mdash; new tools `checkpoint-save` and `checkpoint-restore` for temporary state snapshots in Redis (7-day TTL). Save progress mid-task and restore later.
-- **Session Resume** &mdash; new `/resume` HTTP endpoint returns the last active session with tool history, enabling post-compaction recovery. SSE connections receive a `resume` event on reconnect.
-- **Runtime Tool Broadcast** &mdash; dynamically registered tools now trigger `notifications/tools/list_changed` to all connected MCP clients, so IDEs see new tools without reconnecting.
-- **Session CWD Injection** &mdash; file tools automatically inherit the session's working directory for correct relative path resolution in multi-session setups.
-- **Session Cleanup** &mdash; proper cleanup of activity tracking and server references on session close, preventing memory leaks in long-running servers.
-- **Compact Tool Descriptions** &mdash; reduced tool description sizes across all 103 tools to slow down context compaction in long sessions.
+### Task Comments System
+
+New append-only notes for kanban tasks &mdash; agents can add progress notes without overwriting the task description:
+- `TaskNote` type: `id`, `author`, `content`, `createdAt`
+- `task-comment` tool: batch 1-20 comments, shorthand mode `{ taskId, author, content }`
+- `task-get` returns `notes` array and `noteCount`
+
+### Metadata for All 119 Tools
+
+Every tool now has a `metadata` block with `category`, `tags`, `examples` (realistic args), and `relatedTools`. The `help` tool generates a categorized listing from this metadata. 4 new categories: `loci`, `mpc`, `session`, `rl`.
+
+### UX Improvements
+
+- **Auto-sessionId** &mdash; `sessionId` is now optional in all kanban/workspace tools; auto-detected from the MCP connection
+- **Name lookup** &mdash; use board/workspace names instead of UUIDs (`"name:My Board"` or just `"My Board"`)
+- **Shorthand mode** &mdash; `file-read` and `write-memory` accept single-item format without array wrapper
+- **git-status / git-diff** &mdash; new `format` parameter (`text` / `json`)
+- **batch tool** &mdash; configurable `maxResultLength` (up to 50,000 chars, default 5,000)
+- **help tool** &mdash; rewritten with categorized tool listing from registry
+- **Progress reporting** &mdash; fixed in `run-lint`
+- **Cross-references** &mdash; `auto-fix` ↔ `replace-content` descriptions link to each other
+
+### Bug Fixes
+
+- Race condition in `task-comment` when multiple comments target the same task (Promise.all → sequential)
+- Emoji fix: raw priority/status in data fields, separate `priorityIcon`/`statusIcon` fields
+
+### What was in 1.19.0
+
+- **Batch/Multi-Item Support for 14 Tools** &mdash; all single-item tools now accept arrays for parallel batch operations (1-20 items each). All return per-item success/failure with structured results.
+- **Memory Tools: Redis Pipeline Optimization** &mdash; `read-memory` and `delete-memory` use Redis pipelines, eliminating N+1 issues.
+- **5 Critical Bug Fixes** &mdash; memory leak in `sessionHistory`, recursion context restoration, Pub/Sub handler leak, Redis connection leak, race condition in `claimTask`.
+- **5 Performance Improvements** &mdash; session write-back throttling, kanban/context N+1 → pipeline, rate-limit cleanup, shared Redis pooling.
+- **Security** &mdash; hardcoded salt removed, command injection fix, template injection prevention, ANSI escape protection, input validation hardening.
 
 ---
 
@@ -132,7 +154,7 @@ You: "Set up 3 agents: backend, frontend, QA. Backend works on the API, frontend
 
 | Capability | Description |
 |:-----------|:------------|
-| **103 MCP Tools** | Code review, refactoring, testing, git, file management, AST editing, memory, checkpoints, kanban |
+| **119 MCP Tools** | Code review, refactoring, testing, git, file management, AST editing, memory, checkpoints, kanban, task comments, pipelines |
 | **7 LLM Providers** | Native SDKs for OpenAI (GPT-5), Anthropic (Claude 4.5), Gemini (Gemini 3) + OpenAI-compatible for Groq, DeepSeek, Ollama, OpenRouter |
 | **Multi-Agent** | Agents connect via HTTP, share context through Redis Pub/Sub, coordinate via kanban boards |
 | **Parallel Multi-Model** | Send one prompt to N models simultaneously; CEO-and-Board consensus pattern |
@@ -351,7 +373,7 @@ ai-config --action test
 
 ## Tool Reference
 
-> **103 tools** across 20 categories.
+> **119 tools** across 20 categories.
 
 | Category | # | Tools |
 |:---------|:-:|:------|
@@ -361,15 +383,16 @@ ai-config --action test
 | **Line Editing** | 4 | `insert-at-line` `delete-lines` `replace-lines` `replace-content` |
 | **Symbol Editing** | 3 | `insert-before-symbol` `insert-after-symbol` `rename-symbol` |
 | **Code Modification** | 5 | `fix-bug` `refactor` `auto-fix` `auto-fix-agent` `write-tests` |
-| **Project Memory** | 7 | `write-memory` `read-memory` `list-memories` `edit-memory` `delete-memory` `checkpoint-save` `checkpoint-restore` |
-| **Git** | 5 | `git-status` `git-diff` `git-log` `git-blame` `git-branch` |
-| **File Operations** | 5 | `file-read` `file-write` `file-search` `file-tree` `file-diff` |
+| **Project Memory** | 8 | `write-memory` `read-memory` `list-memories` `edit-memory` `delete-memory` `checkpoint-save` `checkpoint-restore` `checkpoint-diff` |
+| **Git** | 8 | `git-status` `git-diff` `git-log` `git-blame` `git-branch` `git-add` `git-commit` `git-stash` |
+| **File Operations** | 9 | `file-read` `file-write` `file-search` `file-tree` `file-diff` `file-delete` `file-move` `file-copy` `file-backup-restore` |
 | **Project** | 5 | `project-info` `run-script` `run-tests` `run-lint` `check-types` |
-| **Kanban &mdash; Tasks** | 7 | `task-create` `task-list` `task-update` `task-claim` `task-assign` `task-push-multi` `board-status` |
-| **Kanban &mdash; Workspaces** | 4 | `workspace-create` `workspace-list` `workspace-join` `workspace-leave` |
-| **Kanban &mdash; Boards** | 5 | `board-create` `board-list` `board-share` `board-members` `board-invite` |
+| **Kanban &mdash; Tasks** | 10 | `task-create` `task-get` `task-list` `task-update` `task-delete` `task-comment` `task-claim` `task-assign` `task-push-multi` `board-status` |
+| **Kanban &mdash; Workspaces** | 5 | `workspace-create` `workspace-list` `workspace-join` `workspace-leave` `workspace-delete` |
+| **Kanban &mdash; Boards** | 6 | `board-create` `board-list` `board-share` `board-members` `board-invite` `board-delete` |
 | **Recursive** | 3 | `invoke-tool` `invoke-batch` `invocation-log` |
 | **Multi-Agent** | 13 | `agent-list` `agent-register` `agent-watch` `agent-alert` `agent-inject` `agent-history` `monitor` `agent-summary` `queue-message` `shared-thoughts` `get-shared-context` `feedback` `batch` |
+| **Orchestration** | 1 | `pipeline` |
 | **Session** | 5 | `session-list` `session-info` `session-create` `session-switch` `session-delete` |
 | **MPC Security** | 4 | `mpc-split` `mpc-distribute` `mpc-reconstruct` `mpc-status` |
 | **RL Learning** | 2 | `rl-reward-stats` `rl-dopamine-log` |
@@ -387,7 +410,7 @@ ai-config --action test
 | **Clients** | Claude Code, Cursor, KiroCode, RooCode | Connect via SSE + JSON-RPC (MCP Protocol) |
 | **HTTP Server** | `:3100` (Bun or Node.js) | Routes: `/sse`, `/message`, `/resume`, `/stream` |
 | **Session Manager** | Per-client isolation | CWD injection, activity tracking, `/resume` for post-compaction recovery, SSE keep-alive |
-| **Tool Registry** | 103 tools, 20 categories | Zod schema validation, auto JSON Schema generation, runtime registration with `tools/list_changed` broadcast |
+| **Tool Registry** | 119 tools, 20 categories | Zod schema validation, auto JSON Schema generation, runtime registration with `tools/list_changed` broadcast, full metadata (category, tags, examples, relatedTools) |
 | **Provider Registry** | 7 LLM providers | OpenAI, Anthropic, Gemini (native SDKs) + Groq, DeepSeek, Ollama, OpenRouter (OpenAI-compatible). Lazy init, hot-reload, unified thinking tokens |
 | **Tree-sitter AST** | 19 languages | WASM parsers, symbol navigation, rename, insert before/after, indentation detection |
 | **Runtime Abstraction** | Bun / Node.js | Auto-detection at startup. Unified HTTP (`Bun.serve` / `node:http`), process spawning (`Bun.spawn` / `child_process`) |
@@ -436,10 +459,11 @@ ai-config --action test
 | | `storage.ts` | Redis-based shared context store (DB 2) |
 | | `feedback-loop.ts` | Learning from iteration results |
 | | `iteration-tracker.ts` | Track fix attempts per issue |
-| `src/kanban/` | `kanban-store.ts` | Task CRUD with Redis `hset`/`hgetall` persistence |
+| `src/kanban/` | `kanban-store.ts` | Task CRUD with Redis `hset`/`hgetall` persistence, task notes |
 | | `workspace-store.ts` | Workspace CRUD operations |
 | | `board-store.ts` | Board management and membership |
 | | `membership-store.ts` | Role-based access: owner / admin / member / viewer |
+| | `resolvers.ts` | Auto-sessionId injection, board/workspace name-to-ID resolution |
 | | `migration.ts` | Lazy migration to multi-board schema |
 | `src/recursive/` | `tool-invoker.ts` | Safe recursive tool calls: max depth 2, rate-limited, parallel isolation |
 | `src/tree-sitter/` | `parser-manager.ts` | WASM parser lifecycle for 19 languages |
@@ -447,15 +471,16 @@ ai-config --action test
 | `src/session/` | `manager.ts` | Session create / destroy / cleanup lifecycle |
 | | `cwd-resolver.ts` | Project path resolution priority chain |
 | `src/tools/` | `registry.ts` | `UnifiedTool` interface, Zod &rarr; JSON Schema, broadcast on register |
-| | `index.ts` | Central tool registration (103 tools) |
+| | `index.ts` | Central tool registration (119 tools) |
+| | `pipeline.tool.ts` | Sequential tool execution with `{{stepId.result}}` interpolation |
 | `src/tools/agents/` | 9 tools | `agent-register`, `agent-watch`, `agent-alert`, `agent-inject`, `monitor`, `agent-summary`, `queue-message`, `agent-list`, `agent-history` |
 | `src/tools/code/` | 8 tools | `find-definition`, `find-references`, `find-symbols`, `code-outline`, `insert-before-symbol`, `insert-after-symbol`, `rename-symbol`, `semantic-search` |
 | `src/tools/context/` | 4 tools | `shared-thoughts`, `get-shared-context`, `feedback`, `batch` |
 | `src/tools/edit/` | 4 tools | `insert-at-line`, `delete-lines`, `replace-lines`, `replace-content` |
-| `src/tools/file/` | 5 tools | `file-read`, `file-write`, `file-search`, `file-tree`, `file-diff` |
-| `src/tools/git/` | 5 tools | `git-status`, `git-diff`, `git-log`, `git-blame`, `git-branch` |
-| `src/tools/kanban/` | 16 tools | Tasks (7), boards (5), workspaces (4) |
-| `src/tools/memory/` | 7 tools | `write-memory`, `read-memory`, `list-memories`, `edit-memory`, `delete-memory`, `checkpoint-save`, `checkpoint-restore` |
+| `src/tools/file/` | 9 tools | `file-read`, `file-write`, `file-search`, `file-tree`, `file-diff`, `file-delete`, `file-move`, `file-copy`, `file-backup-restore` |
+| `src/tools/git/` | 8 tools | `git-status`, `git-diff`, `git-log`, `git-blame`, `git-branch`, `git-add`, `git-commit`, `git-stash` |
+| `src/tools/kanban/` | 21 tools | Tasks (10), boards (6), workspaces (5) |
+| `src/tools/memory/` | 8 tools | `write-memory`, `read-memory`, `list-memories`, `edit-memory`, `delete-memory`, `checkpoint-save`, `checkpoint-restore`, `checkpoint-diff` |
 | `src/tools/multi-llm/` | 2 tools | `multi-prompt`, `consensus-prompt` |
 | `src/tools/project/` | 5 tools | `project-info`, `run-script`, `run-tests`, `run-lint`, `check-types` |
 | `src/tools/recursive/` | 3 tools | `invoke-tool`, `invoke-batch`, `invocation-log` |
@@ -557,7 +582,7 @@ task-create --tasks '[
 task-push-multi --taskIds '["t-1","t-2"]' --agents '["agent-1"]' --mode assign
 ```
 
-**Features:** workspaces &bull; multiple boards &bull; owner / admin / member / viewer roles &bull; batch create / update (1-20 per call) &bull; assign / clone / notify distribution modes
+**Features:** workspaces &bull; multiple boards &bull; owner / admin / member / viewer roles &bull; batch create / update / delete (1-20 per call) &bull; assign / clone / notify distribution modes &bull; append-only task comments &bull; auto-sessionId &bull; board/workspace name lookup
 
 ---
 
