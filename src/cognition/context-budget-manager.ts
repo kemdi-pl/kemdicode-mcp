@@ -419,7 +419,7 @@ export class ContextBudgetManager extends RedisBackedService {
     if (!goal) return [];
     return goal
       .toLowerCase()
-      .split(/[\s,;.:!?()\[\]{}"'`]+/)
+      .split(/[\s,;.:!?()[\]{}"'`]+/)
       .filter((w) => w.length >= 3)
       .filter(
         (w) =>
