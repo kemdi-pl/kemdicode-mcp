@@ -44,6 +44,7 @@ import {
   COMPLETED_TASK_TTL,
   MAX_EVENTS,
 } from './types.js';
+import { updateBoardTaskCount } from './board-store.js';
 
 const getRedis = getSharedRedis;
 
@@ -141,6 +142,11 @@ export async function createTask(input: CreateTaskInput): Promise<KanbanTask> {
   pipeline.expire(KANBAN_KEYS.task(taskId), DEFAULT_TASK_TTL);
 
   await pipeline.exec();
+
+  // Update board task count
+  if (input.boardId) {
+    await updateBoardTaskCount(input.boardId, 1);
+  }
 
   // Emit event
   await emitEvent({
@@ -803,6 +809,11 @@ export async function deleteTask(taskId: string): Promise<boolean> {
   }
 
   await pipeline.exec();
+
+  // Update board task count
+  if (task.boardId) {
+    await updateBoardTaskCount(task.boardId, -1);
+  }
 
   // Remove blocking relationships
   for (const blockerId of task.blockedBy) {

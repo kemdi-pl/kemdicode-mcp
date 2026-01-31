@@ -55,7 +55,7 @@ import { initAIClient } from './ai/index.js';
 import { registerBuiltinProviders, setProviderConfig } from './ai/providers/registry.js';
 import type { ProviderId } from './ai/providers/types.js';
 import { VERSION, type ServerConfig, startHttpServer, stopHttpServer, broadcastNotification } from './server/index.js';
-import { initToolsBroadcast } from './tools/registry.js';
+import { initToolsBroadcast, warmupLazySchemas } from './tools/registry.js';
 
 // Re-export for backwards compatibility
 export {
@@ -270,6 +270,11 @@ async function main(): Promise<void> {
 
   // Enable runtime tool registration notifications
   initToolsBroadcast(() => broadcastNotification('notifications/tools/list_changed'));
+
+  // Background warmup: load all lazy tool schemas (non-blocking)
+  warmupLazySchemas().catch((err) => {
+    Logger.warn(`Schema warmup failed: ${err instanceof Error ? err.message : String(err)}`);
+  });
 }
 
 main().catch((error) => {

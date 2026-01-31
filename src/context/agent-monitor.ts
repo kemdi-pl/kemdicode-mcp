@@ -941,14 +941,15 @@ export class AgentMonitor {
       }
 
       // Get workspaces this session belongs to
-      const workspaceIds = await this.redis.smembers(`mcp:kanban:workspaces:session:${sessionId}`);
+      // Note: this.redis has keyPrefix 'mcp:' so keys must omit the 'mcp:' prefix
+      const workspaceIds = await this.redis.smembers(`kanban:workspaces:session:${sessionId}`);
       const workspaces: WorkspaceOverview[] = [];
 
       for (const wsId of workspaceIds) {
-        const wsData = await this.redis.get(`mcp:kanban:workspace:${wsId}`);
+        const wsData = await this.redis.get(`kanban:workspace:${wsId}`);
         if (wsData) {
           const ws = JSON.parse(wsData);
-          const boardCount = await this.redis.scard(`mcp:kanban:boards:workspace:${wsId}`);
+          const boardCount = await this.redis.scard(`kanban:boards:workspace:${wsId}`);
           workspaces.push({
             id: ws.id,
             name: ws.name,
@@ -959,28 +960,22 @@ export class AgentMonitor {
         }
       }
 
+      // Count tasks by status at session level (single pass, shared across boards)
+      const sessionByStatus: Record<TaskStatus, number> = { backlog: 0, in_progress: 0, review: 0, done: 0 };
+      const statusKeys: TaskStatus[] = ['backlog', 'in_progress', 'review', 'done'];
+      for (const status of statusKeys) {
+        sessionByStatus[status] = await this.redis.scard(`kanban:status:${sessionId}:${status}`);
+      }
+      const sessionTotalTasks = statusKeys.reduce((sum, s) => sum + sessionByStatus[s], 0);
+
       // Get boards for this session (including from workspaces)
-      const boardIds = await this.redis.smembers(`mcp:kanban:boards:session:${sessionId}`);
+      const boardIds = await this.redis.smembers(`kanban:boards:session:${sessionId}`);
       const boards: BoardOverview[] = [];
 
       for (const boardId of boardIds) {
-        const boardData = await this.redis.get(`mcp:kanban:board:${boardId}`);
+        const boardData = await this.redis.get(`kanban:board:${boardId}`);
         if (boardData) {
           const board = JSON.parse(boardData);
-          const taskCount = await this.redis.zcard(`mcp:kanban:board:${boardId}:tasks`);
-
-          // Reset reusable byStatus object
-          this.overviewByStatus.backlog = 0;
-          this.overviewByStatus.in_progress = 0;
-          this.overviewByStatus.review = 0;
-          this.overviewByStatus.done = 0;
-
-          // Count tasks per status
-          const statusKeys: TaskStatus[] = ['backlog', 'in_progress', 'review', 'done'];
-          for (const status of statusKeys) {
-            const count = await this.redis.scard(`mcp:kanban:status:${sessionId}:${status}`);
-            this.overviewByStatus[status] = count;
-          }
 
           // Get active agents on this board
           const activeAgents = agentOverviews
@@ -991,8 +986,8 @@ export class AgentMonitor {
             id: board.id,
             name: board.name,
             workspaceId: board.workspaceId,
-            taskCount,
-            byStatus: { ...this.overviewByStatus }, // Clone the reusable object
+            taskCount: board.taskCount || 0,
+            byStatus: { ...sessionByStatus },
             activeAgents,
           });
         }
@@ -1013,8 +1008,8 @@ export class AgentMonitor {
         totalAgents: agents.length,
         activeAgents: agents.filter((a) => a.status === 'active' || a.status === 'processing')
           .length,
-        totalTasks: boards.reduce((sum, b) => sum + b.taskCount, 0),
-        tasksInProgress: boards.reduce((sum, b) => sum + b.byStatus.in_progress, 0),
+        totalTasks: sessionTotalTasks,
+        tasksInProgress: sessionByStatus.in_progress,
         pendingMessages: await this.getTotalPendingMessages(agents.map((a) => a.id)),
         workspaceCount: workspaces.length,
         boardCount: boards.length,

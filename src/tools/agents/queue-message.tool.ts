@@ -41,26 +41,21 @@ const messageSchema = z.object({
   forceContextChange: z.boolean().default(false).describe('Force agent to change context'),
 });
 
-const schema = z.object({
-  messages: z.array(messageSchema).min(1).max(20).describe('Array of messages to queue (max 20)'),
+// Single flat schema: use "messages" for individual mode, or "targetAgentIds"+"content" for broadcast
+const combinedSchema = z.object({
+  // Individual mode fields
+  messages: z.array(messageSchema).min(1).max(20).optional().describe('Individual messages (1-20). Omit for broadcast mode.'),
+  // Broadcast mode fields
+  targetAgentIds: z.array(z.string().min(1)).min(1).max(20).optional().describe('Broadcast: target agent IDs (1-20)'),
+  content: z.string().min(1).max(1048576).optional().describe('Broadcast: message content (same for all)'),
+  priority: z.enum(['low', 'normal', 'high', 'critical']).default('normal').describe('Broadcast: message priority'),
+  // Shared fields
   sessionId: z.string().min(1).describe('Session ID'),
   fromAgentId: z.string().default('supervisor').describe('Sender agent ID'),
+  files: z.array(z.string()).optional().describe('Broadcast: file paths to attach'),
+  context: z.record(z.string(), z.unknown()).optional().describe('Broadcast: additional context'),
+  forceContextChange: z.boolean().default(false).describe('Broadcast: force context change'),
 });
-
-// Alternative: broadcast same message to multiple agents
-const broadcastSchema = z.object({
-  targetAgentIds: z.array(z.string().min(1)).min(1).max(20).describe('Target agent IDs'),
-  content: z.string().min(1).max(1048576).describe('Message content (same for all, max 1MB)'),
-  priority: z.enum(['low', 'normal', 'high', 'critical']).default('normal'),
-  sessionId: z.string().min(1).describe('Session ID'),
-  fromAgentId: z.string().default('supervisor'),
-  files: z.array(z.string()).optional(),
-  context: z.record(z.string(), z.unknown()).optional(),
-  forceContextChange: z.boolean().default(false),
-});
-
-// Combined schema supporting both modes
-const combinedSchema = z.union([schema, broadcastSchema]);
 
 interface QueueResult {
   targetAgentId: string;
@@ -96,9 +91,17 @@ export const queueMessageTool: UnifiedTool = {
     const results: QueueResult[] = [];
 
     // Detect which mode we're in
-    const isBroadcastMode = 'targetAgentIds' in args && Array.isArray(args.targetAgentIds);
+    const parsed = args as unknown as z.infer<typeof combinedSchema>;
+    const isBroadcastMode = Array.isArray(parsed.targetAgentIds) && parsed.targetAgentIds.length > 0;
+
+    if (!isBroadcastMode && (!parsed.messages || parsed.messages.length === 0)) {
+      throw new Error('Provide either "messages" array (individual mode) or "targetAgentIds" + "content" (broadcast mode).');
+    }
 
     if (isBroadcastMode) {
+      if (!parsed.content) {
+        throw new Error('Broadcast mode requires "content" field.');
+      }
       // Broadcast mode: same message to multiple agents
       const {
         targetAgentIds,
@@ -109,7 +112,7 @@ export const queueMessageTool: UnifiedTool = {
         files,
         context,
         forceContextChange,
-      } = args as z.infer<typeof broadcastSchema>;
+      } = parsed as Required<Pick<typeof parsed, 'targetAgentIds' | 'content'>> & typeof parsed;
 
       const queuePromises = targetAgentIds.map(async (targetAgentId) => {
         try {
@@ -151,7 +154,7 @@ export const queueMessageTool: UnifiedTool = {
       results.push(...(await Promise.all(queuePromises)));
     } else {
       // Individual messages mode
-      const { messages, sessionId, fromAgentId } = args as unknown as z.infer<typeof schema>;
+      const { messages, sessionId, fromAgentId } = parsed as Required<Pick<typeof parsed, 'messages'>> & typeof parsed;
 
       const queuePromises = messages.map(async (msg) => {
         try {

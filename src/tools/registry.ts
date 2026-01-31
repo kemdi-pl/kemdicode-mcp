@@ -341,10 +341,37 @@ class ToolRegistryManager {
       const tool = await entry.loader();
       entry.tool = tool;
       entry.loaded = true;
+
+      // Cache JSON schema for ListTools
+      if (!schemaCache.has(name) && tool.zodSchema) {
+        try {
+          const rawSchema = z.toJSONSchema(tool.zodSchema, { target: 'draft-07' });
+          if (isJsonSchemaShape(rawSchema)) {
+            schemaCache.set(name, {
+              type: 'object' as const,
+              properties: rawSchema.properties || {},
+              required: rawSchema.required || [],
+            });
+          }
+        } catch {
+          // Schema generation failed, will use permissive schema
+        }
+      }
+
+      // Invalidate tool definitions cache so next ListTools picks up real schema
+      toolDefinitionsCache = null;
+
       Logger.debug(`Lazy-loaded tool: ${name}`);
     }
 
     return entry.tool!;
+  }
+
+  /**
+   * Get all lazy tool names for background schema warmup
+   */
+  getLazyToolNames(): string[] {
+    return Array.from(this.lazyTools.keys());
   }
 
   /**
@@ -547,6 +574,34 @@ export const registerLazyTool = (entry: Omit<LazyToolEntry, 'loaded' | 'tool'>):
 };
 
 /**
+ * Background warmup: load all lazy tool schemas so ListTools returns full schemas.
+ * Called once after server startup. Does not block startup.
+ */
+export async function warmupLazySchemas(): Promise<void> {
+  const names = registryManager.getLazyToolNames();
+  let loaded = 0;
+
+  for (const name of names) {
+    if (schemaCache.has(name)) continue;
+    try {
+      await registryManager.loadLazy(name);
+      loaded++;
+    } catch {
+      // Individual tool load failure shouldn't break warmup
+    }
+  }
+
+  if (loaded > 0) {
+    invalidateToolDefinitionsCache();
+    Logger.info(`Schema warmup: loaded ${loaded} lazy tool schemas`);
+    // Notify clients that tool schemas are now available
+    if (broadcastToolsChanged) {
+      broadcastToolsChanged().catch(() => {});
+    }
+  }
+}
+
+/**
  * Initialize the tools changed broadcast function.
  * Called after server startup to enable runtime tool registration notifications.
  */
@@ -721,22 +776,32 @@ export function getToolDefinitions(): Tool[] {
     });
   }
 
-  // Add lazy tools with permissive schemas (will be validated on execution)
+  // Add lazy tools - load schemas on first ListTools call (one-time cost)
   const metadata = registryManager.getAllMetadata();
   for (const meta of metadata) {
     // Skip if already added as eager tool
     if (definitions.some((d) => d.name === meta.name)) continue;
 
-    definitions.push({
-      name: meta.name,
-      description: meta.description,
-      // Permissive schema - validation happens at execution time
-      inputSchema: {
-        type: 'object' as const,
-        properties: {},
-        additionalProperties: true,
-      },
-    });
+    // Check if tool was loaded (has cached schema)
+    const cachedSchema = schemaCache.get(meta.name);
+    if (cachedSchema) {
+      definitions.push({
+        name: meta.name,
+        description: meta.description,
+        inputSchema: cachedSchema,
+      });
+    } else {
+      // Permissive schema - will be populated after first tool load
+      definitions.push({
+        name: meta.name,
+        description: meta.description,
+        inputSchema: {
+          type: 'object' as const,
+          properties: {},
+          additionalProperties: true,
+        },
+      });
+    }
   }
 
   // Cache the complete array
@@ -811,8 +876,8 @@ export async function executeTool(
   let isError = false;
 
   try {
-    // Validate arguments against schema (skip in silent mode for performance)
-    const validatedArgs = silent ? (args as ToolArguments) : (tool.zodSchema.parse(args) as ToolArguments);
+    // Always validate - Zod applies defaults and coercion needed for correct execution
+    const validatedArgs = tool.zodSchema.parse(args) as ToolArguments;
 
     result = await tool.execute(validatedArgs, onProgress);
 
@@ -875,9 +940,9 @@ export async function executeTool(
     throw new ToolExecutionError(name, String(error));
   }
 
-  // Auto-share context (async, don't block response) - skip in silent mode
-  // In silent mode, only share if tool explicitly sets skipContextShare: false
-  if (!silent && isContextEnabled() && !tool.skipContextShare && !SKIP_SHARE_TOOLS.has(name)) {
+  // Auto-share context (async, don't block response)
+  // Silent mode only affects output formatting, not context sharing
+  if (isContextEnabled() && !tool.skipContextShare && !SKIP_SHARE_TOOLS.has(name)) {
     shareContext(name, args as Record<string, unknown>, result, {
       errorState: isError,
     }).catch((err: unknown) => {

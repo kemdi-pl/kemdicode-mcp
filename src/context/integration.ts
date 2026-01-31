@@ -56,7 +56,7 @@ export async function initContext(config?: RedisConfig): Promise<boolean> {
  * Check if context sharing is enabled
  */
 export function isContextEnabled(): boolean {
-  return contextEnabled && getContextStorage().isConnected();
+  return contextEnabled;
 }
 
 /**
