@@ -384,3 +384,96 @@ export async function findByRelationship(
 
   return nodes;
 }
+
+/**
+ * A* search with goal-oriented heuristic for resurrection recall.
+ *
+ * Finds the most relevant nodes from startNodeId towards nodes
+ * that score well on the goalFn heuristic (lower = better match).
+ *
+ * @param startNodeId - Starting node
+ * @param goalFn - Heuristic: returns 0 for perfect goal match, higher = less relevant
+ * @param options - Traversal options + maxResults and relevanceThreshold
+ * @returns Sorted array of relevant nodes (best first)
+ */
+export async function aStarSearch(
+  startNodeId: string,
+  goalFn: (node: GraphNode) => number,
+  options: TraversalOptions & {
+    maxResults?: number;
+    relevanceThreshold?: number;
+  } = {}
+): Promise<GraphNode[]> {
+  const storage = getGraphStorage();
+  const maxResults = options.maxResults ?? 10;
+  const threshold = options.relevanceThreshold ?? 0.8;
+  const maxDepth = options.maxDepth ?? 5;
+  const maxNodes = options.maxNodes ?? 200;
+
+  // Priority queue: [f-score, g-cost, nodeId, depth]
+  const openSet: Array<{ f: number; g: number; nodeId: string; depth: number }> = [];
+  const visited = new Set<string>();
+  const results: Array<{ node: GraphNode; score: number }> = [];
+
+  const startNode = await storage.getNode(startNodeId);
+  if (!startNode) return [];
+
+  const h0 = goalFn(startNode);
+  openSet.push({ f: h0, g: 0, nodeId: startNodeId, depth: 0 });
+
+  let nodesExplored = 0;
+
+  while (openSet.length > 0 && nodesExplored < maxNodes) {
+    // Sort by f-score ascending (cheapest first)
+    openSet.sort((a, b) => a.f - b.f);
+    const current = openSet.shift()!;
+
+    if (visited.has(current.nodeId)) continue;
+    visited.add(current.nodeId);
+    nodesExplored++;
+
+    const node = await storage.getNode(current.nodeId);
+    if (!node) continue;
+
+    // Evaluate this node
+    const hScore = goalFn(node);
+    if (hScore <= threshold) {
+      results.push({ node, score: hScore });
+      if (results.length >= maxResults * 2) break; // Collect extra, sort later
+    }
+
+    // Don't expand past max depth
+    if (current.depth >= maxDepth) continue;
+
+    // Expand neighbors
+    const outEdges = await storage.getOutgoingEdges(current.nodeId);
+    const inEdges = await storage.getIncomingEdges(current.nodeId);
+    const allEdges = [...outEdges, ...inEdges];
+
+    for (const edge of allEdges) {
+      const neighborId = edge.from === current.nodeId ? edge.to : edge.from;
+      if (visited.has(neighborId)) continue;
+
+      if (options.edgeTypes && !options.edgeTypes.includes(edge.type)) continue;
+      if (options.minEdgeWeight !== undefined && edge.weight < options.minEdgeWeight) continue;
+
+      const gCost = current.g + (1 - edge.weight); // Higher edge weight = cheaper traverse
+      const neighborNode = await storage.getNode(neighborId);
+      if (!neighborNode) continue;
+
+      if (options.nodeTypes && !options.nodeTypes.includes(neighborNode.type)) continue;
+
+      const hCost = goalFn(neighborNode);
+      openSet.push({
+        f: gCost + hCost,
+        g: gCost,
+        nodeId: neighborId,
+        depth: current.depth + 1,
+      });
+    }
+  }
+
+  // Sort by score (lower = more relevant) and return top N
+  results.sort((a, b) => a.score - b.score);
+  return results.slice(0, maxResults).map((r) => r.node);
+}

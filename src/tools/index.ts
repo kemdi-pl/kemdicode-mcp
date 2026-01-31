@@ -416,7 +416,7 @@ registerLazyTool({
 });
 registerLazyTool({
   name: 'loci-recall',
-  description: 'Recall memories from loci method of memory palace',
+  description: 'Recall memories, view timeline events, resurrect context after compaction, or link sessions',
   loader: () => import('./loci/index.js').then((m) => m.lociRecallTool),
 });
 registerLazyTool({

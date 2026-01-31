@@ -78,7 +78,8 @@ export class GraphStorage extends RedisBackedService {
    * Add a node to the graph
    */
   async addNode(
-    node: Omit<GraphNode, 'id' | 'createdAt' | 'lastAccessedAt' | 'accessCount'>
+    node: Omit<GraphNode, 'id' | 'createdAt' | 'lastAccessedAt' | 'accessCount'>,
+    ttl?: number
   ): Promise<GraphNode | null> {
     if (!this.isConnected() || !this.redis) return null;
 
@@ -102,7 +103,7 @@ export class GraphStorage extends RedisBackedService {
       await this.redis.sadd(LOCI_KEYS.nodesBySession(fullNode.sessionId), fullNode.id);
 
       // Set TTL
-      await this.redis.expire(key, this.config.nodeTtl!);
+      await this.redis.expire(key, ttl ?? this.config.nodeTtl!);
 
       return fullNode;
     } catch (error) {
@@ -208,7 +209,8 @@ export class GraphStorage extends RedisBackedService {
     toNodeId: string,
     type: GraphEdgeType,
     weight: number = 0.5,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
+    ttl?: number
   ): Promise<GraphEdge | null> {
     if (!this.isConnected() || !this.redis) return null;
 
@@ -249,7 +251,7 @@ export class GraphStorage extends RedisBackedService {
       await this.redis.zadd(LOCI_KEYS.edgesIn(toNodeId), weight, edge.id);
 
       // Set TTL
-      await this.redis.expire(edgeKey, this.config.edgeTtl!);
+      await this.redis.expire(edgeKey, ttl ?? this.config.edgeTtl!);
 
       return edge;
     } catch (error) {

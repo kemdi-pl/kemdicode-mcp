@@ -41,9 +41,16 @@ export type {
   SequenceRecommendation,
   AutoPopulationEvent,
   AutoPopulationConfig,
+  // Timeline Compaction types
+  TimelineEventType,
+  CompactionLevel,
+  TimelineEvent,
+  SessionContinuity,
+  CompactionState,
+  ResurrectionContext,
 } from './types.js';
 
-export { LOCI_KEYS, LOCI_TEMPLATES, DEFAULT_AUTO_POPULATION_CONFIG } from './types.js';
+export { LOCI_KEYS, LOCI_TEMPLATES, DEFAULT_AUTO_POPULATION_CONFIG, TIMELINE_KEYS, COMPACTION_TTL } from './types.js';
 
 // Graph storage
 export {
@@ -62,6 +69,7 @@ export {
   findAllPaths,
   getSubgraph,
   findByRelationship,
+  aStarSearch,
 } from './graph-traversal.js';
 
 // Loci manager
@@ -79,3 +87,18 @@ export {
   resetSequenceTracker,
   type SequenceTrackerConfig,
 } from './sequence-tracker.js';
+
+// Timeline recorder
+export {
+  TimelineRecorder,
+  getTimelineRecorder,
+  resetTimelineRecorder,
+  hashProjectPath,
+} from './timeline-recorder.js';
+
+// Compaction engine
+export {
+  CompactionEngine,
+  getCompactionEngine,
+  resetCompactionEngine,
+} from './compaction-engine.js';

@@ -29,6 +29,8 @@ import { getStateTracker } from './state-tracker.js';
 import { getRewardTracker, getIntrinsicReward } from './rewards.js';
 import { getDopamineEmitter } from './dopamine.js';
 import { getSequenceTracker } from '../loci/sequence-tracker.js';
+import { getTimelineRecorder } from '../loci/timeline-recorder.js';
+import { getCompactionEngine } from '../loci/compaction-engine.js';
 import type { IntrinsicRewards } from './types.js';
 import { Logger } from '../utils/logger.js';
 
@@ -39,6 +41,9 @@ const RL_SKIP_TOOLS = new Set([
   'rl-reward-stats',
   'rl-dopamine-log',
   'sequence-recommend',
+  'loci-recall',
+  'graph-query',
+  'graph-find-path',
   'ping',
   'Help',
   'timeout-test',
@@ -193,6 +198,27 @@ export async function recordToolExecution(
     const sequenceTracker = getSequenceTracker();
     if (sequenceTracker.isConnected()) {
       await sequenceTracker.recordToolExecution(agentId, sessionId, toolName, success, durationMs);
+    }
+
+    // 7. Record timeline event for compaction & resurrection
+    const timelineRecorder = getTimelineRecorder();
+    if (!timelineRecorder.isConnected()) {
+      await timelineRecorder.connect().catch(() => {});
+    }
+    if (timelineRecorder.isConnected()) {
+      // Wire compaction callback (idempotent - sets once)
+      if (!timelineRecorder['compactionCallback']) {
+        const compactionEngine = getCompactionEngine();
+        if (!compactionEngine.isConnected()) {
+          await compactionEngine.connect().catch(() => {});
+        }
+        if (compactionEngine.isConnected()) {
+          timelineRecorder.setCompactionCallback(async (sid: string) => {
+            await compactionEngine.runCompaction(sid);
+          });
+        }
+      }
+      await timelineRecorder.recordToolExecution(toolName, args, success, durationMs, sessionId, agentId);
     }
   } catch (error) {
     // Never let RL errors propagate — log and swallow

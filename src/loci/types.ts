@@ -452,3 +452,125 @@ export const DEFAULT_AUTO_POPULATION_CONFIG: AutoPopulationConfig = {
   autoLociAssociation: true,
   minSequenceOccurrences: 3,
 };
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Timeline Compaction & Resurrection Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Timeline event types
+ */
+export type TimelineEventType =
+  | 'tool_exec'
+  | 'error'
+  | 'fix'
+  | 'file_change'
+  | 'decision'
+  | 'milestone'
+  | 'compaction'
+  | 'summary'
+  | 'key_facts'
+  | 'session_start'
+  | 'session_end';
+
+/**
+ * Compaction levels
+ */
+export type CompactionLevel = 'L0' | 'L1' | 'L2' | 'L3';
+
+/**
+ * TTL per compaction level (seconds)
+ */
+export const COMPACTION_TTL: Record<CompactionLevel, number> = {
+  L0: 86400,      // 24 hours
+  L1: 604800,     // 7 days
+  L2: 2592000,    // 30 days
+  L3: 0,          // permanent (no TTL)
+};
+
+/**
+ * Timeline event stored in Redis
+ */
+export interface TimelineEvent {
+  id: string;
+  sessionId: string;
+  timestamp: number;
+  level: CompactionLevel;
+  type: TimelineEventType;
+  summary: string;
+  toolName?: string;
+  success?: boolean;
+  durationMs?: number;
+  files?: string[];
+  tags: string[];
+  graphNodeIds: string[];
+  childEventIds?: string[];
+  data?: Record<string, unknown>;
+}
+
+/**
+ * Session continuity for cross-compaction linking
+ */
+export interface SessionContinuity {
+  sessionId: string;
+  projectPath: string;
+  predecessorSessionId?: string;
+  successorSessionId?: string;
+  startedAt: number;
+  endedAt?: number;
+  endReason?: 'compaction' | 'timeout' | 'manual' | 'crash';
+  summary?: string;
+  keyFacts?: string[];
+}
+
+/**
+ * Compaction state tracking
+ */
+export interface CompactionState {
+  lastL0ToL1Ts: number;
+  lastL1ToL2Ts: number;
+  lastL2ToL3Ts: number;
+  l0Count: number;
+  l1Count: number;
+  l2Count: number;
+  l3Count: number;
+}
+
+/**
+ * Context returned when agent resurrects after compaction
+ */
+export interface ResurrectionContext {
+  continuityChain: SessionContinuity[];
+  keyFacts: string[];
+  recentSummaries: string[];
+  pendingTasks?: string[];
+  unresolvedErrors?: string[];
+  activeFiles: string[];
+  suggestedActions: string[];
+}
+
+/**
+ * Redis keys for timeline and compaction
+ */
+export const TIMELINE_KEYS = {
+  l0: (sessionId: string) => `mcp:timeline:L0:${sessionId}`,
+  l1: (sessionId: string) => `mcp:timeline:L1:${sessionId}`,
+  l2: (sessionId: string) => `mcp:timeline:L2:${sessionId}`,
+  l3: (sessionId: string) => `mcp:timeline:L3:${sessionId}`,
+  event: (eventId: string) => `mcp:timeline:event:${eventId}`,
+  continuity: (projectHash: string) => `mcp:continuity:${projectHash}`,
+  continuityMeta: (sessionId: string) => `mcp:continuity:meta:${sessionId}`,
+  compactionState: (sessionId: string) => `mcp:compaction:state:${sessionId}`,
+  compactionLock: (sessionId: string) => `mcp:compaction:lock:${sessionId}`,
+  /** Get timeline key for a given level */
+  forLevel: (level: CompactionLevel, sessionId: string) => {
+    const map: Record<CompactionLevel, string> = {
+      L0: `mcp:timeline:L0:${sessionId}`,
+      L1: `mcp:timeline:L1:${sessionId}`,
+      L2: `mcp:timeline:L2:${sessionId}`,
+      L3: `mcp:timeline:L3:${sessionId}`,
+    };
+    return map[level];
+  },
+} as const;
