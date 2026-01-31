@@ -44,6 +44,15 @@ export const getSharedContextTool: UnifiedTool = {
   description: 'Get context shared by other MCP servers',
   zodSchema: schema,
   skipContextShare: true, // Don't share this tool's output
+  metadata: {
+    category: 'context',
+    tags: ['context', 'sharing'],
+    examples: [
+      { args: {}, description: 'Get all shared context entries' },
+      { args: { from_server: 'kemdicode-mcp', tool_name: 'code-review', limit: 5 }, description: 'Get last 5 code review results from kemdicode-mcp' },
+    ],
+    relatedTools: ['shared-thoughts'],
+  },
   execute: async (args) => {
     const fromServer = args.from_server as string | undefined;
     const toolName = args.tool_name as string | undefined;

@@ -36,6 +36,15 @@ export const agentListTool: UnifiedTool = {
   description: 'List active agents with IDs, roles, status, and tasks.',
   zodSchema: schema,
   skipContextShare: true,
+  metadata: {
+    category: 'agents',
+    tags: ['list', 'discovery'],
+    examples: [
+      { args: {}, description: 'List all active agents in the system' },
+      { args: { sessionId: 'sess-abc123', includeIdle: false }, description: 'List only busy agents in a session' },
+    ],
+    relatedTools: ['agent-register', 'agent-watch', 'monitor'],
+  },
 
   execute: async (args) => {
     const { sessionId, includeIdle } = args as z.infer<typeof schema>;

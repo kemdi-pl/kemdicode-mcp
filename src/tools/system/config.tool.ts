@@ -261,6 +261,16 @@ export const configTool: UnifiedTool<typeof schema> = {
     'Manage server config at runtime. Switch AI models, adjust timeouts, cache settings. Actions: get, set, reset, list, save',
   zodSchema: schema,
   skipContextShare: true,
+  metadata: {
+    category: 'system',
+    tags: ['config', 'settings'],
+    examples: [
+      { args: { action: 'get', group: 'server' }, description: 'View server configuration' },
+      { args: { action: 'set', group: 'timeouts', updates: { command: 600000 } }, description: 'Update command timeout to 10 minutes' },
+      { args: { action: 'list' }, description: 'List all configuration options with descriptions' },
+    ],
+    relatedTools: ['ai-config', 'env-info'],
+  },
 
   execute: async (args: ConfigArgs): Promise<string> => {
     const { action, group, primaryModel, fallbackModel, updates } = args;

@@ -47,6 +47,15 @@ export const invokeToolTool: UnifiedTool = {
   name: 'invoke-tool',
   description: 'Invoke MCP tool from agent context (recursive invocation)',
   zodSchema: schema,
+  metadata: {
+    category: 'recursive',
+    tags: ['invoke', 'recursive', 'meta'],
+    examples: [
+      { args: { toolName: 'file-read', args: { path: '@src/index.ts' }, agentId: 'backend-dev', sessionId: 'sess-abc123' }, description: 'Invoke file-read from agent context' },
+      { args: { toolName: 'code-review', args: { files: '@src/auth.ts' }, agentId: 'qa', sessionId: 'sess-abc123', dryRun: true }, description: 'Check if agent can invoke code-review without executing' },
+    ],
+    relatedTools: ['invoke-batch', 'invocation-log'],
+  },
 
   execute: async (args): Promise<string> => {
     const input = schema.parse(args);

@@ -28,10 +28,10 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
-import { getBoardSummary } from '../../kanban/index.js';
+import { getBoardSummary, resolveSessionId } from '../../kanban/index.js';
 
 const schema = z.object({
-  sessionId: z.string().min(1).describe('Session ID'),
+  sessionId: z.string().optional().describe('Session ID (auto-detected from connection if omitted)'),
 });
 
 type BoardStatusArgs = z.infer<typeof schema>;
@@ -40,6 +40,16 @@ export const boardStatusTool: UnifiedTool = {
   name: 'board-status',
   description: 'Get Kanban board summary with task counts and activity',
   zodSchema: schema,
+
+  metadata: {
+    category: 'kanban',
+    tags: ['board', 'status', 'summary'],
+    examples: [
+      { args: {}, description: 'Get board summary for the current session' },
+      { args: { sessionId: 'session-abc123' }, description: 'Get board summary for a specific session' },
+    ],
+    relatedTools: ['board-list', 'task-list', 'monitor'],
+  },
 
   execute: async (args): Promise<string> => {
     const input = args as BoardStatusArgs;
@@ -53,9 +63,12 @@ export const boardStatusTool: UnifiedTool = {
     }
 
     try {
-      const summary = await getBoardSummary(input.sessionId);
+      // Resolve sessionId from args or active connection context
+      const sessionId = resolveSessionId(input.sessionId);
 
-      Logger.debug(`board-status: retrieved summary for session ${input.sessionId}`);
+      const summary = await getBoardSummary(sessionId);
+
+      Logger.debug(`board-status: retrieved summary for session ${sessionId}`);
 
       return JSON.stringify({
         success: true,

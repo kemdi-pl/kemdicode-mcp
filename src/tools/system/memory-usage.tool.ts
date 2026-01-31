@@ -259,6 +259,15 @@ export const memoryUsageTool: UnifiedTool = {
   description: 'Show process heap, system memory, V8 stats',
   zodSchema: schema,
   skipContextShare: true,
+  metadata: {
+    category: 'system',
+    tags: ['memory', 'monitoring', 'resources'],
+    examples: [
+      { args: {}, description: 'Show basic memory usage' },
+      { args: { detailed: true, gc: true }, description: 'Show detailed V8 heap stats after forced GC' },
+    ],
+    relatedTools: ['env-info', 'process-list'],
+  },
   execute: async (args) => {
     const detailed = Boolean(args.detailed);
     const forceGC = Boolean(args.gc);

@@ -35,6 +35,16 @@ export const analyzeDepsTool: UnifiedTool = {
   description: 'Dependency analysis - uses, used-by, impact assessment',
   zodSchema: schema,
   prompt: { description: 'Analyze file dependencies' },
+  metadata: {
+    category: 'specialized',
+    tags: ['dependencies', 'analysis', 'imports'],
+    longRunning: true,
+    examples: [
+      { args: { files: '@src/services/UserService.ts' }, description: 'Analyze dependencies of a service file' },
+      { args: { files: '@app/Http/Controllers/AuthController.php', depth: 'deep', direction: 'both' }, description: 'Deep dependency analysis in both directions' },
+    ],
+    relatedTools: ['code-review', 'project-info'],
+  },
   execute: async (args, onProgress) => {
     const { files, depth = 'shallow', direction = 'both' } = args;
     if (!files?.toString().trim()) throw new Error('Files required. Use @path/file.php syntax.');

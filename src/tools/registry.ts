@@ -157,7 +157,11 @@ export type ToolCategory =
   | 'specialized'
   | 'recursive'
   | 'multi-llm'
-  | 'memory';
+  | 'memory'
+  | 'loci'
+  | 'mpc'
+  | 'session'
+  | 'rl';
 
 /** Tool metadata for discovery, categorization and search */
 export interface ToolMetadata {
@@ -167,6 +171,10 @@ export interface ToolMetadata {
   tags?: string[];
   /** Whether this tool is long-running (useful for progress reporting) */
   longRunning?: boolean;
+  /** Example usage for discovery */
+  examples?: Array<{ args: Record<string, unknown>; description: string }>;
+  /** Related tools that are commonly used together */
+  relatedTools?: string[];
 }
 
 export interface UnifiedTool<TSchema extends ZodSchema = ZodSchema> {

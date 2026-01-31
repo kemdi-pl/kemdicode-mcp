@@ -268,7 +268,7 @@ async function executeLinter(
   fix: boolean,
   files: string | undefined,
   timeout: number,
-  _onProgress?: ProgressCallback
+  onProgress?: ProgressCallback
 ): Promise<string> {
   let args = fix && linter.fixArgs ? [...linter.fixArgs] : [...linter.args];
 
@@ -278,11 +278,12 @@ async function executeLinter(
     args.push(...files.split(' ').filter(Boolean));
   }
 
-  // Note: we don't pass onProgress to spawnProcess for linters
-  // because we want to format the output before returning
+  onProgress?.(`Running ${linter.name}${fix ? ' --fix' : ''}...\n`);
+
   const result = await spawnProcess(linter.command, args, {
     cwd,
     timeout,
+    onProgress,
     forceColor: false, // Disable colors for parsing
   });
 
@@ -305,6 +306,17 @@ export const runLintTool: UnifiedTool = {
   name: 'run-lint',
   description: 'Run ESLint/PHPCS/PHPStan/Prettier with formatted output',
   zodSchema: schema,
+  metadata: {
+    category: 'project',
+    tags: ['lint', 'eslint', 'quality'],
+    longRunning: true,
+    examples: [
+      { args: {}, description: 'Auto-detect linter and run in current project' },
+      { args: { linter: 'eslint', fix: true }, description: 'Run ESLint with auto-fix' },
+      { args: { linter: 'phpstan', files: 'src/Services/' }, description: 'Run PHPStan on specific directory' },
+    ],
+    relatedTools: ['check-types', 'run-tests', 'code-review'],
+  },
   execute: async (args, onProgress) => {
     const cwd = getCwd(args.cwd as string | undefined);
     const linterChoice = (args.linter as string) || 'auto';

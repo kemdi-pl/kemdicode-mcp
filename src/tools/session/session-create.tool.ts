@@ -45,6 +45,16 @@ export const sessionCreateTool: UnifiedTool<typeof schema> = {
   zodSchema: schema,
   skipContextShare: true,
 
+  metadata: {
+    category: 'session',
+    tags: ['session', 'create'],
+    examples: [
+      { args: { sessions: [{ model: 'gpt-4o', cwd: '/opt/my-project' }] }, description: 'Create a single session with GPT-4o' },
+      { args: { sessions: [{ model: 'claude-sonnet-4-20250514', sessionId: 'backend-dev' }, { model: 'gpt-4o', sessionId: 'frontend-dev' }] }, description: 'Create two sessions with different models' },
+    ],
+    relatedTools: ['session-list', 'session-info', 'session-switch'],
+  },
+
   execute: async (args) => {
     const { sessions } = args;
     const manager = getSessionManager();

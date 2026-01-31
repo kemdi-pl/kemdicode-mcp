@@ -322,6 +322,16 @@ export const monitorTool: UnifiedTool = {
     'Session monitoring. Views: overview, agents, tasks, hierarchy, activity.',
   zodSchema: schema,
   skipContextShare: true,
+  metadata: {
+    category: 'agents',
+    tags: ['monitor', 'overview', 'dashboard'],
+    examples: [
+      { args: { sessionId: 'sess-abc123' }, description: 'Show session overview dashboard' },
+      { args: { sessionId: 'sess-abc123', view: 'hierarchy', depth: 'deep' }, description: 'Show deep hierarchy tree of session' },
+      { args: { sessionId: 'sess-abc123', view: 'activity', limit: 50 }, description: 'Show last 50 activity entries' },
+    ],
+    relatedTools: ['agent-list', 'task-list', 'board-status'],
+  },
 
   execute: async (args) => {
     const { sessionId, view, agentId, boardId, depth, includeQueues, limit } = args as z.infer<

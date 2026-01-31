@@ -44,6 +44,7 @@ const schema = z.object({
   context: z.number().min(0).max(100).default(3).describe('Context lines'),
   ignoreWhitespace: z.boolean().default(false).describe('Ignore whitespace'),
   colorWords: z.boolean().default(false).describe('Word-level diff'),
+  format: z.enum(['text', 'json']).default('text').describe('Output format'),
 });
 
 export const gitDiffTool: UnifiedTool = {
@@ -51,6 +52,15 @@ export const gitDiffTool: UnifiedTool = {
   description: 'Show git diff for staged, unstaged, or commit changes',
   zodSchema: schema,
   skipContextShare: true,
+  metadata: {
+    category: 'git',
+    tags: ['diff', 'changes'],
+    examples: [
+      { args: { staged: true }, description: 'Show staged changes' },
+      { args: { commit: 'HEAD~3', stat: true }, description: 'Show diffstat against 3 commits ago' },
+    ],
+    relatedTools: ['git-status', 'git-log', 'file-diff'],
+  },
   execute: async (args) => {
     const {
       cwd,
@@ -64,6 +74,7 @@ export const gitDiffTool: UnifiedTool = {
       context,
       ignoreWhitespace,
       colorWords,
+      format,
     } = args as z.infer<typeof schema>;
 
     // Check if directory is a git repo
@@ -121,17 +132,27 @@ export const gitDiffTool: UnifiedTool = {
 
       // If output is empty, provide a helpful message
       if (!output.trim()) {
+        let message: string;
         if (staged) {
-          return 'No staged changes.';
+          message = 'No staged changes.';
         } else if (commitRange) {
-          return `No differences between ${commitRange}.`;
+          message = `No differences between ${commitRange}.`;
         } else if (commit) {
-          return `No differences from ${commit}.`;
+          message = `No differences from ${commit}.`;
+        } else {
+          message = 'No changes detected.';
         }
-        return 'No changes detected.';
+        if (format === 'json') {
+          return JSON.stringify({ success: true, output: message, tool: 'git-diff' });
+        }
+        return message;
       }
 
-      return output.trim();
+      const result = output.trim();
+      if (format === 'json') {
+        return JSON.stringify({ success: true, output: result, tool: 'git-diff' });
+      }
+      return result;
     } catch (error) {
       return formatGitError(error, 'Git diff');
     }

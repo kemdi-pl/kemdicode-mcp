@@ -28,11 +28,11 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
-import { joinWorkspace, getWorkspace } from '../../kanban/index.js';
+import { joinWorkspace, getWorkspace, resolveSessionId, resolveWorkspaceId } from '../../kanban/index.js';
 
 const schema = z.object({
-  workspaceId: z.string().min(1).describe('Workspace ID'),
-  sessionId: z.string().min(1).describe('Session ID joining'),
+  workspaceId: z.string().min(1).describe('Workspace ID or "name:Workspace Name"'),
+  sessionId: z.string().optional().describe('Session ID joining (auto-detected from connection if omitted)'),
 });
 
 type WorkspaceJoinArgs = z.infer<typeof schema>;
@@ -41,6 +41,16 @@ export const workspaceJoinTool: UnifiedTool = {
   name: 'workspace-join',
   description: 'Join session to workspace for cross-session collaboration',
   zodSchema: schema,
+
+  metadata: {
+    category: 'kanban',
+    tags: ['workspace', 'join', 'collaboration'],
+    examples: [
+      { args: { workspaceId: 'ws-abc123' }, description: 'Join a workspace by ID' },
+      { args: { workspaceId: 'name:Platform Team' }, description: 'Join a workspace by name' },
+    ],
+    relatedTools: ['workspace-list', 'workspace-leave'],
+  },
 
   execute: async (args): Promise<string> => {
     const input = args as WorkspaceJoinArgs;
@@ -54,7 +64,11 @@ export const workspaceJoinTool: UnifiedTool = {
     }
 
     try {
-      const success = await joinWorkspace(input.workspaceId, input.sessionId);
+      // Resolve sessionId and workspaceId
+      const sessionId = resolveSessionId(input.sessionId);
+      const resolvedWorkspaceId = await resolveWorkspaceId(input.workspaceId, sessionId);
+
+      const success = await joinWorkspace(resolvedWorkspaceId, sessionId);
 
       if (!success) {
         return JSON.stringify({
@@ -64,16 +78,16 @@ export const workspaceJoinTool: UnifiedTool = {
         });
       }
 
-      const workspace = await getWorkspace(input.workspaceId);
+      const workspace = await getWorkspace(resolvedWorkspaceId);
 
       Logger.debug(
-        `workspace-join: session ${input.sessionId} joined workspace ${input.workspaceId}`
+        `workspace-join: session ${sessionId} joined workspace ${resolvedWorkspaceId}`
       );
 
       return JSON.stringify({
         success: true,
-        workspaceId: input.workspaceId,
-        sessionId: input.sessionId,
+        workspaceId: resolvedWorkspaceId,
+        sessionId,
         workspaceName: workspace?.name,
         memberCount: workspace?.memberSessions.length || 0,
       });

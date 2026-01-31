@@ -399,6 +399,15 @@ export const fileTreeTool: UnifiedTool<typeof schema> = {
   description: 'Generate directory tree with depth, icons, and size info',
   zodSchema: schema,
   skipContextShare: true, // Tree output may be large
+  metadata: {
+    category: 'file',
+    tags: ['tree', 'directory', 'structure'],
+    examples: [
+      { args: { path: 'src/', maxDepth: 3 }, description: 'Show src directory tree up to 3 levels deep' },
+      { args: { path: '.', showSize: true, dirsOnly: true }, description: 'Show only directories with sizes' },
+    ],
+    relatedTools: ['file-read', 'file-search', 'project-info'],
+  },
 
   execute: async (args): Promise<string> => {
     // Do not mutate validated args (tools may reuse args object in callers/tests)

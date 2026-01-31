@@ -416,6 +416,15 @@ export const projectInfoTool: UnifiedTool = {
   description: 'Get project metadata from package.json/composer.json/Cargo.toml',
   zodSchema: schema,
   skipContextShare: true,
+  metadata: {
+    category: 'project',
+    tags: ['info', 'metadata', 'package'],
+    examples: [
+      { args: {}, description: 'Get metadata for current project' },
+      { args: { cwd: '/var/www/app', includeScripts: true, includeDevDeps: false }, description: 'Get project info without dev dependencies' },
+    ],
+    relatedTools: ['env-info', 'file-tree'],
+  },
   execute: async (args) => {
     const cwd = (args.cwd as string) || process.cwd();
     const includeDevDeps = args.includeDevDeps !== false;

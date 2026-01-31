@@ -22,6 +22,7 @@ import { pingTool, helpTool, planTool, buildTool } from './simple-tools.js';
 import { brainstormTool } from './brainstorm.tool.js';
 import { timeoutTestTool } from './timeout-test.tool.js';
 import { batchTool } from './batch.tool.js';
+import { pipelineTool } from './pipeline.tool.js';
 import {
   codeReviewTool,
   writeTestsTool,
@@ -50,6 +51,9 @@ import {
   gitLogTool,
   gitBlameTool,
   gitBranchTool,
+  gitAddTool,
+  gitCommitTool,
+  gitStashTool,
 } from './git/index.js';
 import {
   fileReadTool,
@@ -57,6 +61,10 @@ import {
   fileSearchTool,
   fileTreeTool,
   fileDiffTool,
+  fileDeleteTool,
+  fileMoveTool,
+  fileCopyTool,
+  fileBackupRestoreTool,
 } from './file/index.js';
 import {
   findDefinitionTool,
@@ -104,24 +112,30 @@ import {
   editMemoryTool,
   checkpointSaveTool,
   checkpointRestoreTool,
+  checkpointDiffTool,
 } from './memory/index.js';
 import {
   taskCreateTool,
+  taskGetTool,
   taskListTool,
   taskClaimTool,
   taskAssignTool,
   taskUpdateTool,
+  taskDeleteTool,
+  taskCommentTool,
   boardStatusTool,
   taskPushMultiTool,
   workspaceCreateTool,
   workspaceListTool,
   workspaceJoinTool,
   workspaceLeaveTool,
+  workspaceDeleteTool,
   boardCreateTool,
   boardListTool,
   boardShareTool,
   boardMembersTool,
   boardInviteTool,
+  boardDeleteTool,
 } from './kanban/index.js';
 import { aiConfigTool } from './system/ai-config.tool.js';
 import { aiModelsTool } from './system/ai-models.tool.js';
@@ -141,6 +155,7 @@ registerTool(planTool);
 registerTool(buildTool);
 registerTool(brainstormTool);
 registerTool(batchTool); // Multi-operation parallel execution
+registerTool(pipelineTool); // Sequential pipeline with step output chaining
 
 // Specialized analysis tools
 registerTool(codeReviewTool);
@@ -174,6 +189,9 @@ registerTool(gitDiffTool);
 registerTool(gitLogTool);
 registerTool(gitBlameTool);
 registerTool(gitBranchTool);
+registerTool(gitAddTool);
+registerTool(gitCommitTool);
+registerTool(gitStashTool);
 
 // File operation tools
 registerTool(fileReadTool);
@@ -181,6 +199,10 @@ registerTool(fileWriteTool);
 registerTool(fileSearchTool);
 registerTool(fileTreeTool);
 registerTool(fileDiffTool);
+registerTool(fileDeleteTool);
+registerTool(fileMoveTool);
+registerTool(fileCopyTool);
+registerTool(fileBackupRestoreTool);
 
 // Code intelligence tools
 registerTool(findDefinitionTool);
@@ -245,13 +267,17 @@ registerTool(editMemoryTool);
 // Checkpoint tools
 registerTool(checkpointSaveTool);
 registerTool(checkpointRestoreTool);
+registerTool(checkpointDiffTool);
 
 // Kanban task management tools
 registerTool(taskCreateTool);
+registerTool(taskGetTool);
 registerTool(taskListTool);
 registerTool(taskClaimTool);
 registerTool(taskAssignTool);
 registerTool(taskUpdateTool);
+registerTool(taskDeleteTool);
+registerTool(taskCommentTool);
 registerTool(boardStatusTool);
 registerTool(taskPushMultiTool);
 
@@ -260,6 +286,7 @@ registerTool(workspaceCreateTool);
 registerTool(workspaceListTool);
 registerTool(workspaceJoinTool);
 registerTool(workspaceLeaveTool);
+registerTool(workspaceDeleteTool);
 
 // Kanban board tools
 registerTool(boardCreateTool);
@@ -267,6 +294,7 @@ registerTool(boardListTool);
 registerTool(boardShareTool);
 registerTool(boardMembersTool);
 registerTool(boardInviteTool);
+registerTool(boardDeleteTool);
 
 // Recursive tool invocation
 registerTool(invokeToolTool);

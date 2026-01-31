@@ -23,7 +23,7 @@ import { getEnhancedContextString } from '../../utils/projectContext.enhanced.js
 import { recordSuggestion } from '../../context/feedback-loop.js';
 
 const schema = z.object({
-  files: z.string().describe('Files with the bug (@path/file syntax)'),
+  files: z.string().describe('Files with the bug. Use @path/file syntax for multiple files, or plain paths separated by spaces'),
   description: z.string().describe('What happens vs expected behavior'),
   errorLog: z.string().optional().describe('Stack trace or error log'),
   steps: z.string().optional().describe('Steps to reproduce'),
@@ -34,6 +34,16 @@ export const fixBugTool: UnifiedTool = {
   description: 'Bug analysis and fix - root cause, fix proposal, prevention',
   zodSchema: schema,
   prompt: { description: 'Find and fix bugs in PHP/Laravel code' },
+  metadata: {
+    category: 'specialized',
+    tags: ['bug', 'fix', 'debug'],
+    longRunning: true,
+    examples: [
+      { args: { files: '@src/services/OrderService.ts', description: 'Orders are duplicated when payment fails' }, description: 'Analyze and fix a bug with description' },
+      { args: { files: '@app/Jobs/ProcessPayment.php', description: 'Job fails silently', errorLog: 'ErrorException: Undefined index', steps: '1. Create order 2. Process payment 3. Job fails' }, description: 'Fix bug with error log and reproduction steps' },
+    ],
+    relatedTools: ['auto-fix', 'code-review', 'explain-code'],
+  },
   execute: async (args, onProgress) => {
     const { files, description, errorLog, steps } = args;
     if (!files?.toString().trim()) throw new Error('Files required. Use @path/file.php syntax.');

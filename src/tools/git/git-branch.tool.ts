@@ -59,6 +59,15 @@ export const gitBranchTool: UnifiedTool = {
   description: 'Manage git branches: list, create, delete, rename',
   zodSchema: schema,
   skipContextShare: true,
+  metadata: {
+    category: 'git',
+    tags: ['branch', 'management'],
+    examples: [
+      { args: { action: 'list', verbose: true }, description: 'List all local branches with tracking info' },
+      { args: { action: 'create', name: 'feature/auth', startPoint: 'main' }, description: 'Create a new branch from main' },
+    ],
+    relatedTools: ['git-status', 'git-log'],
+  },
   execute: async (args) => {
     const {
       cwd,

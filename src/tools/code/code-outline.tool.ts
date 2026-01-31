@@ -858,6 +858,17 @@ export const codeOutlineTool: UnifiedTool = {
   description: 'Generate file structure outline (classes, methods, functions)',
   zodSchema: schema,
   skipContextShare: true, // Code navigation doesn't need sharing
+  metadata: {
+    category: 'code',
+    tags: ['outline', 'structure', 'ast'],
+    examples: [
+      {
+        args: { file: 'src/tools/registry.ts', depth: 2, showSignatures: true },
+        description: 'Generate outline of registry.ts showing classes and methods with signatures',
+      },
+    ],
+    relatedTools: ['find-symbols', 'find-definition', 'explain-code'],
+  },
 
   execute: async (args, onProgress) => {
     const { file, depth = 2, showSignatures = true, showLineNumbers = true } = args;

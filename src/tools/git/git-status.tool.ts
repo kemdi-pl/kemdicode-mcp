@@ -39,6 +39,7 @@ const schema = z.object({
     .enum(['no', 'normal', 'all'])
     .default('normal')
     .describe('Untracked files mode'),
+  format: z.enum(['text', 'json']).default('text').describe('Output format'),
 });
 
 export const gitStatusTool: UnifiedTool = {
@@ -46,8 +47,17 @@ export const gitStatusTool: UnifiedTool = {
   description: 'Git repo status: changed, staged, untracked files and branch',
   zodSchema: schema,
   skipContextShare: true, // Git tools are utility tools, skip context sharing
+  metadata: {
+    category: 'git',
+    tags: ['status', 'changes', 'branch'],
+    examples: [
+      { args: {}, description: 'Show current repository status' },
+      { args: { short: true, format: 'json' }, description: 'Short status in JSON format' },
+    ],
+    relatedTools: ['git-diff', 'git-log', 'git-branch'],
+  },
   execute: async (args) => {
-    const { cwd, short, branch, showStash, ignored, untracked } = args as z.infer<typeof schema>;
+    const { cwd, short, branch, showStash, ignored, untracked, format } = args as z.infer<typeof schema>;
 
     // Check if directory is a git repo
     const repoError = validateGitRepo(cwd);
@@ -79,10 +89,18 @@ export const gitStatusTool: UnifiedTool = {
 
       // If output is empty, provide a helpful message
       if (!output.trim()) {
-        return 'Working tree clean - no changes to commit.';
+        const message = 'Working tree clean - no changes to commit.';
+        if (format === 'json') {
+          return JSON.stringify({ success: true, output: message, tool: 'git-status' });
+        }
+        return message;
       }
 
-      return output.trim();
+      const result = output.trim();
+      if (format === 'json') {
+        return JSON.stringify({ success: true, output: result, tool: 'git-status' });
+      }
+      return result;
     } catch (error) {
       return formatGitError(error, 'Git status');
     }

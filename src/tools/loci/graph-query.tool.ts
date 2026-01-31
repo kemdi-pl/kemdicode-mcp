@@ -48,6 +48,16 @@ export const graphQueryTool: UnifiedTool<typeof schema> = {
   description: 'Query knowledge graph nodes by type, tags, weight.',
   zodSchema: schema,
 
+  metadata: {
+    category: 'loci',
+    tags: ['graph', 'query', 'knowledge'],
+    examples: [
+      { args: { sessionId: 'session-1', type: 'error', limit: 10, sortBy: 'weight', sortOrder: 'desc' }, description: 'Query top 10 error nodes by weight' },
+      { args: { sessionId: 'session-1', tags: ['authentication'], labelContains: 'login' }, description: 'Search nodes by tags and label' },
+    ],
+    relatedTools: ['graph-find-path', 'loci-recall'],
+  },
+
   execute: async (args) => {
     const { sessionId, type, tags, labelContains, minWeight, limit, sortBy, sortOrder } = args;
 

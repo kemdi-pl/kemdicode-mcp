@@ -53,6 +53,22 @@ export const insertBeforeSymbolTool: UnifiedTool = {
   name: 'insert-before-symbol',
   description: 'Insert content before symbol definition',
   zodSchema: schema,
+  metadata: {
+    category: 'code',
+    tags: ['insert', 'symbol', 'ast'],
+    examples: [
+      {
+        args: {
+          symbol: 'UserService',
+          content: "import { Logger } from './logger';",
+          path: 'src/services/',
+          language: 'ts',
+        },
+        description: 'Insert an import statement before the UserService class definition',
+      },
+    ],
+    relatedTools: ['insert-after-symbol', 'find-definition', 'rename-symbol'],
+  },
 
   execute: async (args): Promise<string> => {
     const {

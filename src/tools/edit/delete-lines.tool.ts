@@ -48,6 +48,17 @@ export const deleteLinesTool: UnifiedTool = {
   name: 'delete-lines',
   description: 'Delete line range from file',
   zodSchema: schema,
+  metadata: {
+    category: 'edit',
+    tags: ['delete', 'lines'],
+    examples: [
+      {
+        args: { path: 'src/utils/helpers.ts', startLine: 10, endLine: 20 },
+        description: 'Delete lines 10-20 from a file',
+      },
+    ],
+    relatedTools: ['replace-lines', 'insert-at-line', 'replace-content'],
+  },
 
   execute: async (args): Promise<string> => {
     const { path: inputPath, startLine, endLine, createBackup } = args as DeleteLinesArgs;

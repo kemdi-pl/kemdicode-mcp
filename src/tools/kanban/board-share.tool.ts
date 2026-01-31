@@ -28,11 +28,11 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
-import { shareBoard, hasPermission } from '../../kanban/index.js';
+import { shareBoard, hasPermission, resolveBoardId, resolveWorkspaceId, resolveSessionId } from '../../kanban/index.js';
 
 const shareItemSchema = z.object({
-  boardId: z.string().min(1).describe('Board ID'),
-  workspaceId: z.string().min(1).describe('Target workspace ID'),
+  boardId: z.string().min(1).describe('Board ID or "name:Board Name"'),
+  workspaceId: z.string().min(1).describe('Target workspace ID or "name:Workspace Name"'),
   visibility: z
     .enum(['workspace', 'public'])
     .default('workspace')
@@ -51,6 +51,16 @@ export const boardShareTool: UnifiedTool = {
   description: 'Share 1-10 boards with workspaces. Returns results.',
   zodSchema: schema,
 
+  metadata: {
+    category: 'kanban',
+    tags: ['board', 'share', 'workspace'],
+    examples: [
+      { args: { shares: [{ boardId: 'board-abc123', workspaceId: 'ws-xyz', visibility: 'workspace' }], agentId: 'agent-1' }, description: 'Share a board with a workspace' },
+      { args: { shares: [{ boardId: 'name:Sprint 1', workspaceId: 'name:My Workspace', visibility: 'public' }], agentId: 'agent-1' }, description: 'Share a board publicly by name' },
+    ],
+    relatedTools: ['board-invite', 'board-members', 'workspace-join'],
+  },
+
   execute: async (args): Promise<string> => {
     const { shares, agentId } = args as BoardShareArgs;
 
@@ -62,20 +72,27 @@ export const boardShareTool: UnifiedTool = {
       });
     }
 
+    // Resolve sessionId for name lookups
+    const sessionId = resolveSessionId();
+
     const results = await Promise.all(
       shares.map(async (item) => {
         try {
-          const canManage = await hasPermission(item.boardId, agentId, 'canManageBoard');
+          // Resolve board and workspace by name if needed
+          const resolvedBoardId = await resolveBoardId(item.boardId, sessionId);
+          const resolvedWorkspaceId = await resolveWorkspaceId(item.workspaceId, sessionId);
+
+          const canManage = await hasPermission(resolvedBoardId, agentId, 'canManageBoard');
           if (!canManage) {
             return {
-              boardId: item.boardId,
+              boardId: resolvedBoardId,
               success: false,
               error: 'Permission denied',
               code: 'PERMISSION_DENIED',
             };
           }
 
-          const board = await shareBoard(item.boardId, item.workspaceId, item.visibility);
+          const board = await shareBoard(resolvedBoardId, resolvedWorkspaceId, item.visibility);
           if (!board) {
             return {
               boardId: item.boardId,

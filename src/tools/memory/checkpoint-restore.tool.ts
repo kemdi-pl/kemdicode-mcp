@@ -40,6 +40,14 @@ export const checkpointRestoreTool: UnifiedTool = {
   name: 'checkpoint-restore',
   description: 'Restore named checkpoint from current project',
   zodSchema: schema,
+  metadata: {
+    category: 'memory',
+    tags: ['checkpoint', 'restore'],
+    examples: [
+      { args: { name: 'before-refactor' }, description: 'Restore a named checkpoint' },
+    ],
+    relatedTools: ['checkpoint-save', 'checkpoint-diff'],
+  },
 
   execute: async (args): Promise<string> => {
     const { name } = args as CheckpointRestoreArgs;

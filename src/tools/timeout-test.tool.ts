@@ -28,6 +28,15 @@ export const timeoutTestTool: UnifiedTool = {
   description: 'Test timeout prevention for specified duration',
   zodSchema: timeoutTestArgsSchema,
   prompt: { description: 'Test timeout prevention system' },
+  metadata: {
+    category: 'system',
+    tags: ['test', 'timeout', 'debug'],
+    examples: [
+      { args: { duration: 5000 }, description: 'Run a 5-second timeout test' },
+      { args: { duration: 30000 }, description: 'Run a 30-second timeout test' },
+    ],
+    relatedTools: ['ping'],
+  },
   execute: async (args) => {
     const duration = args.duration as number;
     const steps = Math.ceil(duration / 5000); // Progress every 5 seconds

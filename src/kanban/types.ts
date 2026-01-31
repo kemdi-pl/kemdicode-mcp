@@ -38,6 +38,14 @@ export const PRIORITY_SCORES: Record<TaskPriority, number> = {
   low: 25,
 };
 
+/** Task note/comment */
+export interface TaskNote {
+  id: string;
+  author: string;
+  content: string;
+  createdAt: number;
+}
+
 /** Kanban task */
 export interface KanbanTask {
   id: string;
@@ -60,6 +68,7 @@ export interface KanbanTask {
   completedAt?: number;
   estimatedMinutes?: number;
   actualMinutes?: number;
+  notes?: TaskNote[];
 }
 
 /** Task creation input */

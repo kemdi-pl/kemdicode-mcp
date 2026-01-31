@@ -57,6 +57,15 @@ export const editMemoryTool: UnifiedTool = {
   name: 'edit-memory',
   description: 'Edit 1-10 existing memories (content/tags). Returns results.',
   zodSchema: schema,
+  metadata: {
+    category: 'memory',
+    tags: ['memory', 'edit', 'update'],
+    examples: [
+      { args: { edits: [{ name: 'active-session', content: 'updated session data' }] }, description: 'Replace content of a memory entry' },
+      { args: { edits: [{ name: 'project-notes', appendContent: '\n- New finding', addTags: ['updated'] }] }, description: 'Append content and add tags to a memory' },
+    ],
+    relatedTools: ['write-memory', 'read-memory'],
+  },
 
   execute: async (args): Promise<string> => {
     const { edits } = args as unknown as EditMemoryArgs;

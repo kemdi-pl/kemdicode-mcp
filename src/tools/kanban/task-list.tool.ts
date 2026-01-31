@@ -28,11 +28,11 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
-import { listTasks, TaskStatus, TaskPriority } from '../../kanban/index.js';
+import { listTasks, TaskStatus, TaskPriority, resolveSessionId, resolveBoardId } from '../../kanban/index.js';
 
 const schema = z.object({
-  sessionId: z.string().min(1).describe('Session ID'),
-  boardId: z.string().optional().describe('Filter by board'),
+  sessionId: z.string().optional().describe('Session ID (auto-detected from connection if omitted)'),
+  boardId: z.string().optional().describe('Filter by board ID or "name:Board Name"'),
   status: z
     .enum(['backlog', 'in_progress', 'review', 'done'])
     .optional()
@@ -52,6 +52,17 @@ export const taskListTool: UnifiedTool = {
   description: 'List Kanban tasks with filters',
   zodSchema: schema,
 
+  metadata: {
+    category: 'kanban',
+    tags: ['task', 'list', 'filter'],
+    examples: [
+      { args: { status: 'in_progress' }, description: 'List in-progress tasks' },
+      { args: { assignee: 'agent-1', priority: 'high' }, description: 'List high-priority tasks assigned to an agent' },
+      { args: { boardId: 'name:Sprint 1', unassigned: true }, description: 'List unassigned tasks on a board' },
+    ],
+    relatedTools: ['task-create', 'task-get', 'board-status'],
+  },
+
   execute: async (args): Promise<string> => {
     const input = args as TaskListArgs;
 
@@ -64,8 +75,16 @@ export const taskListTool: UnifiedTool = {
     }
 
     try {
+      // Resolve sessionId from args or active connection context
+      const sessionId = resolveSessionId(input.sessionId);
+
+      // Resolve boardId by name if needed
+      const resolvedBoardId = input.boardId
+        ? await resolveBoardId(input.boardId, sessionId)
+        : undefined;
+
       const tasks = await listTasks(
-        input.sessionId,
+        sessionId,
         {
           status: input.status as TaskStatus | undefined,
           priority: input.priority as TaskPriority | undefined,
@@ -73,12 +92,12 @@ export const taskListTool: UnifiedTool = {
           unassigned: input.unassigned,
           blocked: input.blocked,
           labels: input.labels,
-          boardId: input.boardId,
+          boardId: resolvedBoardId,
         },
         input.limit
       );
 
-      Logger.debug(`task-list: found ${tasks.length} tasks for session ${input.sessionId}`);
+      Logger.debug(`task-list: found ${tasks.length} tasks for session ${sessionId}`);
 
       return JSON.stringify({
         success: true,

@@ -42,7 +42,7 @@ const SCOPES: Record<string, string> = {
 };
 
 const schema = z.object({
-  files: z.string().describe('Files to refactor (@path/file syntax)'),
+  files: z.string().describe('Files to refactor. Use @path/file syntax for multiple files, or plain paths separated by spaces'),
   goal: z
     .enum(['readability', 'performance', 'solid', 'laravel-patterns', 'dry'])
     .default('readability'),
@@ -54,6 +54,16 @@ export const refactorTool: UnifiedTool = {
   description: 'Code refactoring with configurable goal and scope',
   zodSchema: schema,
   prompt: { description: 'Refactor PHP/Laravel code' },
+  metadata: {
+    category: 'specialized',
+    tags: ['refactor', 'improve', 'solid'],
+    longRunning: true,
+    examples: [
+      { args: { files: '@src/services/UserService.ts', goal: 'readability' }, description: 'Refactor for readability' },
+      { args: { files: '@app/Http/Controllers/OrderController.php', goal: 'solid', scope: 'aggressive' }, description: 'Aggressive SOLID refactoring' },
+    ],
+    relatedTools: ['code-review', 'rename-symbol', 'auto-fix'],
+  },
   execute: async (args, onProgress) => {
     const { files, goal = 'readability', scope = 'moderate' } = args;
     if (!files?.toString().trim()) throw new Error('Files required. Use @path/file.php syntax.');

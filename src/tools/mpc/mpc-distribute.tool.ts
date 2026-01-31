@@ -52,6 +52,15 @@ export const mpcDistributeTool: UnifiedTool<typeof schema> = {
   zodSchema: schema,
   skipContextShare: true,
 
+  metadata: {
+    category: 'mpc',
+    tags: ['distribute', 'secure', 'shares'],
+    examples: [
+      { args: { secretId: 'secret-abc', sessionId: 'session-1', assignments: [{ shareIndex: 1, agentId: 'agent-1' }, { shareIndex: 2, agentId: 'agent-2' }] }, description: 'Distribute shares to two agents' },
+    ],
+    relatedTools: ['mpc-split', 'mpc-reconstruct', 'mpc-status'],
+  },
+
   execute: async (args) => {
     const { secretId, sessionId, distributingAgentId, assignments } = args;
 

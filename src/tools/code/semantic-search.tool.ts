@@ -136,6 +136,18 @@ export const semanticSearchTool: UnifiedTool = {
   description: 'AI-powered semantic code search using natural language',
   zodSchema: schema,
   // Don't skip context share - semantic search results are valuable to share
+  metadata: {
+    category: 'code',
+    tags: ['search', 'semantic', 'ai'],
+    longRunning: true,
+    examples: [
+      {
+        args: { query: 'error handling middleware', type: 'pattern', files: '@src/', maxResults: 5 },
+        description: 'Search for error handling middleware patterns in the src directory',
+      },
+    ],
+    relatedTools: ['find-definition', 'find-references', 'file-search'],
+  },
 
   execute: async (args, onProgress) => {
     const { query, files, type = 'any', maxResults = 10, includeContext = true } = args;

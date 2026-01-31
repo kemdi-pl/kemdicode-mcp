@@ -29,7 +29,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
-import { getTask, createTask, assignTask, TaskPriority } from '../../kanban/index.js';
+import { getTask, createTask, assignTask, TaskPriority, resolveSessionId, resolveBoardId } from '../../kanban/index.js';
 
 /** Target agent specification */
 const targetAgentSchema = z.object({
@@ -61,8 +61,8 @@ const schema = z.object({
       'assign=single task to one agent, clone=copy per agent, notify=alert only'
     ),
   supervisorId: z.string().min(1).describe('Supervisor agent ID'),
-  sessionId: z.string().min(1).describe('Supervisor session ID'),
-  boardId: z.string().optional().describe('Board ID for clone mode'),
+  sessionId: z.string().optional().describe('Supervisor session ID (auto-detected from connection if omitted)'),
+  boardId: z.string().optional().describe('Board ID or "name:Board Name" for clone mode'),
 });
 
 type TaskPushMultiArgs = z.infer<typeof schema>;
@@ -94,6 +94,16 @@ export const taskPushMultiTool: UnifiedTool = {
   description: 'Push task to multiple agents (assign/clone/notify)',
   zodSchema: schema,
 
+  metadata: {
+    category: 'kanban',
+    tags: ['task', 'push', 'distribute'],
+    examples: [
+      { args: { taskId: 'task-1', targetAgents: [{ agentId: 'agent-2', sessionId: 'session-1' }], mode: 'assign', supervisorId: 'agent-1' }, description: 'Assign a task to an agent' },
+      { args: { taskData: { title: 'Review code', priority: 'high' }, targetAgents: [{ agentId: 'agent-2', sessionId: 's-1' }, { agentId: 'agent-3', sessionId: 's-2' }], mode: 'clone', supervisorId: 'agent-1' }, description: 'Clone a task to multiple agents' },
+    ],
+    relatedTools: ['task-assign', 'task-create', 'agent-list'],
+  },
+
   execute: async (args): Promise<string> => {
     const validated = schema.safeParse(args);
     if (!validated.success) {
@@ -117,6 +127,14 @@ export const taskPushMultiTool: UnifiedTool = {
     }
 
     try {
+      // Resolve sessionId from args or active connection context
+      const sessionId = resolveSessionId(input.sessionId);
+
+      // Resolve boardId by name if needed
+      const resolvedBoardId = input.boardId
+        ? await resolveBoardId(input.boardId, sessionId)
+        : undefined;
+
       const results: Array<{
         agentId: string;
         sessionId: string;
@@ -220,7 +238,7 @@ export const taskPushMultiTool: UnifiedTool = {
           try {
             const newTask = await createTask({
               sessionId: target.sessionId,
-              boardId: input.boardId,
+              boardId: resolvedBoardId,
               title: baseTask.title,
               description: baseTask.description,
               priority: baseTask.priority as TaskPriority,

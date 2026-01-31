@@ -94,7 +94,7 @@ const fileItemSchema = z.object({
   endLine: z.number().int().positive().optional().describe('End line (1-based, inclusive)'),
 });
 
-const schema = z.object({
+const baseSchema = z.object({
   files: z.array(fileItemSchema).min(1).max(20).describe('Files to read (1-20)'),
   encoding: z
     .enum(['utf-8', 'utf-16', 'ascii', 'latin1', 'base64'])
@@ -102,6 +102,22 @@ const schema = z.object({
     .describe('Encoding'),
   maxSize: z.number().int().positive().optional().describe('Max bytes per file'),
 });
+
+/**
+ * Accepts both array format { files: [...] } and shorthand { path: "file.ts", startLine?, endLine? }.
+ * The shorthand is normalized to array format before validation.
+ */
+const schema = z.preprocess((input) => {
+  if (typeof input === 'object' && input !== null && 'path' in input && !('files' in input)) {
+    const { path, startLine, endLine, encoding, maxSize } = input as Record<string, unknown>;
+    return {
+      files: [{ path, startLine, endLine }],
+      ...(encoding !== undefined && { encoding }),
+      ...(maxSize !== undefined && { maxSize }),
+    };
+  }
+  return input;
+}, baseSchema);
 
 type FileReadArgs = z.infer<typeof schema>;
 type FileItem = z.infer<typeof fileItemSchema>;
@@ -256,7 +272,15 @@ export const fileReadTool: UnifiedTool = {
   description: 'Read 1-20 files with encoding detection and line ranges.',
   zodSchema: schema,
   skipContextShare: true,
-  metadata: { category: 'file', tags: ['read', 'encoding'] },
+  metadata: {
+    category: 'file',
+    tags: ['read', 'encoding'],
+    examples: [
+      { args: { paths: ['src/index.ts'] }, description: 'Read a single file' },
+      { args: { paths: ['src/a.ts', 'src/b.ts'], lineRange: '1-50' }, description: 'Read first 50 lines of multiple files' },
+    ],
+    relatedTools: ['file-write', 'file-search', 'file-diff'],
+  },
 
   execute: async (args): Promise<string> => {
     const { files, encoding, maxSize } = args as unknown as FileReadArgs;

@@ -53,6 +53,16 @@ export const rlRewardStatsTool: UnifiedTool<typeof schema> = {
   zodSchema: schema,
   skipContextShare: true,
 
+  metadata: {
+    category: 'rl',
+    tags: ['reward', 'stats', 'analytics'],
+    examples: [
+      { args: { agentId: 'agent-1', sessionId: 'session-1', includeHistory: true, historyLimit: 10 }, description: 'View reward stats with recent history' },
+      { args: { agentId: 'agent-1', sessionId: 'session-1' }, description: 'View reward summary and state analysis' },
+    ],
+    relatedTools: ['rl-dopamine-log'],
+  },
+
   execute: async (args) => {
     const { agentId, sessionId, includeHistory, historyLimit } = args;
 

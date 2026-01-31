@@ -195,6 +195,17 @@ export const findDefinitionTool: UnifiedTool = {
   description: 'Find symbol definition in codebase',
   zodSchema: schema,
   skipContextShare: true, // Code navigation doesn't need sharing
+  metadata: {
+    category: 'code',
+    tags: ['definition', 'navigation', 'ast'],
+    examples: [
+      {
+        args: { symbol: 'UnifiedTool', language: 'ts', path: 'src/' },
+        description: 'Find the definition of UnifiedTool interface in TypeScript files',
+      },
+    ],
+    relatedTools: ['find-references', 'find-symbols', 'code-outline'],
+  },
 
   execute: async (args, onProgress) => {
     const { symbol, language = 'auto', path = '.', maxResults = 10 } = args;

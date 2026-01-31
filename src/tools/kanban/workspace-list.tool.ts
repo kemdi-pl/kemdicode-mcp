@@ -42,6 +42,16 @@ export const workspaceListTool: UnifiedTool = {
   description: 'List workspaces for session or all available',
   zodSchema: schema,
 
+  metadata: {
+    category: 'kanban',
+    tags: ['workspace', 'list'],
+    examples: [
+      { args: {}, description: 'List all available workspaces' },
+      { args: { sessionId: 'session-abc123', limit: 10 }, description: 'List workspaces for a specific session' },
+    ],
+    relatedTools: ['workspace-create', 'workspace-join'],
+  },
+
   execute: async (args): Promise<string> => {
     const input = args as WorkspaceListArgs;
 

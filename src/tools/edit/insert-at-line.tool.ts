@@ -48,6 +48,17 @@ export const insertAtLineTool: UnifiedTool = {
   name: 'insert-at-line',
   description: 'Insert content at specific line number',
   zodSchema: schema,
+  metadata: {
+    category: 'edit',
+    tags: ['insert', 'lines'],
+    examples: [
+      {
+        args: { path: 'src/index.ts', line: 1, content: "import { Logger } from './utils/logger';" },
+        description: 'Insert an import statement at line 1',
+      },
+    ],
+    relatedTools: ['delete-lines', 'replace-lines', 'replace-content'],
+  },
 
   execute: async (args): Promise<string> => {
     const { path: inputPath, line, content, createBackup } = args as InsertAtLineArgs;

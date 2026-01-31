@@ -42,6 +42,15 @@ export const invocationLogTool: UnifiedTool = {
   name: 'invocation-log',
   description: 'View agent tool invocation history',
   zodSchema: schema,
+  metadata: {
+    category: 'recursive',
+    tags: ['log', 'history', 'audit'],
+    examples: [
+      { args: { agentId: 'backend-dev' }, description: 'View last 20 invocations for agent' },
+      { args: { agentId: 'backend-dev', limit: 50, includeContext: true }, description: 'View detailed invocation history with context' },
+    ],
+    relatedTools: ['invoke-tool', 'invoke-batch'],
+  },
 
   execute: async (args): Promise<string> => {
     const input = args as InvocationLogArgs;

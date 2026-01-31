@@ -30,3 +30,7 @@ export { fileWriteTool } from './file-write.tool.js';
 export { fileSearchTool } from './file-search.tool.js';
 export { fileTreeTool } from './file-tree.tool.js';
 export { fileDiffTool } from './file-diff.tool.js';
+export { fileDeleteTool } from './file-delete.tool.js';
+export { fileMoveTool } from './file-move.tool.js';
+export { fileCopyTool } from './file-copy.tool.js';
+export { fileBackupRestoreTool } from './file-backup-restore.tool.js';

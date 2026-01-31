@@ -33,11 +33,13 @@ import {
   listBoardsForWorkspace,
   listAccessibleBoards,
   listWorkspacesForSession,
+  resolveSessionId,
+  resolveWorkspaceId,
 } from '../../kanban/index.js';
 
 const schema = z.object({
-  sessionId: z.string().min(1).describe('Session ID'),
-  workspaceId: z.string().optional().describe('Filter by workspace'),
+  sessionId: z.string().optional().describe('Session ID (auto-detected from connection if omitted)'),
+  workspaceId: z.string().optional().describe('Filter by workspace ID or "name:Workspace Name"'),
   includeWorkspaces: z
     .boolean()
     .default(true)
@@ -51,6 +53,16 @@ export const boardListTool: UnifiedTool = {
   description: 'List accessible Kanban boards for session',
   zodSchema: schema,
 
+  metadata: {
+    category: 'kanban',
+    tags: ['board', 'list'],
+    examples: [
+      { args: { includeWorkspaces: true }, description: 'List all accessible boards including workspace boards' },
+      { args: { workspaceId: 'name:My Workspace' }, description: 'List boards in a specific workspace' },
+    ],
+    relatedTools: ['board-create', 'board-status'],
+  },
+
   execute: async (args): Promise<string> => {
     const input = args as BoardListArgs;
 
@@ -63,19 +75,27 @@ export const boardListTool: UnifiedTool = {
     }
 
     try {
+      // Resolve sessionId from args or active connection context
+      const sessionId = resolveSessionId(input.sessionId);
+
+      // Resolve workspaceId by name if needed
+      const resolvedWorkspaceId = input.workspaceId
+        ? await resolveWorkspaceId(input.workspaceId, sessionId)
+        : undefined;
+
       let boards;
 
-      if (input.workspaceId) {
+      if (resolvedWorkspaceId) {
         // List boards in specific workspace
-        boards = await listBoardsForWorkspace(input.workspaceId);
+        boards = await listBoardsForWorkspace(resolvedWorkspaceId);
       } else if (input.includeWorkspaces) {
         // List all accessible boards (session + workspaces)
-        const workspaces = await listWorkspacesForSession(input.sessionId);
+        const workspaces = await listWorkspacesForSession(sessionId);
         const workspaceIds = workspaces.map((ws) => ws.id);
-        boards = await listAccessibleBoards(input.sessionId, workspaceIds);
+        boards = await listAccessibleBoards(sessionId, workspaceIds);
       } else {
         // List only session's own boards
-        boards = await listBoardsForSession(input.sessionId);
+        boards = await listBoardsForSession(sessionId);
       }
 
       Logger.debug(`board-list: found ${boards.length} boards`);

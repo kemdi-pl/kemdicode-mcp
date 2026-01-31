@@ -197,6 +197,15 @@ export const fileWriteTool: UnifiedTool = {
   name: 'file-write',
   description: 'Write 1-20 files with backup, dir creation, and append mode.',
   zodSchema: schema,
+  metadata: {
+    category: 'file',
+    tags: ['write', 'create', 'backup'],
+    examples: [
+      { args: { files: [{ path: 'src/config.ts', content: 'export const PORT = 3000;' }] }, description: 'Write a single file with backup' },
+      { args: { files: [{ path: 'logs/app.log', content: 'New entry\n' }], append: true, createBackup: false }, description: 'Append to a log file without backup' },
+    ],
+    relatedTools: ['file-read', 'file-delete', 'file-copy'],
+  },
 
   execute: async (args): Promise<string> => {
     const { files, createBackup, createDirs, append, encoding } = args as unknown as FileWriteArgs;

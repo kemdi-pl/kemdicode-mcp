@@ -291,6 +291,17 @@ export const checkTypesTool: UnifiedTool = {
   name: 'check-types',
   description: 'Run TypeScript/PHPStan type checking',
   zodSchema: schema,
+  metadata: {
+    category: 'project',
+    tags: ['types', 'typescript', 'phpstan'],
+    longRunning: true,
+    examples: [
+      { args: {}, description: 'Auto-detect and run type checker in current project' },
+      { args: { checker: 'typescript', strict: true }, description: 'Run TypeScript type check in strict mode' },
+      { args: { checker: 'phpstan', cwd: '/var/www/app' }, description: 'Run PHPStan in a specific directory' },
+    ],
+    relatedTools: ['run-lint', 'run-tests'],
+  },
   execute: async (args, onProgress) => {
     const cwd = getCwd(args.cwd as string | undefined);
     const checkerChoice = (args.checker as string) || 'auto';

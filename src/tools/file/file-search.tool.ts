@@ -258,6 +258,15 @@ export const fileSearchTool: UnifiedTool = {
   description: 'Ripgrep file search with regex, type filters, and context',
   zodSchema: schema,
   skipContextShare: true, // Search results may be large
+  metadata: {
+    category: 'file',
+    tags: ['search', 'grep', 'ripgrep'],
+    examples: [
+      { args: { pattern: 'TODO', path: 'src/' }, description: 'Search for TODO comments in src directory' },
+      { args: { pattern: 'export function', type: 'ts', filesWithMatches: true }, description: 'List TypeScript files with exported functions' },
+    ],
+    relatedTools: ['file-read', 'semantic-search', 'find-references'],
+  },
 
   execute: async (args): Promise<string> => {
     const searchArgs = args as FileSearchArgs;

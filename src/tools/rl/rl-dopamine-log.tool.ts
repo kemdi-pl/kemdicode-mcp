@@ -39,6 +39,16 @@ export const rlDopamineLogTool: UnifiedTool<typeof schema> = {
   zodSchema: schema,
   skipContextShare: true,
 
+  metadata: {
+    category: 'rl',
+    tags: ['dopamine', 'reward', 'learning'],
+    examples: [
+      { args: { agentId: 'agent-1', limit: 20, showStats: true }, description: 'View recent dopamine signals with aggregate stats' },
+      { args: { agentId: 'agent-1', limit: 5, showStats: false }, description: 'View last 5 dopamine signals without stats' },
+    ],
+    relatedTools: ['rl-reward-stats'],
+  },
+
   execute: async (args) => {
     const { agentId, limit, showStats } = args;
 

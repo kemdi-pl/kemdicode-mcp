@@ -28,7 +28,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
-import { createWorkspace } from '../../kanban/index.js';
+import { createWorkspace, resolveSessionId } from '../../kanban/index.js';
 
 const wsItemSchema = z.object({
   name: z.string().min(1).max(100).describe('Workspace name'),
@@ -41,7 +41,7 @@ const wsItemSchema = z.object({
 
 const schema = z.object({
   workspaces: z.array(wsItemSchema).min(1).max(5).describe('Workspaces to create (1-5)'),
-  ownerSessionId: z.string().min(1).describe('Creator session ID'),
+  ownerSessionId: z.string().optional().describe('Creator session ID (auto-detected from connection if omitted)'),
   ownerId: z.string().min(1).describe('Creator agent ID'),
 });
 
@@ -52,8 +52,21 @@ export const workspaceCreateTool: UnifiedTool = {
   description: 'Create 1-5 workspaces for cross-session board sharing. Returns IDs.',
   zodSchema: schema,
 
+  metadata: {
+    category: 'kanban',
+    tags: ['workspace', 'create'],
+    examples: [
+      { args: { workspaces: [{ name: 'Platform Team' }], ownerId: 'agent-1' }, description: 'Create a workspace' },
+      { args: { workspaces: [{ name: 'Shared Project', description: 'Cross-team collaboration', initialMemberSessions: ['session-2'] }], ownerId: 'agent-1' }, description: 'Create a workspace with initial members' },
+    ],
+    relatedTools: ['workspace-list', 'workspace-join', 'board-create'],
+  },
+
   execute: async (args): Promise<string> => {
-    const { workspaces, ownerSessionId, ownerId } = args as unknown as WorkspaceCreateArgs;
+    const { workspaces, ownerSessionId: rawOwnerSessionId, ownerId } = args as unknown as WorkspaceCreateArgs;
+
+    // Resolve sessionId from args or active connection context
+    const ownerSessionId = resolveSessionId(rawOwnerSessionId);
 
     if (!checkRateLimit('kanban-operations', { maxRequests: 100, windowMs: 60000 })) {
       return JSON.stringify({

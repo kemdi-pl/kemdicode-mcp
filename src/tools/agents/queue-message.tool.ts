@@ -76,6 +76,15 @@ export const queueMessageTool: UnifiedTool = {
     'Queue messages to agents. Use "messages" array or "targetAgentIds" + "content" for broadcast.',
   zodSchema: combinedSchema,
   skipContextShare: true,
+  metadata: {
+    category: 'agents',
+    tags: ['message', 'queue', 'broadcast'],
+    examples: [
+      { args: { messages: [{ targetAgentId: 'backend-dev', content: 'Please review PR #42', priority: 'high' }], sessionId: 'sess-abc123', fromAgentId: 'supervisor' }, description: 'Queue a high-priority message to one agent' },
+      { args: { targetAgentIds: ['agent-1', 'agent-2', 'agent-3'], content: 'All services must use OpenAPI 3.0 spec', priority: 'critical', sessionId: 'sess-abc123' }, description: 'Broadcast critical message to multiple agents' },
+    ],
+    relatedTools: ['agent-list', 'agent-alert', 'agent-history'],
+  },
 
   execute: async (args) => {
     const monitor = getAgentMonitor();

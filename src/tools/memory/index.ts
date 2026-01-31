@@ -32,3 +32,4 @@ export { deleteMemoryTool } from './delete-memory.tool.js';
 export { editMemoryTool } from './edit-memory.tool.js';
 export { checkpointSaveTool } from './checkpoint-save.tool.js';
 export { checkpointRestoreTool } from './checkpoint-restore.tool.js';
+export { checkpointDiffTool } from './checkpoint-diff.tool.js';

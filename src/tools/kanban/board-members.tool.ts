@@ -34,10 +34,12 @@ import {
   removeBoardMember,
   hasPermission,
   BoardRole,
+  resolveBoardId,
+  resolveSessionId,
 } from '../../kanban/index.js';
 
 const operationSchema = z.object({
-  boardId: z.string().min(1).describe('Board ID'),
+  boardId: z.string().min(1).describe('Board ID or "name:Board Name"'),
   action: z.enum(['list', 'update-role', 'remove']).default('list').describe('Action'),
   targetAgentId: z.string().optional().describe('Agent to modify (for update-role/remove)'),
   newRole: z
@@ -58,6 +60,16 @@ export const boardMembersTool: UnifiedTool = {
   description: 'Manage board membership: list, update-role, remove (1-20 ops).',
   zodSchema: schema,
 
+  metadata: {
+    category: 'kanban',
+    tags: ['board', 'members', 'roles'],
+    examples: [
+      { args: { operations: [{ boardId: 'board-abc123', action: 'list' }], requestingAgentId: 'agent-1' }, description: 'List all members of a board' },
+      { args: { operations: [{ boardId: 'board-abc123', action: 'update-role', targetAgentId: 'agent-2', newRole: 'admin' }], requestingAgentId: 'agent-1' }, description: 'Promote an agent to admin role' },
+    ],
+    relatedTools: ['board-invite', 'board-share'],
+  },
+
   execute: async (args): Promise<string> => {
     const { operations, requestingAgentId } = args as BoardMembersArgs;
 
@@ -69,11 +81,17 @@ export const boardMembersTool: UnifiedTool = {
       });
     }
 
+    // Resolve sessionId for name lookups
+    const sessionId = resolveSessionId();
+
     const results = await Promise.all(
       operations.map(async (op) => {
         try {
+          // Resolve boardId by name if needed
+          const resolvedBoardId = await resolveBoardId(op.boardId, sessionId);
+
           if (op.action === 'list') {
-            const members = await listBoardMembers(op.boardId);
+            const members = await listBoardMembers(resolvedBoardId);
             return {
               boardId: op.boardId,
               action: 'list',
@@ -101,8 +119,8 @@ export const boardMembersTool: UnifiedTool = {
               };
             }
 
-            const canManage = await hasPermission(op.boardId, requestingAgentId, 'canManageBoard');
-            const canInvite = await hasPermission(op.boardId, requestingAgentId, 'canInviteMembers');
+            const canManage = await hasPermission(resolvedBoardId, requestingAgentId, 'canManageBoard');
+            const canInvite = await hasPermission(resolvedBoardId, requestingAgentId, 'canInviteMembers');
             if (!canManage && !canInvite) {
               return {
                 boardId: op.boardId,
@@ -114,7 +132,7 @@ export const boardMembersTool: UnifiedTool = {
             }
 
             const updated = await updateMemberRole(
-              op.boardId,
+              resolvedBoardId,
               op.targetAgentId,
               op.newRole as BoardRole
             );
@@ -150,10 +168,10 @@ export const boardMembersTool: UnifiedTool = {
               };
             }
 
-            const canManage = await hasPermission(op.boardId, requestingAgentId, 'canManageBoard');
+            const canManage = await hasPermission(resolvedBoardId, requestingAgentId, 'canManageBoard');
             if (!canManage) {
               return {
-                boardId: op.boardId,
+                boardId: resolvedBoardId,
                 action: 'remove',
                 success: false,
                 error: 'Permission denied',
@@ -161,7 +179,7 @@ export const boardMembersTool: UnifiedTool = {
               };
             }
 
-            const removed = await removeBoardMember(op.boardId, op.targetAgentId);
+            const removed = await removeBoardMember(resolvedBoardId, op.targetAgentId);
             if (!removed) {
               return {
                 boardId: op.boardId,
@@ -172,7 +190,7 @@ export const boardMembersTool: UnifiedTool = {
               };
             }
 
-            Logger.debug(`board-members: removed ${op.targetAgentId} from board ${op.boardId}`);
+            Logger.debug(`board-members: removed ${op.targetAgentId} from board ${resolvedBoardId}`);
             return {
               boardId: op.boardId,
               action: 'remove',

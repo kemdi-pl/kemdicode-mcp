@@ -49,6 +49,15 @@ export const invokeBatchTool: UnifiedTool = {
   name: 'invoke-batch',
   description: 'Batch invoke multiple tools (parallel or sequential)',
   zodSchema: schema,
+  metadata: {
+    category: 'recursive',
+    tags: ['batch', 'parallel', 'sequential'],
+    examples: [
+      { args: { operations: [{ toolName: 'file-read', args: { path: '@src/a.ts' } }, { toolName: 'file-read', args: { path: '@src/b.ts' } }], agentId: 'backend-dev', sessionId: 'sess-abc123', parallel: true }, description: 'Read two files in parallel' },
+      { args: { operations: [{ toolName: 'run-tests', args: {} }, { toolName: 'run-lint', args: {} }], agentId: 'qa', sessionId: 'sess-abc123', parallel: false, stopOnError: true }, description: 'Run tests then lint sequentially, stop on error' },
+    ],
+    relatedTools: ['invoke-tool', 'invocation-log', 'batch'],
+  },
 
   execute: async (args): Promise<string> => {
     const input = schema.parse(args);

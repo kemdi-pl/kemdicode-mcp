@@ -44,6 +44,16 @@ export const sessionDeleteTool: UnifiedTool<typeof schema> = {
   zodSchema: schema,
   skipContextShare: true,
 
+  metadata: {
+    category: 'session',
+    tags: ['session', 'delete', 'cleanup'],
+    examples: [
+      { args: { sessions: [{ sessionId: 'old-session-1', clearContext: true }] }, description: 'Delete a session and clear its context data' },
+      { args: { sessions: [{ sessionId: 'session-a' }, { sessionId: 'session-b' }], force: true }, description: 'Force delete multiple sessions' },
+    ],
+    relatedTools: ['session-list', 'session-create'],
+  },
+
   execute: async (args) => {
     const { sessions } = args;
     const manager = getSessionManager();

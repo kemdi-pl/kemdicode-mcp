@@ -53,6 +53,16 @@ export const graphFindPathTool: UnifiedTool<typeof schema> = {
   description: 'Find paths between knowledge graph nodes. Use error-to-solution mode for fixes.',
   zodSchema: schema,
 
+  metadata: {
+    category: 'loci',
+    tags: ['graph', 'path', 'navigation'],
+    examples: [
+      { args: { fromNodeId: 'error-123', mode: 'error-to-solution', maxDepth: 5 }, description: 'Find solution path for an error node' },
+      { args: { fromNodeId: 'node-a', toNodeId: 'node-b', mode: 'shortest' }, description: 'Find shortest path between two nodes' },
+    ],
+    relatedTools: ['graph-query', 'loci-recall'],
+  },
+
   execute: async (args) => {
     const { fromNodeId, toNodeId, mode, maxPaths, maxDepth } = args;
 

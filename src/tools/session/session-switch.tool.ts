@@ -39,6 +39,16 @@ export const sessionSwitchTool: UnifiedTool<typeof schema> = {
   zodSchema: schema,
   skipContextShare: true,
 
+  metadata: {
+    category: 'session',
+    tags: ['session', 'switch', 'activate'],
+    examples: [
+      { args: { sessionId: 'backend-dev' }, description: 'Switch to an existing session' },
+      { args: { sessionId: 'session-1', updateModel: 'gpt-4o' }, description: 'Switch session and update its model' },
+    ],
+    relatedTools: ['session-list', 'session-info'],
+  },
+
   execute: async (args) => {
     const { sessionId, updateModel, updateFallback } = args;
     const manager = getSessionManager();

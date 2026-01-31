@@ -45,6 +45,15 @@ export const agentInjectTool: UnifiedTool<typeof schema> = {
     "Inject context, directives, or queries into agent's conversation for real-time guidance.",
   zodSchema: schema,
   skipContextShare: true,
+  metadata: {
+    category: 'agents',
+    tags: ['inject', 'context', 'directive'],
+    examples: [
+      { args: { agentId: 'backend-dev', sessionId: 'sess-abc123', type: 'context', content: 'Database schema changed: users table has new email_verified column' }, description: 'Inject context information into agent' },
+      { args: { agentId: 'frontend-dev', sessionId: 'sess-abc123', type: 'directive', content: 'Use React hooks instead of class components' }, description: 'Send directive to agent' },
+    ],
+    relatedTools: ['agent-list', 'agent-alert'],
+  },
 
   execute: async (args) => {
     // args is now properly typed via the generic

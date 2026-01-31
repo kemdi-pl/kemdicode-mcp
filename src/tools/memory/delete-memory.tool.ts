@@ -40,6 +40,15 @@ export const deleteMemoryTool: UnifiedTool = {
   name: 'delete-memory',
   description: 'Delete 1-20 named memories from current project.',
   zodSchema: schema,
+  metadata: {
+    category: 'memory',
+    tags: ['memory', 'delete'],
+    examples: [
+      { args: { names: ['old-context'] }, description: 'Delete a single memory entry' },
+      { args: { names: ['temp-data', 'draft-plan', 'obsolete-notes'] }, description: 'Delete multiple memory entries at once' },
+    ],
+    relatedTools: ['write-memory', 'list-memories', 'read-memory'],
+  },
 
   execute: async (args): Promise<string> => {
     const { names } = args as DeleteMemoryArgs;

@@ -355,6 +355,15 @@ export const fileDiffTool: UnifiedTool = {
   name: 'file-diff',
   description: 'Compare 1-10 file pairs with unified or git diff format.',
   zodSchema: schema,
+  metadata: {
+    category: 'file',
+    tags: ['diff', 'compare'],
+    examples: [
+      { args: { pairs: [{ file1: 'src/old.ts', file2: 'src/new.ts' }] }, description: 'Compare two files using unified diff' },
+      { args: { pairs: [{ file1: 'a.ts', file2: 'b.ts' }], format: 'git', ignoreWhitespace: true }, description: 'Git diff ignoring whitespace' },
+    ],
+    relatedTools: ['file-read', 'git-diff', 'checkpoint-diff'],
+  },
 
   execute: async (args): Promise<string> => {
     const { pairs, ...diffOptions } = args as FileDiffArgs;

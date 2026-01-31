@@ -168,6 +168,22 @@ export const insertAfterSymbolTool: UnifiedTool = {
   name: 'insert-after-symbol',
   description: 'Insert content after symbol block end',
   zodSchema: schema,
+  metadata: {
+    category: 'code',
+    tags: ['insert', 'symbol', 'ast'],
+    examples: [
+      {
+        args: {
+          symbol: 'UserService',
+          content: '\nexport class AdminService extends UserService {\n}\n',
+          path: 'src/services/',
+          language: 'ts',
+        },
+        description: 'Insert a new class definition after UserService class block',
+      },
+    ],
+    relatedTools: ['insert-before-symbol', 'find-definition', 'rename-symbol'],
+  },
 
   execute: async (args): Promise<string> => {
     const {

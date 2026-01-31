@@ -58,6 +58,15 @@ export const gitLogTool: UnifiedTool = {
   description: 'Show git commit history with filters and format options',
   zodSchema: schema,
   skipContextShare: true,
+  metadata: {
+    category: 'git',
+    tags: ['log', 'history', 'commits'],
+    examples: [
+      { args: { limit: 20, format: 'oneline' }, description: 'Show last 20 commits in oneline format' },
+      { args: { author: 'dawid', since: '2025-01-01', stat: true }, description: 'Show commits by author since a date with stats' },
+    ],
+    relatedTools: ['git-blame', 'git-diff', 'git-branch'],
+  },
   execute: async (args) => {
     const {
       cwd,

@@ -193,6 +193,16 @@ export const aiModelsTool: UnifiedTool<typeof schema> = {
   description:
     'List and select AI models from the provider. Discover and switch models dynamically.',
   zodSchema: schema,
+  metadata: {
+    category: 'system',
+    tags: ['models', 'ai', 'discovery'],
+    examples: [
+      { args: { action: 'list' }, description: 'List all available models from the provider' },
+      { args: { action: 'search', filter: 'llama', category: 'chat' }, description: 'Search for llama chat models' },
+      { args: { action: 'select', model: 'gpt-4o' }, description: 'Select a model for the current session' },
+    ],
+    relatedTools: ['ai-config', 'ask-ai'],
+  },
 
   execute: async (args) => {
     const { action, filter, model, limit, category } = args;

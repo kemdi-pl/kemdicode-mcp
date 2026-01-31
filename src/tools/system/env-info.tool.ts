@@ -282,6 +282,16 @@ export const envInfoTool: UnifiedTool = {
   description: 'Show environment info: runtimes, languages, tools, OS, hardware',
   zodSchema: schema,
   skipContextShare: true,
+  metadata: {
+    category: 'system',
+    tags: ['environment', 'info', 'runtime'],
+    examples: [
+      { args: {}, description: 'Show all environment information' },
+      { args: { category: 'runtime', detailed: true }, description: 'Show detailed JavaScript runtime versions' },
+      { args: { category: 'languages' }, description: 'Show installed programming languages' },
+    ],
+    relatedTools: ['memory-usage', 'process-list', 'project-info'],
+  },
   execute: async (args) => {
     const detailed = Boolean(args.detailed);
     const category = (args.category as string) || 'all';

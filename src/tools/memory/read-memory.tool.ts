@@ -40,6 +40,15 @@ export const readMemoryTool: UnifiedTool = {
   name: 'read-memory',
   description: 'Retrieve 1-20 named memories from current project.',
   zodSchema: schema,
+  metadata: {
+    category: 'memory',
+    tags: ['memory', 'read', 'retrieve'],
+    examples: [
+      { args: { names: ['active-session'] }, description: 'Read a single memory entry' },
+      { args: { names: ['active-session', 'project-notes', 'api-schema'] }, description: 'Read multiple memory entries at once' },
+    ],
+    relatedTools: ['write-memory', 'list-memories'],
+  },
 
   execute: async (args): Promise<string> => {
     const { names } = args as ReadMemoryArgs;

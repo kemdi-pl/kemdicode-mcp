@@ -36,6 +36,15 @@ export const sessionInfoTool: UnifiedTool<typeof schema> = {
   zodSchema: schema,
   skipContextShare: true,
 
+  metadata: {
+    category: 'session',
+    tags: ['session', 'info', 'details'],
+    examples: [
+      { args: { sessionId: 'session-1' }, description: 'Get detailed info about a session' },
+    ],
+    relatedTools: ['session-list', 'session-switch'],
+  },
+
   execute: async (args) => {
     const { sessionId } = args;
     const manager = getSessionManager();

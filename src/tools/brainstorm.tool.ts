@@ -46,6 +46,16 @@ export const brainstormTool: UnifiedTool = {
   description: 'Generate ideas with creative frameworks (SCAMPER, Design Thinking)',
   zodSchema: schema,
   prompt: { description: 'Creative ideation with methodology-driven approach' },
+  metadata: {
+    category: 'specialized',
+    tags: ['brainstorm', 'ideation', 'creative'],
+    longRunning: true,
+    examples: [
+      { args: { prompt: 'How can we improve API response times?', methodology: 'scamper' }, description: 'Brainstorm API optimization ideas using SCAMPER' },
+      { args: { prompt: 'New features for user dashboard', methodology: 'design-thinking', domain: 'e-commerce', ideaCount: 8 }, description: 'Design thinking brainstorm for dashboard features' },
+    ],
+    relatedTools: ['ask-ai', 'plan'],
+  },
   execute: async (args, onProgress) => {
     const {
       prompt,

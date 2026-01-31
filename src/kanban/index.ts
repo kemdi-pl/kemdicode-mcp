@@ -37,5 +37,8 @@ export * from './workspace-store.js';
 export * from './board-store.js';
 export * from './membership-store.js';
 
+// Resolvers (auto-sessionId, name-based lookup)
+export * from './resolvers.js';
+
 // Migration utilities
 export * from './migration.js';

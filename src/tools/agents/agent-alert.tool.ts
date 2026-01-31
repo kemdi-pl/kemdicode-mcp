@@ -47,6 +47,15 @@ export const agentAlertTool: UnifiedTool = {
     'Send alert to agents. Use for guidance, corrections, or notifications during multi-agent execution.',
   zodSchema: schema,
   skipContextShare: true,
+  metadata: {
+    category: 'agents',
+    tags: ['alert', 'notification'],
+    examples: [
+      { args: { agentIds: 'backend-dev', message: 'Deploy complete', priority: 'info' }, description: 'Send info alert to agent' },
+      { args: { agentIds: '*', message: 'Stop all work, critical bug found', priority: 'critical', interrupt: true }, description: 'Broadcast critical alert to all agents' },
+    ],
+    relatedTools: ['agent-list', 'agent-watch', 'queue-message'],
+  },
 
   execute: async (args) => {
     const { agentIds, message, source, priority, interrupt, sessionId } = args as z.infer<

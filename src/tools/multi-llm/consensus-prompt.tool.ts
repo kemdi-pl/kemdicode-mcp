@@ -200,5 +200,14 @@ export const consensusPromptTool: UnifiedTool = {
     'CEO-and-Board decision pattern. Board models respond in parallel, CEO synthesizes final decision. ' +
     'provider:model syntax. Supports thinking tokens.',
   zodSchema: schema,
+  metadata: {
+    category: 'multi-llm',
+    tags: ['consensus', 'multi-model', 'decision'],
+    longRunning: true,
+    examples: [
+      { args: { prompt: 'What architecture should we use for a real-time chat app?', boardModels: ['o:gpt-4o', 'a:claude-sonnet-4-20250514'], ceoModel: 'a:claude-sonnet-4-20250514', agent: 'plan' }, description: 'Get consensus from two models with CEO synthesis' },
+    ],
+    relatedTools: ['multi-prompt', 'ask-ai'],
+  },
   execute,
 };

@@ -58,6 +58,15 @@ export const listMemoriesTool: UnifiedTool = {
   name: 'list-memories',
   description: 'List all memories for current project',
   zodSchema: schema,
+  metadata: {
+    category: 'memory',
+    tags: ['memory', 'list', 'search'],
+    examples: [
+      { args: {}, description: 'List all memories for the current project' },
+      { args: { tag: 'session', includeContent: true }, description: 'List memories tagged with session, including content' },
+    ],
+    relatedTools: ['read-memory', 'write-memory'],
+  },
 
   execute: async (args): Promise<string> => {
     const { tag, limit, includeContent } = args as ListMemoriesArgs;

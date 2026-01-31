@@ -38,6 +38,16 @@ export const sequenceRecommendTool: UnifiedTool<typeof schema> = {
   description: 'Get tool recommendations based on learned execution patterns.',
   zodSchema: schema,
 
+  metadata: {
+    category: 'loci',
+    tags: ['sequence', 'recommend', 'workflow'],
+    examples: [
+      { args: { agentId: 'agent-1', sessionId: 'session-1', showPatterns: true }, description: 'Get tool recommendations with learned patterns' },
+      { args: { agentId: 'agent-1', sessionId: 'session-1', showTransitions: true }, description: 'Get recommendations with transition statistics' },
+    ],
+    relatedTools: ['loci-recall', 'graph-query'],
+  },
+
   execute: async (args) => {
     const { agentId, sessionId, showPatterns, showTransitions } = args;
 

@@ -70,6 +70,16 @@ export const feedbackTool: UnifiedTool = {
     'Access feedback loop. Get stats, insights, track iterations, suggest fixes.',
   zodSchema: schema,
   skipContextShare: true,
+  metadata: {
+    category: 'context',
+    tags: ['feedback', 'learning'],
+    examples: [
+      { args: { action: 'stats' }, description: 'Get feedback statistics' },
+      { args: { action: 'suggest-fix', error: 'TypeError: Cannot read property of undefined' }, description: 'Get fix suggestions for an error' },
+      { args: { action: 'start', task: 'Implement user authentication' }, description: 'Start tracking a new iteration' },
+    ],
+    relatedTools: ['code-review', 'auto-fix'],
+  },
 
   execute: async (args) => {
     const { action, error, file, suggestionId, rating, task, result, lessons } = args as z.infer<

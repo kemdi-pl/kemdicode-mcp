@@ -29,6 +29,9 @@ export { gitDiffTool } from './git-diff.tool.js';
 export { gitLogTool } from './git-log.tool.js';
 export { gitBlameTool } from './git-blame.tool.js';
 export { gitBranchTool } from './git-branch.tool.js';
+export { gitAddTool } from './git-add.tool.js';
+export { gitCommitTool } from './git-commit.tool.js';
+export { gitStashTool } from './git-stash.tool.js';
 
 // Re-export common git utilities
 export {

@@ -27,11 +27,16 @@
 
 // Task tools (legacy + extended)
 export { taskCreateTool } from './task-create.tool.js';
+export { taskGetTool } from './task-get.tool.js';
 export { taskListTool } from './task-list.tool.js';
 export { taskClaimTool } from './task-claim.tool.js';
 export { taskAssignTool } from './task-assign.tool.js';
 export { taskUpdateTool } from './task-update.tool.js';
+export { taskDeleteTool } from './task-delete.tool.js';
 export { boardStatusTool } from './board-status.tool.js';
+
+// Task comments/notes
+export { taskCommentTool } from './task-comment.tool.js';
 
 // Multi-agent push
 export { taskPushMultiTool } from './task-push-multi.tool.js';
@@ -41,6 +46,7 @@ export { workspaceCreateTool } from './workspace-create.tool.js';
 export { workspaceListTool } from './workspace-list.tool.js';
 export { workspaceJoinTool } from './workspace-join.tool.js';
 export { workspaceLeaveTool } from './workspace-leave.tool.js';
+export { workspaceDeleteTool } from './workspace-delete.tool.js';
 
 // Board tools
 export { boardCreateTool } from './board-create.tool.js';
@@ -48,3 +54,4 @@ export { boardListTool } from './board-list.tool.js';
 export { boardShareTool } from './board-share.tool.js';
 export { boardMembersTool } from './board-members.tool.js';
 export { boardInviteTool } from './board-invite.tool.js';
+export { boardDeleteTool } from './board-delete.tool.js';

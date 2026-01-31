@@ -35,7 +35,7 @@ const FOCUS_PROMPTS: Record<string, string> = {
 };
 
 const schema = z.object({
-  files: z.string().describe('Files to review (@path/file syntax)'),
+  files: z.string().describe('Files to review. Use @path/file syntax for multiple files, or plain paths separated by spaces'),
   focus: z.enum(['security', 'performance', 'quality', 'all']).default('all'),
   severity: z.enum(['critical', 'all']).default('all').describe('critical = urgent issues only'),
   concise: z.boolean().default(false).describe('Short descriptions only'),
@@ -92,7 +92,16 @@ export const codeReviewTool: UnifiedTool = {
   description: 'Security/performance/quality code review with optional dependency analysis',
   zodSchema: schema,
   prompt: { description: 'Code review for source files' },
-  metadata: { category: 'specialized', tags: ['review', 'security', 'quality'], longRunning: true },
+  metadata: {
+    category: 'specialized',
+    tags: ['review', 'security', 'quality'],
+    longRunning: true,
+    examples: [
+      { args: { files: '@src/index.ts', focus: 'security' }, description: 'Security-focused review of a single file' },
+      { args: { files: '@src/auth.ts @src/middleware.ts', focus: 'all', severity: 'critical' }, description: 'Critical issues review across multiple files' },
+    ],
+    relatedTools: ['auto-fix', 'fix-bug', 'explain-code'],
+  },
   execute: async (args, onProgress) => {
     const { files, focus = 'all', severity = 'all', concise, withDeps, continueSession } = args;
     if (!files?.toString().trim()) throw new Error('Files required. Use @path/file syntax.');

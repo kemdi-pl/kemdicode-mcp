@@ -28,7 +28,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
-import { claimTask, getAvailableTasks } from '../../kanban/index.js';
+import { claimTask, getAvailableTasks, resolveSessionId } from '../../kanban/index.js';
 
 const schema = z.object({
   taskId: z
@@ -36,7 +36,7 @@ const schema = z.object({
     .optional()
     .describe('Task ID to claim (claims next available if omitted)'),
   agentId: z.string().min(1).describe('Claiming agent ID'),
-  sessionId: z.string().optional().describe('Session ID (required if no taskId)'),
+  sessionId: z.string().optional().describe('Session ID (auto-detected from connection if omitted; needed if no taskId)'),
 });
 
 type TaskClaimArgs = z.infer<typeof schema>;
@@ -45,6 +45,16 @@ export const taskClaimTool: UnifiedTool = {
   name: 'task-claim',
   description: 'Claim task to start working on it',
   zodSchema: schema,
+
+  metadata: {
+    category: 'kanban',
+    tags: ['task', 'claim', 'worker'],
+    examples: [
+      { args: { agentId: 'agent-1' }, description: 'Claim the next available task' },
+      { args: { taskId: 'task-abc123', agentId: 'agent-1' }, description: 'Claim a specific task by ID' },
+    ],
+    relatedTools: ['task-list', 'task-assign'],
+  },
 
   execute: async (args): Promise<string> => {
     const input = args as TaskClaimArgs;
@@ -62,15 +72,9 @@ export const taskClaimTool: UnifiedTool = {
 
       // If no specific task, get next available
       if (!taskId) {
-        if (!input.sessionId) {
-          return JSON.stringify({
-            success: false,
-            error: 'Either taskId or sessionId is required',
-            code: 'MISSING_PARAM',
-          });
-        }
+        const sessionId = resolveSessionId(input.sessionId);
 
-        const available = await getAvailableTasks(input.sessionId);
+        const available = await getAvailableTasks(sessionId);
         if (available.length === 0) {
           return JSON.stringify({
             success: false,

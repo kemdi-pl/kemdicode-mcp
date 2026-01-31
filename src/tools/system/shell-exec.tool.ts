@@ -280,6 +280,16 @@ export const shellExecTool: UnifiedTool = {
   name: 'shell-exec',
   description: 'Execute shell command with timeout and streaming output',
   zodSchema: schema,
+  metadata: {
+    category: 'system',
+    tags: ['shell', 'exec', 'command'],
+    examples: [
+      { args: { command: 'ls -la' }, description: 'List files in current directory' },
+      { args: { command: 'docker ps', timeout: 10000 }, description: 'List running Docker containers with 10s timeout' },
+      { args: { command: 'npm run build', cwd: '/opt/project', shell: 'bash' }, description: 'Run build in specific directory' },
+    ],
+    relatedTools: ['run-script', 'process-list'],
+  },
   execute: async (args, onProgress) => {
     // Disabled-by-default / admin-gated.
     if (!isShellExecEnabled()) {

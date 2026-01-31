@@ -30,6 +30,7 @@ import { Logger } from '../utils/logger.js';
 import { getSharedRedis } from '../infrastructure/redis/connection.js';
 import {
   KanbanTask,
+  TaskNote,
   TaskStatus,
   TaskPriority,
   CreateTaskInput,
@@ -52,6 +53,15 @@ function safeParseJsonArray(value: string | undefined): string[] {
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
+  }
+}
+
+function safeParseNotes(value: string | undefined): TaskNote[] | undefined {
+  try {
+    const parsed = JSON.parse(value || '[]');
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -198,6 +208,7 @@ export async function getTask(taskId: string): Promise<KanbanTask | null> {
     completedAt: data.completedAt ? safeParseInt(data.completedAt) : undefined,
     estimatedMinutes: data.estimatedMinutes ? safeParseInt(data.estimatedMinutes) : undefined,
     actualMinutes: data.actualMinutes ? safeParseInt(data.actualMinutes) : undefined,
+    notes: data.notes ? safeParseNotes(data.notes) : undefined,
   };
 }
 
@@ -632,6 +643,7 @@ export async function listTasks(
       completedAt: data.completedAt ? safeParseInt(data.completedAt) : undefined,
       estimatedMinutes: data.estimatedMinutes ? safeParseInt(data.estimatedMinutes) : undefined,
       actualMinutes: data.actualMinutes ? safeParseInt(data.actualMinutes) : undefined,
+      notes: data.notes ? safeParseNotes(data.notes) : undefined,
     };
 
     // Apply filters
@@ -988,4 +1000,78 @@ export async function getAgentTasks(agentId: string): Promise<KanbanTask[]> {
  */
 export async function getAvailableTasks(sessionId: string): Promise<KanbanTask[]> {
   return listTasks(sessionId, { unassigned: true, blocked: false, status: 'backlog' });
+}
+
+/**
+ * Add a note/comment to a task
+ *
+ * @description Appends a note to the task's notes array without overwriting
+ *              the description or any other field. Notes are stored as a
+ *              JSON-serialized array in the Redis HASH.
+ * @param {string} taskId - Task ID to add the note to
+ * @param {object} note - Note data
+ * @param {string} note.author - Author name or agent ID
+ * @param {string} note.content - Note content
+ * @returns {Promise<TaskNote>} The created note with generated ID and timestamp
+ * @throws {Error} If task is not found
+ *
+ * @example
+ * ```typescript
+ * const note = await addTaskNote('task-123', {
+ *   author: 'agent-1',
+ *   content: 'Encountered issue with auth middleware, switching approach.',
+ * });
+ * ```
+ */
+export async function addTaskNote(
+  taskId: string,
+  note: { author: string; content: string }
+): Promise<TaskNote> {
+  const client = await getRedis();
+
+  const task = await getTask(taskId);
+  if (!task) throw new Error(`Task not found: ${taskId}`);
+
+  const newNote: TaskNote = {
+    id: `note_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    author: note.author,
+    content: note.content,
+    createdAt: Date.now(),
+  };
+
+  const notes = task.notes || [];
+  notes.push(newNote);
+
+  await client.hset(KANBAN_KEYS.task(taskId), {
+    notes: JSON.stringify(notes),
+    updatedAt: Date.now().toString(),
+  });
+
+  Logger.debug(`kanban: added note ${newNote.id} to task ${taskId}`);
+
+  return newNote;
+}
+
+/**
+ * Get all notes/comments for a task
+ *
+ * @description Retrieves the notes array from a task, returning an empty
+ *              array if the task has no notes.
+ * @param {string} taskId - Task ID to get notes for
+ * @returns {Promise<TaskNote[]>} Array of notes (empty if none)
+ * @throws {Error} If task is not found
+ *
+ * @example
+ * ```typescript
+ * const notes = await getTaskNotes('task-123');
+ * for (const note of notes) {
+ *   console.log(`[${note.author}]: ${note.content}`);
+ * }
+ * ```
+ */
+export async function getTaskNotes(taskId: string): Promise<TaskNote[]> {
+  const task = await getTask(taskId);
+  if (!task) throw new Error(`Task not found: ${taskId}`);
+
+  return task.notes || [];
 }

@@ -52,6 +52,16 @@ export const autoFixAgentTool: UnifiedTool = {
   name: 'auto-fix-agent',
   description: 'Multi-agent code fixing via OpenAI Agents SDK with diff-based patching',
   zodSchema: schema,
+  metadata: {
+    category: 'specialized',
+    tags: ['fix', 'agent', 'diff'],
+    longRunning: true,
+    examples: [
+      { args: { files: '@src/auth.ts', focus: 'security' }, description: 'Fix security issues using AI agent' },
+      { args: { files: '@src/api.ts', focus: 'all', dryRun: true }, description: 'Preview all fixes without applying' },
+    ],
+    relatedTools: ['auto-fix', 'fix-bug', 'code-review'],
+  },
 
   execute: async (args, onProgress) => {
     const input = args as unknown as AutoFixAgentArgs;

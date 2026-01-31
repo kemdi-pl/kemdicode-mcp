@@ -416,6 +416,17 @@ export const findSymbolsTool: UnifiedTool = {
   description: 'List all symbols in file',
   zodSchema: schema,
   skipContextShare: true, // Code navigation doesn't need sharing
+  metadata: {
+    category: 'code',
+    tags: ['symbols', 'listing', 'ast'],
+    examples: [
+      {
+        args: { file: 'src/tools/registry.ts', types: 'class,interface', includePrivate: false },
+        description: 'List all public classes and interfaces in registry.ts',
+      },
+    ],
+    relatedTools: ['find-definition', 'find-references', 'code-outline'],
+  },
 
   execute: async (args, onProgress) => {
     const { file, types, includePrivate = true } = args;

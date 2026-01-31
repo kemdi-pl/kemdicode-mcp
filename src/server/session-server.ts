@@ -36,6 +36,7 @@ import {
   toolExists,
   getPromptMessage,
 } from '../tools/index.js';
+import { setActiveSessionId } from '../kanban/resolvers.js';
 import { startProgress, stopProgress, updateProgressOutput } from './progress.js';
 import { VERSION, type SessionConfig } from './types.js';
 import type { ToolArguments } from '../tools/registry.js';
@@ -228,6 +229,9 @@ export function createSessionServer(_sessionId: string): Server {
 
     try {
       const args = (rawArgs as ToolArguments) || {};
+
+      // Inject active session ID for kanban tools auto-resolution
+      setActiveSessionId(_sessionId);
 
       // Inject session CWD so file tools resolve relative paths correctly
       const sessionConfig = sessionConfigs.get(_sessionId);

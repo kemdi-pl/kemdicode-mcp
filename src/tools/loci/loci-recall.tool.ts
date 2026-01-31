@@ -38,6 +38,16 @@ export const lociRecallTool: UnifiedTool<typeof schema> = {
   description: 'Recall memories from memory palace loci using vivid associations.',
   zodSchema: schema,
 
+  metadata: {
+    category: 'loci',
+    tags: ['recall', 'memory', 'spatial'],
+    examples: [
+      { args: { sessionId: 'session-1', walkAll: true }, description: 'Walk all loci in the memory palace' },
+      { args: { sessionId: 'session-1', lociName: 'entrance-hall' }, description: 'Recall memories from a specific loci by name' },
+    ],
+    relatedTools: ['graph-query', 'sequence-recommend'],
+  },
+
   execute: async (args) => {
     const { lociId, lociName, sessionId, walkAll } = args;
 

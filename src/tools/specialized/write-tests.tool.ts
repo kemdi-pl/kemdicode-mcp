@@ -35,7 +35,7 @@ const COVERAGE_PROMPTS: Record<string, string> = {
 };
 
 const schema = z.object({
-  files: z.string().describe('Files to test (@path/file syntax)'),
+  files: z.string().describe('Files to test. Use @path/file syntax for multiple files, or plain paths separated by spaces'),
   type: z.enum(['unit', 'feature', 'both']).default('unit'),
   coverage: z.enum(['happy-path', 'edge-cases', 'full']).default('happy-path'),
 });
@@ -45,6 +45,16 @@ export const writeTestsTool: UnifiedTool = {
   description: 'Generate PHPUnit tests for Laravel code',
   zodSchema: schema,
   prompt: { description: 'Generate tests for PHP/Laravel files' },
+  metadata: {
+    category: 'specialized',
+    tags: ['test', 'generation', 'tdd'],
+    longRunning: true,
+    examples: [
+      { args: { files: '@app/Services/PaymentService.php', type: 'unit', coverage: 'happy-path' }, description: 'Generate unit tests for a service' },
+      { args: { files: '@app/Http/Controllers/OrderController.php', type: 'feature', coverage: 'full' }, description: 'Generate full-coverage feature tests' },
+    ],
+    relatedTools: ['run-tests', 'code-review', 'explain-code'],
+  },
   execute: async (args, onProgress) => {
     const { files, type = 'unit', coverage = 'happy-path' } = args;
     if (!files?.toString().trim()) throw new Error('Files required. Use @path/file.php syntax.');

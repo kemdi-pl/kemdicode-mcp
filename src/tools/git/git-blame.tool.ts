@@ -63,6 +63,15 @@ export const gitBlameTool: UnifiedTool = {
   description: 'Line-by-line git blame with author and commit info',
   zodSchema: schema,
   skipContextShare: true,
+  metadata: {
+    category: 'git',
+    tags: ['blame', 'history', 'authorship'],
+    examples: [
+      { args: { file: 'src/index.ts' }, description: 'Show blame for entire file' },
+      { args: { file: 'src/utils.ts', lineStart: 10, lineEnd: 25, dateFormat: 'relative' }, description: 'Blame specific line range with relative dates' },
+    ],
+    relatedTools: ['git-log', 'git-diff'],
+  },
   execute: async (args) => {
     const {
       file,

@@ -47,6 +47,16 @@ export const sessionListTool: UnifiedTool<typeof schema> = {
   zodSchema: schema,
   skipContextShare: true,
 
+  metadata: {
+    category: 'session',
+    tags: ['session', 'list'],
+    examples: [
+      { args: { limit: 10 }, description: 'List up to 10 active sessions' },
+      { args: { projectType: 'node', activeWithin: 3600000 }, description: 'List Node.js sessions active in the last hour' },
+    ],
+    relatedTools: ['session-create', 'session-info'],
+  },
+
   execute: async (args) => {
     const { projectType, activeWithin, limit, includeExpired } = args;
     const manager = getSessionManager();

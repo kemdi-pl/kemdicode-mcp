@@ -44,6 +44,15 @@ export const mpcReconstructTool: UnifiedTool<typeof schema> = {
   zodSchema: schema,
   skipContextShare: true, // Security: don't share reconstructed secrets
 
+  metadata: {
+    category: 'mpc',
+    tags: ['reconstruct', 'secure', 'shares'],
+    examples: [
+      { args: { secretId: 'secret-abc', sessionId: 'session-1', requestingAgentId: 'supervisor-1', agentIds: ['agent-1', 'agent-2', 'agent-3'] }, description: 'Reconstruct secret from three agent shares' },
+    ],
+    relatedTools: ['mpc-split', 'mpc-distribute', 'mpc-status'],
+  },
+
   execute: async (args) => {
     const { secretId, sessionId, requestingAgentId, agentIds } = args;
 

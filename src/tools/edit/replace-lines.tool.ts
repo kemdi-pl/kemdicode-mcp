@@ -50,6 +50,22 @@ export const replaceLinesTool: UnifiedTool = {
   name: 'replace-lines',
   description: 'Replace line range with new content',
   zodSchema: schema,
+  metadata: {
+    category: 'edit',
+    tags: ['replace', 'lines'],
+    examples: [
+      {
+        args: {
+          path: 'src/config.ts',
+          startLine: 5,
+          endLine: 10,
+          content: 'const config = {\n  port: 3000,\n  host: "localhost",\n};',
+        },
+        description: 'Replace lines 5-10 with new configuration block',
+      },
+    ],
+    relatedTools: ['delete-lines', 'insert-at-line', 'replace-content'],
+  },
 
   execute: async (args): Promise<string> => {
     const { path: inputPath, startLine, endLine, content, createBackup } = args as ReplaceLinesArgs;

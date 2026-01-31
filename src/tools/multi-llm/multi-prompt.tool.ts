@@ -101,5 +101,14 @@ export const multiPromptTool: UnifiedTool = {
   description:
     'Send same prompt to N models in parallel. provider:model syntax. Supports thinking tokens.',
   zodSchema: schema,
+  metadata: {
+    category: 'multi-llm',
+    tags: ['multi-model', 'parallel', 'compare'],
+    longRunning: true,
+    examples: [
+      { args: { prompt: 'Explain the benefits of microservices vs monolith', models: ['o:gpt-4o', 'a:claude-sonnet-4-20250514', 'g:gemini-2.0-flash'] }, description: 'Compare responses from three different providers' },
+    ],
+    relatedTools: ['consensus-prompt', 'ask-ai'],
+  },
   execute,
 };

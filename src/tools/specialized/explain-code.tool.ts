@@ -34,7 +34,7 @@ const AUDIENCE_PROMPTS: Record<string, string> = {
 };
 
 const schema = z.object({
-  files: z.string().describe('Files to explain (@path/file syntax)'),
+  files: z.string().describe('Files to explain. Use @path/file syntax for multiple files, or plain paths separated by spaces'),
   depth: z.enum(['quick', 'detailed', 'deep']).default('detailed'),
   audience: z.enum(['junior', 'senior', 'non-tech']).default('senior'),
 });
@@ -44,6 +44,16 @@ export const explainCodeTool: UnifiedTool = {
   description: 'Code explanation at configurable depth and audience level',
   zodSchema: schema,
   prompt: { description: 'Explain PHP/Laravel code' },
+  metadata: {
+    category: 'specialized',
+    tags: ['explain', 'documentation'],
+    longRunning: true,
+    examples: [
+      { args: { files: '@src/services/PaymentService.ts' }, description: 'Explain a service file at detailed level' },
+      { args: { files: '@app/Http/Controllers/OrderController.php', depth: 'deep', audience: 'junior' }, description: 'Deep explanation for junior developer' },
+    ],
+    relatedTools: ['code-review', 'code-outline'],
+  },
   execute: async (args, onProgress) => {
     const { files, depth = 'detailed', audience = 'senior' } = args;
     if (!files?.toString().trim()) throw new Error('Files required. Use @path/file.php syntax.');

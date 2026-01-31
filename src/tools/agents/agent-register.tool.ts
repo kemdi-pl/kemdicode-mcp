@@ -60,6 +60,15 @@ export const agentRegisterTool: UnifiedTool = {
   description: 'Register agents (1-20). Returns agent IDs.',
   zodSchema: schema,
   skipContextShare: true,
+  metadata: {
+    category: 'agents',
+    tags: ['register', 'lifecycle'],
+    examples: [
+      { args: { agents: [{ name: 'Backend Dev', role: 'worker', model: 'claude-sonnet-4-20250514' }], sessionId: 'sess-abc123', serverId: 'kemdicode-mcp' }, description: 'Register a single worker agent' },
+      { args: { agents: [{ name: 'Coordinator', role: 'coordinator' }, { name: 'QA Agent', role: 'specialist' }], sessionId: 'sess-abc123' }, description: 'Register multiple agents at once' },
+    ],
+    relatedTools: ['agent-list', 'agent-watch'],
+  },
 
   execute: async (args) => {
     const { agents, sessionId, serverId } = args as unknown as z.infer<typeof schema>;

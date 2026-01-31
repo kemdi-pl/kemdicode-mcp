@@ -28,11 +28,11 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
-import { leaveWorkspace } from '../../kanban/index.js';
+import { leaveWorkspace, resolveSessionId, resolveWorkspaceId } from '../../kanban/index.js';
 
 const schema = z.object({
-  workspaceId: z.string().min(1).describe('Workspace ID'),
-  sessionId: z.string().min(1).describe('Session ID leaving'),
+  workspaceId: z.string().min(1).describe('Workspace ID or "name:Workspace Name"'),
+  sessionId: z.string().optional().describe('Session ID leaving (auto-detected from connection if omitted)'),
 });
 
 type WorkspaceLeaveArgs = z.infer<typeof schema>;
@@ -41,6 +41,16 @@ export const workspaceLeaveTool: UnifiedTool = {
   name: 'workspace-leave',
   description: 'Remove session from workspace',
   zodSchema: schema,
+
+  metadata: {
+    category: 'kanban',
+    tags: ['workspace', 'leave'],
+    examples: [
+      { args: { workspaceId: 'ws-abc123' }, description: 'Leave a workspace by ID' },
+      { args: { workspaceId: 'name:Platform Team' }, description: 'Leave a workspace by name' },
+    ],
+    relatedTools: ['workspace-join', 'workspace-list'],
+  },
 
   execute: async (args): Promise<string> => {
     const input = args as WorkspaceLeaveArgs;
@@ -54,7 +64,11 @@ export const workspaceLeaveTool: UnifiedTool = {
     }
 
     try {
-      const success = await leaveWorkspace(input.workspaceId, input.sessionId);
+      // Resolve sessionId and workspaceId
+      const sessionId = resolveSessionId(input.sessionId);
+      const resolvedWorkspaceId = await resolveWorkspaceId(input.workspaceId, sessionId);
+
+      const success = await leaveWorkspace(resolvedWorkspaceId, sessionId);
 
       if (!success) {
         return JSON.stringify({
@@ -65,13 +79,13 @@ export const workspaceLeaveTool: UnifiedTool = {
       }
 
       Logger.debug(
-        `workspace-leave: session ${input.sessionId} left workspace ${input.workspaceId}`
+        `workspace-leave: session ${sessionId} left workspace ${resolvedWorkspaceId}`
       );
 
       return JSON.stringify({
         success: true,
-        workspaceId: input.workspaceId,
-        sessionId: input.sessionId,
+        workspaceId: resolvedWorkspaceId,
+        sessionId,
         message: 'Successfully left workspace',
       });
     } catch (error) {

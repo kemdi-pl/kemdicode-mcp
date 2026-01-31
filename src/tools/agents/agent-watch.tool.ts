@@ -48,6 +48,16 @@ export const agentWatchTool: UnifiedTool = {
     'Monitor agent conversations in real-time. Shows agents, messages, alerts.',
   zodSchema: schema,
   skipContextShare: true,
+  metadata: {
+    category: 'agents',
+    tags: ['watch', 'realtime', 'pubsub'],
+    longRunning: true,
+    examples: [
+      { args: { sessionId: 'sess-abc123' }, description: 'Watch session for 10 seconds (default)' },
+      { args: { sessionId: 'sess-abc123', duration: 30000, messageLimit: 50 }, description: 'Watch session for 30 seconds with 50 message limit' },
+    ],
+    relatedTools: ['agent-list', 'agent-alert'],
+  },
 
   execute: async (args, onProgress) => {
     const { sessionId, duration, messageLimit: _messageLimit } = args as z.infer<typeof schema>;

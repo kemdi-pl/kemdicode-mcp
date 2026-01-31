@@ -248,6 +248,16 @@ export const aiConfigTool: UnifiedTool = {
   prompt: {
     description: 'Configure AI provider settings (API URL, model, API key)',
   },
+  metadata: {
+    category: 'system',
+    tags: ['config', 'ai', 'provider'],
+    examples: [
+      { args: { action: 'get' }, description: 'View current AI configuration' },
+      { args: { action: 'set', provider: 'openai', primaryModel: 'gpt-4o' }, description: 'Set OpenAI as provider with gpt-4o model' },
+      { args: { action: 'test' }, description: 'Test the current AI connection' },
+    ],
+    relatedTools: ['ai-models', 'env-info'],
+  },
   execute: async (args) => {
     const action = args.action as string;
 

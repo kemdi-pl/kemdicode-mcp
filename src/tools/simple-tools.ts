@@ -17,7 +17,7 @@
  */
 
 import { z } from 'zod';
-import { UnifiedTool } from './registry.js';
+import { UnifiedTool, getToolRegistry } from './registry.js';
 import { executeCommand } from '../utils/commandExecutor.js';
 import { executeAI, parseFiles } from '../ai/index.js';
 import { ERROR_MESSAGES } from '../constants.js';
@@ -33,8 +33,35 @@ export const helpTool: UnifiedTool = {
   name: 'help',
   description: 'Show available tools and commands',
   zodSchema: z.object({}),
-  execute: async () =>
-    'Use: ask-ai, git-status, git-diff, search-code, and more. See README for full list.',
+  execute: async () => {
+    const tools = getToolRegistry();
+    const categories = new Map<string, { name: string; description: string }[]>();
+
+    for (const tool of tools) {
+      const category = tool.metadata?.category || 'other';
+      if (!categories.has(category)) {
+        categories.set(category, []);
+      }
+      categories.get(category)!.push({ name: tool.name, description: tool.description });
+    }
+
+    const lines: string[] = [`# Available Tools (${tools.length} total)`, ''];
+
+    // Sort categories alphabetically
+    const sortedCategories = Array.from(categories.entries()).sort(([a], [b]) =>
+      a.localeCompare(b)
+    );
+
+    for (const [category, categoryTools] of sortedCategories) {
+      lines.push(`## ${category}`);
+      for (const t of categoryTools) {
+        lines.push(`- ${t.name}: ${t.description}`);
+      }
+      lines.push('');
+    }
+
+    return lines.join('\n');
+  },
 };
 
 const agentSchema = z.object({

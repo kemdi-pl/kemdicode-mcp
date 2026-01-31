@@ -45,6 +45,12 @@ const schema = z.object({
     .boolean()
     .default(false)
     .describe('Stop execution on first error (sequential only)'),
+  maxResultLength: z
+    .number()
+    .min(100)
+    .max(50000)
+    .default(5000)
+    .describe('Max chars per result'),
 });
 
 interface OperationResult {
@@ -61,9 +67,18 @@ export const batchTool: UnifiedTool<typeof schema> = {
   description: 'Execute multiple tools in parallel. Max 10 per batch.',
   zodSchema: schema,
   skipContextShare: true, // Individual tools share their own context
+  metadata: {
+    category: 'system',
+    tags: ['batch', 'parallel', 'bulk'],
+    examples: [
+      { args: { operations: [{ tool: 'file-read', args: { path: '@src/a.ts' } }, { tool: 'file-read', args: { path: '@src/b.ts' } }], parallel: true }, description: 'Read two files in parallel' },
+      { args: { operations: [{ tool: 'run-lint', args: {} }, { tool: 'run-tests', args: {} }], parallel: true }, description: 'Run lint and tests simultaneously' },
+    ],
+    relatedTools: ['invoke-batch', 'pipeline'],
+  },
   execute: async (args, onProgress) => {
     // args is now properly typed via the generic
-    const { operations, parallel = true, stopOnError = false } = args;
+    const { operations, parallel = true, stopOnError = false, maxResultLength = 5000 } = args;
 
     const results: OperationResult[] = [];
     const startTime = Date.now();
@@ -151,8 +166,8 @@ export const batchTool: UnifiedTool<typeof schema> = {
       if (result.result) {
         // Truncate long results
         const truncated =
-          result.result.length > 500
-            ? result.result.slice(0, 500) + '... (truncated)'
+          result.result.length > maxResultLength
+            ? result.result.slice(0, maxResultLength) + '... (truncated)'
             : result.result;
         output.push(`\n${truncated}`);
       }

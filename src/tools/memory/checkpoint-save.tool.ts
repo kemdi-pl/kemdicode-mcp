@@ -59,6 +59,15 @@ export const checkpointSaveTool: UnifiedTool = {
   name: 'checkpoint-save',
   description: 'Save named checkpoint for current project',
   zodSchema: schema,
+  metadata: {
+    category: 'memory',
+    tags: ['checkpoint', 'save', 'snapshot'],
+    examples: [
+      { args: { name: 'before-refactor', content: '{"files":{"src/index.ts":"..."}}', tags: ['refactor'] }, description: 'Save a checkpoint before refactoring' },
+      { args: { name: 'deploy-v2', content: 'deployment state snapshot', tags: ['deploy'], ttlDays: 30 }, description: 'Save deployment checkpoint with 30-day TTL' },
+    ],
+    relatedTools: ['checkpoint-restore', 'checkpoint-diff'],
+  },
 
   execute: async (args): Promise<string> => {
     const { name, content, tags, overwrite, ttlDays } = args as CheckpointSaveArgs;

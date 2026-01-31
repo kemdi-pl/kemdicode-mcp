@@ -411,6 +411,17 @@ export const runTestsTool: UnifiedTool = {
   name: 'run-tests',
   description: 'Run tests (Jest, Vitest, PHPUnit, pytest, Go)',
   zodSchema: schema,
+  metadata: {
+    category: 'project',
+    tags: ['test', 'jest', 'phpunit'],
+    longRunning: true,
+    examples: [
+      { args: {}, description: 'Auto-detect test framework and run all tests' },
+      { args: { framework: 'jest', filter: 'auth', coverage: true }, description: 'Run Jest tests matching auth with coverage' },
+      { args: { framework: 'phpunit', filter: 'UserServiceTest' }, description: 'Run specific PHPUnit test class' },
+    ],
+    relatedTools: ['run-lint', 'check-types', 'write-tests'],
+  },
   execute: async (args, onProgress) => {
     const cwd = getCwd(args.cwd as string | undefined);
     const frameworkChoice = (args.framework as string) || 'auto';

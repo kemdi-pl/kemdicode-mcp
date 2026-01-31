@@ -219,6 +219,16 @@ export const processListTool: UnifiedTool = {
   description: 'List running processes with CPU/memory usage',
   zodSchema: schema,
   skipContextShare: true,
+  metadata: {
+    category: 'system',
+    tags: ['process', 'monitoring'],
+    examples: [
+      { args: {}, description: 'List top processes by CPU usage' },
+      { args: { filter: 'node', sortBy: 'memory', limit: 10 }, description: 'List Node.js processes sorted by memory' },
+      { args: { all: true, sortBy: 'cpu' }, description: 'List all system processes by CPU' },
+    ],
+    relatedTools: ['memory-usage', 'env-info'],
+  },
   execute: async (args) => {
     const filter = args.filter as string | undefined;
     const sortBy = (args.sortBy as string) || 'cpu';

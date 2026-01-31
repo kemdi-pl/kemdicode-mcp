@@ -57,6 +57,15 @@ export const agentSummaryTool: UnifiedTool = {
   description: 'Report agent activity (1-20). Update progress and status.',
   zodSchema: schema,
   skipContextShare: true,
+  metadata: {
+    category: 'agents',
+    tags: ['summary', 'status'],
+    examples: [
+      { args: { summaries: [{ agentId: 'backend-dev', activity: 'Implementing JWT auth', progress: 65, taskId: 'task-1' }], sessionId: 'sess-abc123' }, description: 'Update single agent summary with progress' },
+      { args: { summaries: [{ agentId: 'agent-1', activity: 'Writing tests' }, { agentId: 'agent-2', activity: 'Code review' }], sessionId: 'sess-abc123' }, description: 'Batch update multiple agent summaries' },
+    ],
+    relatedTools: ['agent-list', 'monitor'],
+  },
 
   execute: async (args) => {
     const { summaries, sessionId } = args as z.infer<typeof schema>;

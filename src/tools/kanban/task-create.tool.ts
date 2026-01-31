@@ -28,7 +28,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { checkRateLimit } from '../../utils/validation.js';
-import { createTask, TaskPriority } from '../../kanban/index.js';
+import { createTask, TaskPriority, resolveSessionId, resolveBoardId } from '../../kanban/index.js';
 
 const taskSchema = z.object({
   title: z.string().min(1).max(200).describe('Task title'),
@@ -37,7 +37,7 @@ const taskSchema = z.object({
     .enum(['critical', 'high', 'normal', 'low'])
     .default('normal')
     .describe('Priority level'),
-  boardId: z.string().optional().describe('Board ID (default board if omitted)'),
+  boardId: z.string().optional().describe('Board ID or "name:Board Name" (default board if omitted)'),
   blockedBy: z.array(z.string()).optional().describe('Blocking task IDs'),
   relatedFiles: z.array(z.string()).optional().describe('Related file paths'),
   labels: z.array(z.string()).optional().describe('Labels for categorization'),
@@ -46,7 +46,7 @@ const taskSchema = z.object({
 
 const schema = z.object({
   tasks: z.array(taskSchema).min(1).max(20).describe('Tasks to create (1-20)'),
-  sessionId: z.string().min(1).describe('Session ID'),
+  sessionId: z.string().optional().describe('Session ID (auto-detected from connection if omitted)'),
   createdBy: z.string().min(1).describe('Creator agent ID'),
 });
 
@@ -65,6 +65,15 @@ export const taskCreateTool: UnifiedTool = {
   name: 'task-create',
   description: 'Batch create 1-20 tasks on Kanban board',
   zodSchema: schema,
+  metadata: {
+    category: 'kanban',
+    tags: ['task', 'create', 'batch'],
+    examples: [
+      { args: { tasks: [{ title: 'Implement auth', priority: 'high' }] }, description: 'Create a single high-priority task' },
+      { args: { tasks: [{ title: 'Task A' }, { title: 'Task B' }], boardId: 'board-1' }, description: 'Create multiple tasks on a specific board' },
+    ],
+    relatedTools: ['task-list', 'task-update', 'task-assign'],
+  },
 
   execute: async (args): Promise<string> => {
     const input = args as unknown as TaskCreateArgs;
@@ -77,14 +86,22 @@ export const taskCreateTool: UnifiedTool = {
       });
     }
 
+    // Resolve sessionId from args or active connection context
+    const sessionId = resolveSessionId(input.sessionId);
+
     const results: CreateResult[] = [];
 
     // Create all tasks in parallel
     const createPromises = input.tasks.map(async (taskDef) => {
       try {
+        // Resolve boardId by name if needed
+        const resolvedBoardId = taskDef.boardId
+          ? await resolveBoardId(taskDef.boardId, sessionId)
+          : undefined;
+
         const task = await createTask({
-          sessionId: input.sessionId,
-          boardId: taskDef.boardId,
+          sessionId,
+          boardId: resolvedBoardId,
           title: taskDef.title,
           description: taskDef.description,
           priority: taskDef.priority as TaskPriority,
@@ -130,7 +147,7 @@ export const taskCreateTool: UnifiedTool = {
 
     return JSON.stringify({
       success: failed.length === 0,
-      sessionId: input.sessionId,
+      sessionId,
       createdBy: input.createdBy,
       created: successful.length,
       failed: failed.length,
@@ -138,7 +155,8 @@ export const taskCreateTool: UnifiedTool = {
         taskId: r.taskId,
         title: r.title,
         boardId: r.boardId,
-        priority: `${priorityIcon(r.priority)} ${r.priority}`,
+        priority: r.priority,
+        priorityIcon: priorityIcon(r.priority),
         success: r.success,
         error: r.error,
       })),

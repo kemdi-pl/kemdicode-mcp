@@ -183,6 +183,15 @@ export const sharedThoughtsTool: UnifiedTool = {
     'Read collective knowledge from all agents. Shows analyzed data for multi-agent coordination.',
   zodSchema: schema,
   skipContextShare: true, // Don't create infinite loop
+  metadata: {
+    category: 'context',
+    tags: ['thoughts', 'knowledge', 'sharing'],
+    examples: [
+      { args: { scope: 'all', format: 'summary' }, description: 'Get summary of all shared knowledge' },
+      { args: { scope: 'code', format: 'timeline', limit: 10 }, description: 'View timeline of recent code-related insights' },
+    ],
+    relatedTools: ['get-shared-context', 'agent-list'],
+  },
 
   execute: async (args): Promise<string> => {
     const { scope, limit, format, includeOutput } = args as SharedThoughtsArgs;

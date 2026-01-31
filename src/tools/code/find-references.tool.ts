@@ -135,6 +135,17 @@ export const findReferencesTool: UnifiedTool = {
   description: 'Find all symbol usages in codebase',
   zodSchema: schema,
   skipContextShare: true, // Code navigation doesn't need sharing
+  metadata: {
+    category: 'code',
+    tags: ['references', 'usage', 'ast'],
+    examples: [
+      {
+        args: { symbol: 'Logger', path: 'src/', excludeDefinitions: true, maxResults: 20 },
+        description: 'Find all usages of Logger excluding its definition',
+      },
+    ],
+    relatedTools: ['find-definition', 'find-symbols', 'rename-symbol'],
+  },
 
   execute: async (args, onProgress) => {
     const {

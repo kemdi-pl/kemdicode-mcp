@@ -70,6 +70,16 @@ export const taskUpdateTool: UnifiedTool = {
   description: 'Batch update 1-20 tasks with taskId and fields to change',
   zodSchema: schema,
 
+  metadata: {
+    category: 'kanban',
+    tags: ['task', 'update', 'status'],
+    examples: [
+      { args: { updates: [{ taskId: 'task-1', status: 'in_progress' }], agentId: 'agent-1' }, description: 'Move a task to in-progress' },
+      { args: { updates: [{ taskId: 'task-1', status: 'done' }, { taskId: 'task-2', priority: 'critical' }], agentId: 'agent-1' }, description: 'Batch update status and priority' },
+    ],
+    relatedTools: ['task-get', 'task-list', 'task-create'],
+  },
+
   execute: async (args): Promise<string> => {
     const input = args as unknown as TaskUpdateArgs;
 
@@ -187,7 +197,7 @@ export const taskUpdateTool: UnifiedTool = {
     const successful = results.filter((r) => r.success);
     const failed = results.filter((r) => !r.success);
 
-    const statusIcon = (s?: string) =>
+    const getStatusIcon = (s?: string) =>
       ({
         backlog: '📋',
         in_progress: '🔄',
@@ -203,7 +213,8 @@ export const taskUpdateTool: UnifiedTool = {
       results: results.map((r) => ({
         taskId: r.taskId,
         title: r.title,
-        status: r.status ? `${statusIcon(r.status)} ${r.status}` : undefined,
+        status: r.status || undefined,
+        statusIcon: r.status ? getStatusIcon(r.status) : undefined,
         success: r.success,
         error: r.error,
       })),

@@ -1,5 +1,9 @@
 # KemdiCode MCP Server
 
+## Session Recovery
+
+After compaction or session start, always run `read-memory --names ["active-session"]` to restore current working context (session ID, workspace, boards, current phase, pending tasks). Update it with `write-memory` whenever the active session changes.
+
 ## Overview
 
 Model Context Protocol (MCP) server providing **100+ specialized tools** for code analysis, generation, git operations, file management, line/symbol editing, project memory, multi-board kanban with workspaces, recursive tool invocation, session monitoring, and multi-agent coordination.

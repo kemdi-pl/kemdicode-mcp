@@ -58,6 +58,15 @@ export const mpcSplitTool: UnifiedTool<typeof schema> = {
   zodSchema: schema,
   skipContextShare: true, // Security: don't share secrets to context
 
+  metadata: {
+    category: 'mpc',
+    tags: ['split', 'secure', 'secret'],
+    examples: [
+      { args: { secret: 'my-api-key-value', totalShares: 5, threshold: 3, sessionId: 'session-1', creatorAgentId: 'agent-1', label: 'Production API Key', secretType: 'api-key' }, description: 'Split an API key into 5 shares with threshold 3' },
+    ],
+    relatedTools: ['mpc-distribute', 'mpc-reconstruct', 'mpc-status'],
+  },
+
   execute: async (args) => {
     const {
       secret,

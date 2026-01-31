@@ -43,6 +43,15 @@ export const agentHistoryTool: UnifiedTool = {
     'View agent conversation history. Filter by agent, type, or time.',
   zodSchema: schema,
   skipContextShare: true,
+  metadata: {
+    category: 'agents',
+    tags: ['history', 'messages'],
+    examples: [
+      { args: { sessionId: 'sess-abc123' }, description: 'View all messages in session' },
+      { args: { sessionId: 'sess-abc123', agentId: 'backend-dev', type: 'alert', limit: 10 }, description: 'View last 10 alerts for a specific agent' },
+    ],
+    relatedTools: ['agent-list', 'queue-message'],
+  },
 
   execute: async (args) => {
     const { sessionId, agentId, limit, since, type } = args as z.infer<typeof schema>;

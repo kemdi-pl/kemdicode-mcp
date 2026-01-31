@@ -59,6 +59,16 @@ export const taskAssignTool: UnifiedTool = {
   description: 'Batch assign 1-20 tasks to agents',
   zodSchema: schema,
 
+  metadata: {
+    category: 'kanban',
+    tags: ['task', 'assign', 'agent'],
+    examples: [
+      { args: { assignments: [{ taskId: 'task-1', assigneeId: 'agent-2' }], supervisorId: 'agent-1' }, description: 'Assign a single task to an agent' },
+      { args: { assignments: [{ taskId: 'task-1', assigneeId: 'agent-2' }, { taskId: 'task-2', assigneeId: 'agent-3' }], supervisorId: 'agent-1' }, description: 'Batch assign tasks to different agents' },
+    ],
+    relatedTools: ['task-create', 'task-list', 'task-push-multi'],
+  },
+
   execute: async (args): Promise<string> => {
     const input = args as TaskAssignArgs;
 

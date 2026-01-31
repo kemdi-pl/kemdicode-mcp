@@ -47,6 +47,16 @@ export const mpcStatusTool: UnifiedTool<typeof schema> = {
   zodSchema: schema,
   skipContextShare: true,
 
+  metadata: {
+    category: 'mpc',
+    tags: ['status', 'monitoring'],
+    examples: [
+      { args: { secretId: 'secret-abc', sessionId: 'session-1' }, description: 'Check status of a specific secret' },
+      { args: { sessionId: 'session-1', agentId: 'agent-1' }, description: 'List secrets held by a specific agent' },
+    ],
+    relatedTools: ['mpc-split', 'mpc-distribute', 'mpc-reconstruct'],
+  },
+
   execute: async (args) => {
     const { secretId, sessionId, agentId, viewingAgentId } = args;
 

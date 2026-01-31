@@ -34,7 +34,7 @@ const FOCUS_MAP: Record<string, string> = {
 };
 
 const schema = z.object({
-  files: z.string().describe('Files to fix (@path/file syntax)'),
+  files: z.string().describe('Files to fix. Use @path/file syntax for multiple files, or plain paths separated by spaces'),
   focus: z.enum(['security', 'performance', 'quality', 'all']).default('all'),
   severity: z
     .enum(['critical', 'all'])
@@ -120,9 +120,19 @@ function parseAIEdits(response: string): FixEdit[] {
 
 export const autoFixTool: UnifiedTool = {
   name: 'auto-fix',
-  description: 'Automatic code fixes with apply or dry-run mode',
+  description: 'Automatic AI-powered code fixes with apply or dry-run mode. For simple regex find/replace, use replace-content instead',
   zodSchema: schema,
   prompt: { description: 'Auto-fix code issues' },
+  metadata: {
+    category: 'specialized',
+    tags: ['fix', 'auto', 'ai'],
+    longRunning: true,
+    examples: [
+      { args: { files: '@src/auth.ts', focus: 'security', dryRun: true }, description: 'Preview security fixes without applying' },
+      { args: { files: '@src/service.ts', focus: 'all', severity: 'critical' }, description: 'Apply critical fixes across all categories' },
+    ],
+    relatedTools: ['replace-content', 'code-review', 'fix-bug'],
+  },
   execute: async (args, onProgress) => {
     const { files, focus = 'all', severity = 'critical', dryRun } = args;
     if (!files?.toString().trim()) throw new Error('Files required. Use @path/file.php syntax.');

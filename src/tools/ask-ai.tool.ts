@@ -37,6 +37,16 @@ export const askAITool: UnifiedTool = {
   description: 'Execute AI with model, agent, files options.',
   zodSchema: schema,
   prompt: { description: 'Direct AI access' },
+  metadata: {
+    category: 'specialized',
+    tags: ['ai', 'query', 'direct'],
+    longRunning: true,
+    examples: [
+      { args: { prompt: 'Explain the SOLID principles with TypeScript examples' }, description: 'Ask AI a question using default agent' },
+      { args: { prompt: 'Refactor this code for readability', agent: 'build', files: '@src/index.ts' }, description: 'Execute AI with file context and build agent' },
+    ],
+    relatedTools: ['plan', 'build', 'brainstorm'],
+  },
   execute: async (args, onProgress) => {
     if (!args.prompt?.toString().trim()) throw new Error(ERROR_MESSAGES.NO_PROMPT);
 

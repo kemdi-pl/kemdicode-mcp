@@ -136,8 +136,17 @@ function truncateLine(line: string, maxLength: number = 100): string {
 
 export const replaceContentTool: UnifiedTool = {
   name: 'replace-content',
-  description: 'Find and replace text/patterns in file, supports regex and dry-run',
+  description: 'Find and replace text/patterns in file, supports regex and dry-run. For AI-powered fixes, use auto-fix instead',
   zodSchema: schema,
+  metadata: {
+    category: 'edit',
+    tags: ['replace', 'regex', 'find'],
+    examples: [
+      { args: { path: 'src/index.ts', search: 'oldName', replace: 'newName', replaceAll: true }, description: 'Replace all occurrences of a string' },
+      { args: { path: 'src/config.ts', search: 'v\\d+\\.\\d+', replace: 'v2.0', isRegex: true, dryRun: true }, description: 'Dry-run regex replacement' },
+    ],
+    relatedTools: ['auto-fix', 'replace-lines', 'insert-at-line'],
+  },
 
   execute: async (args): Promise<string> => {
     const {

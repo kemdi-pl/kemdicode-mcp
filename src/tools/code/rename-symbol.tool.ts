@@ -174,6 +174,17 @@ export const renameSymbolTool: UnifiedTool = {
   name: 'rename-symbol',
   description: 'Rename symbol across codebase, supports dry-run',
   zodSchema: schema,
+  metadata: {
+    category: 'code',
+    tags: ['rename', 'refactor', 'ast'],
+    examples: [
+      {
+        args: { oldName: 'UserService', newName: 'AccountService', path: 'src/', dryRun: true },
+        description: 'Preview renaming UserService to AccountService across all files in src/',
+      },
+    ],
+    relatedTools: ['find-references', 'find-definition', 'refactor'],
+  },
 
   execute: async (args): Promise<string> => {
     const {

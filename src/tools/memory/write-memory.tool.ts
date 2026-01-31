@@ -53,9 +53,23 @@ const memoryItemSchema = z.object({
   ttlDays: z.number().min(1).max(365).default(30).describe('TTL in days'),
 });
 
-const schema = z.object({
+const baseSchema = z.object({
   memories: z.array(memoryItemSchema).min(1).max(20).describe('Memories to store (1-20)'),
 });
+
+/**
+ * Accepts both array format { memories: [...] } and shorthand { name, content, tags?, overwrite?, ttlDays? }.
+ * The shorthand is normalized to array format before validation.
+ */
+const schema = z.preprocess((input) => {
+  if (typeof input === 'object' && input !== null && 'name' in input && !('memories' in input)) {
+    const { name, content, tags, overwrite, ttlDays } = input as Record<string, unknown>;
+    return {
+      memories: [{ name, content, tags, overwrite, ttlDays }],
+    };
+  }
+  return input;
+}, baseSchema);
 
 type WriteMemoryArgs = z.infer<typeof schema>;
 
@@ -63,6 +77,15 @@ export const writeMemoryTool: UnifiedTool = {
   name: 'write-memory',
   description: 'Store 1-20 named memories for current project. Returns results.',
   zodSchema: schema,
+  metadata: {
+    category: 'memory',
+    tags: ['memory', 'write', 'store'],
+    examples: [
+      { args: { name: 'active-session', content: 'session-id: abc123', tags: ['session'] }, description: 'Store a named memory (shorthand)' },
+      { args: { memories: [{ name: 'api-schema', content: '{"endpoints":[]}', tags: ['api'], ttlDays: 7 }] }, description: 'Store memory with custom TTL' },
+    ],
+    relatedTools: ['read-memory', 'list-memories', 'edit-memory'],
+  },
 
   execute: async (args): Promise<string> => {
     const { memories } = args as unknown as WriteMemoryArgs;
