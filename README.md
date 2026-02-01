@@ -5,7 +5,7 @@
 <h3 align="center">Model Context Protocol Server for AI-Powered Development</h3>
 
 <p align="center">
-  124 tools &bull; 7 LLM providers &bull; cognition layer &bull; multi-agent orchestration &bull; kanban &bull; project memory
+  137 tools &bull; 8 LLM providers &bull; cognition layer &bull; multi-agent orchestration &bull; kanban &bull; project memory
 </p>
 
 <p align="center">
@@ -23,7 +23,7 @@
 
 ---
 
-**kemdiCode MCP** is a [Model Context Protocol](https://modelcontextprotocol.io/) server that gives AI agents and IDE assistants access to **124 specialized tools** for code analysis, generation, git operations, file management, AST-aware editing, project memory, cognition & self-improvement, multi-board kanban, and multi-agent coordination.
+**kemdiCode MCP** is a [Model Context Protocol](https://modelcontextprotocol.io/) server that gives AI agents and IDE assistants access to **137 specialized tools** for code analysis, generation, git operations, file management, AST-aware editing, project memory, cognition & self-improvement, multi-board kanban, multi-agent coordination, structured output, and LLM-driven task management.
 
 <details>
 <summary><strong>Table of Contents</strong></summary>
@@ -54,42 +54,93 @@
 
 ## What's New in 1.24.0
 
-### Cognition Layer &mdash; 8 AI Self-Improvement Tools
+### Structured Output & JSON Repair
 
-An AI agent that uses kemdiCode MCP no longer starts from zero after each session. Version 1.24.0 adds 8 interconnected cognition tools that give the agent persistent self-awareness:
+- `generateObject()` with Zod schema validation, retry logic, and automatic JSON repair via `jsonrepair`
+- `safeJsonParse` / `tryJsonParse` / `parseJsonWithSchema` utilities for robust LLM output parsing
 
-| Tool | What it does |
-|:-----|:-------------|
-| `decision-journal` | Records every architectural choice with reasoning, alternatives considered, and outcome tracking |
-| `confidence-tracker` | Tracks how certain the agent is about each action &mdash; flags low-confidence calls for human review |
-| `mental-model` | Builds persistent maps of system architecture: components, relationships, invariants, file mappings |
-| `intent-tracker` | Maintains a hierarchy of goals (mission &rarr; goal &rarr; sub-goal &rarr; task) and detects when the agent drifts |
-| `error-pattern` | Cross-session error database &mdash; when the agent hits an error, it checks if it has seen this before |
-| `self-critique` | Post-session reflection: what went well, what went poorly, lessons extracted |
-| `smart-handoff` | Structured handoff reports for session transitions &mdash; modeled after medical shift handoffs |
-| `context-budget` | Estimates context window usage, prioritizes items by relevance, suggests what to evict |
+### 8th LLM Provider &mdash; Perplexity
 
-### Cross-Tool Intelligence
+- New `perplexity` provider for research-tier queries (3-layer routing: main / research / fallback)
+- Provider syntax: `p:sonar-pro` or `perplexity:sonar-pro`
 
-These 8 tools are not siloed. They react to each other through an in-process event bus:
+### Tool Annotations (MCP Protocol)
 
-- **Record a decision** &rarr; confidence record is auto-created and cross-linked
-- **Low confidence detected** (&lt;50%) &rarr; automatic intent drift check
-- **Error recorded** &rarr; recent decisions are scanned and tagged if related
-- **Intent drift detected** &rarr; self-critique entry auto-generated
-- **Handoff created** &rarr; auto-enriched with full cognition snapshot (active intents, recent decisions, recurring errors, lessons learned, stale models)
-- **Mental model marked stale** &rarr; affected decisions and intents flagged
-- **Lesson learned** &rarr; cross-linked to matching error patterns
+- All 137 tools now carry MCP-level hints: `readOnlyHint`, `destructiveHint`, `openWorldHint`
+- Clients can use annotations for UI presentation and safety checks
 
-All backed by a `CognitionCrossLinker` that maintains bidirectional Redis links between any two cognition records.
+### LLM-Driven Task Clustering
 
-### Enhanced Tool Actions
+- `task-cluster` tool with 11 actions: `create`, `get`, `list`, `delete`, `add/remove tasks`, `checklist-add/toggle`, `extract-context`, `auto-cluster`, `digest`
+- Auto-clustering groups related tasks using LLM analysis
+- Context extraction and digest generation for cluster summaries
 
-- `self-critique` &rarr; new `check-application` action: verifies which lessons are actually being applied in recent decisions vs. ignored
-- `mental-model` &rarr; 3 new actions: `impact-analysis` (BFS from changed files), `dependency-chain` (forward + backward traversal), `invariant-check` (find at-risk invariants)
-- `smart-handoff` &rarr; `create` auto-appends a Cognition Snapshot section with data from all stores
+### Task Complexity Scoring
+
+- `task-complexity` tool: LLM-scored 1&ndash;10 analysis with subtask breakdown recommendations
+
+### Data Flow Bus
+
+- Typed message bus with 12 channels, publish/subscribe, history, and correlation tracking across modules
+
+### Global Event Bus
+
+- Server-wide event system connecting cognition, kanban, recursive, and session modules
+- Namespaced events with optional Redis Pub/Sub propagation for cross-session visibility
+- Kanban event handlers: critical task alerts, completion metrics
+- Loop event handlers: tool frequency tracking, failure &rarr; error-pattern integration
+
+### MCP Client Capabilities
+
+- `client-sampling` &mdash; request LLM completions via the connected MCP client (uses client's model and API keys)
+- `client-elicit` &mdash; ask structured questions through the client UI (text, number, boolean, enum)
+- `client-roots` &mdash; list workspace roots the MCP client has open
+
+### Agent Orchestrate
+
+- `agent-orchestrate` tool for autonomous AI agent loops with function calling
+- Configurable `maxTokens` and `temperature` overrides per agent
+- Tool result limits raised to 16K default / 50K for file tools (was 4K)
+- File-write guardrail rejects truncated content
+
+### Ambient Learning & Agent Ranking
+
+- Silent knowledge gathering: tool sequences, file relations, time patterns
+- Agent ranking with composite scoring (bronze &rarr; diamond tiers) and decay
+- `agent-rank` tool for viewing and managing agent rankings
+
+### Session Recovery & Tool Health
+
+- `session-recover` &mdash; single-tool orchestrated context restore after compaction
+- `tool-health` &mdash; check tool availability with soft/force modes and fallback suggestions
+- Cost-optimized AI model selection with force-reload and auto-select
+
+### Code Deduplication
+
+- `executeWithGuard()` wrapper applied to 33 tool files
+- `executeCognitionTool()`, `executeGitTool()`, `validatePathSafe()`, `handleToolError()` shared helpers
+- Net reduction: **&minus;622 lines** across 262 files
 
 ### Previous Releases
+
+<details>
+<summary>1.23.1 &mdash; Cognition Layer Fixes</summary>
+
+- Fix unnecessary regex escape in `context-budget-manager`
+- Stabilization of cross-tool intelligence event handlers
+
+</details>
+
+<details>
+<summary>1.23.0 &mdash; Cognition Layer &amp; Cross-Tool Intelligence</summary>
+
+- 8 interconnected cognition tools: `decision-journal`, `confidence-tracker`, `mental-model`, `intent-tracker`, `error-pattern`, `self-critique`, `smart-handoff`, `context-budget`
+- In-process event bus with 9 reactive handlers (decision &rarr; confidence, error &rarr; fix lookup, drift &rarr; critique)
+- `CognitionCrossLinker` for bidirectional Redis links between cognition records
+- `self-critique` &rarr; `check-application` action; `mental-model` &rarr; `impact-analysis`, `dependency-chain`, `invariant-check`
+- `smart-handoff` auto-enriched with full cognition snapshot
+
+</details>
 
 <details>
 <summary>1.22.0 &mdash; Code Quality Modernization</summary>
@@ -118,45 +169,15 @@ All backed by a `CognitionCrossLinker` that maintains bidirectional Redis links 
 
 ## Cognition Layer: How AI Remembers
 
-When an AI agent works on your project over multiple sessions, the biggest problem is **amnesia**. Each new session starts blank. The cognition layer solves this by writing a continuous stream of structured records to Redis as the agent works:
+The cognition layer gives agents persistent self-awareness across sessions. As the agent works, it writes structured records to Redis &mdash; decisions, confidence levels, error patterns, intent hierarchies, and lessons learned.
 
-### What actually happens during a session
+**During a session:** The agent records intents, logs decisions with reasoning, tracks confidence, and matches errors against its cross-session database. At the end, `self-critique` extracts lessons and `smart-handoff` creates a structured briefing auto-enriched with a full cognition snapshot.
 
-```
-You: "Refactor the auth module to use JWT"
+**New session:** The agent calls `smart-handoff:latest` (or `session-recover`) and gets back the intent hierarchy, approach rationale, status, warnings, lessons, and the single most important next action &mdash; no re-explanation needed.
 
-Agent thinks → records intent (mission: refactor auth, goal: implement JWT)
-Agent considers options → records decision (chose RS256, rejected HS256, reasoning: key rotation)
-Agent starts coding → confidence tracker logs 0.9 for JWT middleware
-Agent hits TS error → error-pattern records it, checks DB, finds matching fix from 3 sessions ago
-Agent applies fix → confidence stays high
-Agent finishes → self-critique: went well (reused error fix), went poorly (forgot to update tests)
-Agent creates handoff → auto-enriched with intent hierarchy, decisions, errors, lessons
-```
+**Cross-tool intelligence:** Tools react to each other through a global event bus. Recording a decision auto-creates a confidence record. Low confidence triggers drift detection. Errors scan recent decisions. Lessons cross-link to matching error patterns. All backed by `CognitionCrossLinker` with bidirectional Redis links.
 
-### What happens when a new session starts
-
-```
-New session starts → agent calls smart-handoff:latest
-
-Gets back:
-- What the human wanted (intent hierarchy)
-- What approach was taken and why (decisions with reasoning)
-- What's done, in-progress, blocked (status)
-- Known unknowns and warnings
-- Lessons from previous sessions (apply these!)
-- THE single most important first action
-
-Agent resumes work without asking "where were we?"
-```
-
-### Why this matters in practice
-
-**Without cognition tools:** The agent asks you to re-explain the project every session. It makes the same mistakes twice. It forgets why a decision was made and reverses it. It loses track of what's done.
-
-**With cognition tools:** The agent picks up exactly where it left off. It checks its error database before trying fixes. It knows which approaches were rejected and why. It applies lessons from past sessions automatically. When it's unsure, it flags the action for human review instead of guessing.
-
-The data lives in Redis with configurable TTL (default 7 days). Nothing is sent to external services. The agent writes its own memories as it works &mdash; you don't need to configure anything beyond enabling the tools.
+Data lives in Redis with configurable TTL (default 7 days). Nothing is sent to external services.
 
 ---
 
@@ -280,11 +301,12 @@ The agent doesn't just write code &mdash; it builds a persistent understanding o
 
 | Capability | Description |
 |:-----------|:------------|
-| **124 MCP Tools** | Code review, refactoring, testing, git, file management, AST editing, memory, checkpoints, kanban, cognition, pipelines |
+| **137 MCP Tools** | Code review, refactoring, testing, git, file management, AST editing, memory, checkpoints, kanban, cognition, pipelines, structured output, task clustering |
 | **Cognition Layer** | 8 self-improvement tools: decision journal, confidence tracking, mental models, intent hierarchy, error patterns, self-critique, smart handoff, context budget |
-| **Cross-Tool Intelligence** | Event bus + cross-linker: tools react to each other automatically (decision &rarr; confidence, error &rarr; fix lookup, drift &rarr; critique) |
-| **7 LLM Providers** | Native SDKs for OpenAI, Anthropic, Gemini + OpenAI-compatible for Groq, DeepSeek, Ollama, OpenRouter |
+| **Cross-Tool Intelligence** | Global event bus + cross-linker: tools react to each other across cognition, kanban, session, and recursive modules |
+| **8 LLM Providers** | Native SDKs for OpenAI, Anthropic, Gemini + OpenAI-compatible for Groq, DeepSeek, Ollama, OpenRouter, Perplexity |
 | **Multi-Agent** | Agents connect via HTTP, share context through Redis Pub/Sub, coordinate via kanban boards |
+| **Structured Output** | `generateObject()` with Zod schemas, JSON repair, and retry logic for reliable LLM-to-data extraction |
 | **Parallel Multi-Model** | Send one prompt to N models simultaneously; CEO-and-Board consensus pattern |
 | **Thinking Tokens** | Unified syntax across providers: `o:gpt-5:high` &bull; `a:claude-sonnet-4-5:4k` &bull; `g:gemini-3-pro:8k` |
 | **Tree-sitter AST** | Language-aware navigation and symbol editing for 19 languages |
@@ -423,7 +445,7 @@ Add to VS Code settings (RooCode extension):
 
 ## Multi-Provider LLM
 
-kemdiCode MCP ships with **7 built-in providers**. Each can be activated by setting the corresponding API key:
+kemdiCode MCP ships with **8 built-in providers**. Each can be activated by setting the corresponding API key:
 
 ```bash
 export OPENAI_API_KEY=sk-...            # OpenAI
@@ -432,6 +454,7 @@ export GEMINI_API_KEY=AI...             # Google Gemini
 export GROQ_API_KEY=gsk_...            # Groq
 export DEEPSEEK_API_KEY=sk-...          # DeepSeek
 export OPENROUTER_API_KEY=sk-or-...     # OpenRouter
+export PERPLEXITY_API_KEY=pplx-...     # Perplexity (research tier)
 # Ollama — no key required (local)
 ```
 
@@ -448,6 +471,7 @@ groq:llama-3.3-70b           q:llama-3.3-70b      # Fast inference
 deepseek:deepseek-chat       d:deepseek-chat      # Cost effective
 ollama:llama3.3              l:llama3.3           # Local deployment
 openrouter:gpt-5             r:gpt-5              # Aggregator access
+perplexity:sonar-pro         p:sonar-pro          # Research queries
 ```
 
 ### Thinking / Reasoning Tokens
@@ -464,7 +488,7 @@ Append a third segment to enable extended thinking:
 
 ## Tool Reference
 
-> **124 tools** across 22 categories.
+> **137 tools** across 22 categories.
 
 | Category | # | Tools |
 |:---------|:-:|:------|
@@ -479,18 +503,19 @@ Append a third segment to enable extended thinking:
 | **Git** | 8 | `git-status` `git-diff` `git-log` `git-blame` `git-branch` `git-add` `git-commit` `git-stash` |
 | **File Operations** | 9 | `file-read` `file-write` `file-search` `file-tree` `file-diff` `file-delete` `file-move` `file-copy` `file-backup-restore` |
 | **Project** | 5 | `project-info` `run-script` `run-tests` `run-lint` `check-types` |
-| **Kanban &mdash; Tasks** | 10 | `task-create` `task-get` `task-list` `task-update` `task-delete` `task-comment` `task-claim` `task-assign` `task-push-multi` `board-status` |
+| **Kanban &mdash; Tasks** | 12 | `task-create` `task-get` `task-list` `task-update` `task-delete` `task-comment` `task-claim` `task-assign` `task-push-multi` `board-status` `task-cluster` `task-complexity` |
 | **Kanban &mdash; Workspaces** | 5 | `workspace-create` `workspace-list` `workspace-join` `workspace-leave` `workspace-delete` |
 | **Kanban &mdash; Boards** | 6 | `board-create` `board-list` `board-share` `board-members` `board-invite` `board-delete` |
-| **Recursive** | 3 | `invoke-tool` `invoke-batch` `invocation-log` |
-| **Multi-Agent** | 13 | `agent-list` `agent-register` `agent-watch` `agent-alert` `agent-inject` `agent-history` `monitor` `agent-summary` `queue-message` `shared-thoughts` `get-shared-context` `feedback` `batch` |
+| **Recursive** | 4 | `invoke-tool` `invoke-batch` `invocation-log` `agent-orchestrate` |
+| **Multi-Agent** | 14 | `agent-list` `agent-register` `agent-watch` `agent-alert` `agent-inject` `agent-history` `monitor` `agent-summary` `agent-rank` `queue-message` `shared-thoughts` `get-shared-context` `feedback` `batch` |
 | **Orchestration** | 1 | `pipeline` |
-| **Session** | 5 | `session-list` `session-info` `session-create` `session-switch` `session-delete` |
+| **Session** | 6 | `session-list` `session-info` `session-create` `session-switch` `session-delete` `session-recover` |
+| **MCP Client** | 3 | `client-sampling` `client-elicit` `client-roots` |
 | **Knowledge Graph** | 4 | `graph-query` `graph-find-path` `loci-recall` `sequence-recommend` |
 | **Thinking Chain** | 1 | `thinking-chain` |
 | **MPC Security** | 4 | `mpc-split` `mpc-distribute` `mpc-reconstruct` `mpc-status` |
 | **RL Learning** | 2 | `rl-reward-stats` `rl-dopamine-log` |
-| **System** | 10 | `shell-exec` `process-list` `env-info` `memory-usage` `ai-config` `ai-models` `config` `ping` `help` `timeout-test` |
+| **System** | 11 | `shell-exec` `process-list` `env-info` `memory-usage` `ai-config` `ai-models` `tool-health` `config` `ping` `help` `timeout-test` |
 
 ---
 
@@ -503,9 +528,9 @@ Append a third segment to enable extended thinking:
 | **Clients** | Claude Code, Cursor, KiroCode, RooCode | Connect via SSE + JSON-RPC (MCP Protocol) |
 | **HTTP Server** | `:3100` (Bun or Node.js) | Routes: `/sse`, `/message`, `/resume`, `/stream` |
 | **Session Manager** | Per-client isolation | CWD injection, activity tracking, SSE keep-alive |
-| **Tool Registry** | 124 tools, 22 categories | Zod schema validation, auto JSON Schema generation, lazy loading, `tools/list_changed` broadcast |
-| **Cognition Layer** | Event bus + cross-linker | In-process EventEmitter, bidirectional Redis links, 9 reactive event handlers |
-| **Provider Registry** | 7 LLM providers | Native SDKs + OpenAI-compatible. Lazy init, hot-reload, unified thinking tokens |
+| **Tool Registry** | 137 tools, 22 categories | Zod schema validation, auto JSON Schema generation, tool annotations, lazy loading, `tools/list_changed` broadcast |
+| **Cognition Layer** | Global event bus + cross-linker | Namespaced events across all modules, bidirectional Redis links, Redis Pub/Sub bridge |
+| **Provider Registry** | 8 LLM providers | Native SDKs + OpenAI-compatible + Perplexity. Lazy init, hot-reload, unified thinking tokens, structured output |
 | **Tree-sitter AST** | 19 languages | WASM parsers, symbol navigation, rename, insert before/after |
 | **Runtime Abstraction** | Bun / Node.js | Auto-detection. Unified HTTP, process spawning, crypto |
 | **Redis (DB 2)** | Shared state | `mcp:context:*`, `mcp:agents:*`, `mcp:kanban:*`, `mcp:memory:*`, `mcp:cognition:*` |
@@ -641,6 +666,7 @@ bun dist/index.js [options]
 | `GROQ_API_KEY` | Groq API key |
 | `DEEPSEEK_API_KEY` | DeepSeek API key |
 | `OPENROUTER_API_KEY` | OpenRouter API key |
+| `PERPLEXITY_API_KEY` | Perplexity API key (research tier) |
 | `KEMDICODE_SHELL_EXEC_ENABLED` | Enable `shell-exec` tool (default: false) |
 | `MPC_MASTER_SECRET` | Master secret for MPC security tools |
 
