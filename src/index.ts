@@ -218,7 +218,7 @@ async function main(): Promise<void> {
   // Initialize multi-provider registry with config values
   registerBuiltinProviders();
   const providersConfig = config.get('providers');
-  const providerIds: ProviderId[] = ['openai', 'anthropic', 'gemini', 'groq', 'deepseek', 'ollama', 'openrouter'];
+  const providerIds: ProviderId[] = ['openai', 'anthropic', 'gemini', 'groq', 'deepseek', 'ollama', 'openrouter', 'perplexity'];
   for (const id of providerIds) {
     const entry = providersConfig[id];
     if (entry && (entry.apiKey || entry.baseURL)) {

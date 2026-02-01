@@ -15,7 +15,11 @@ export type ProviderId =
   | 'groq'
   | 'deepseek'
   | 'ollama'
-  | 'openrouter';
+  | 'openrouter'
+  | 'perplexity';
+
+/** Model tier for routing: main (primary), research (fact-checking), fallback */
+export type ModelTier = 'main' | 'research' | 'fallback';
 
 /** Short aliases for provider prefixes */
 export const PROVIDER_ALIASES: Record<string, ProviderId> = {
@@ -26,6 +30,7 @@ export const PROVIDER_ALIASES: Record<string, ProviderId> = {
   d: 'deepseek',
   l: 'ollama',
   r: 'openrouter',
+  p: 'perplexity',
 };
 
 /** All recognized provider names (full + short) */
@@ -37,6 +42,7 @@ export const ALL_PROVIDER_NAMES = new Set<string>([
   'deepseek',
   'ollama',
   'openrouter',
+  'perplexity',
   ...Object.keys(PROVIDER_ALIASES),
 ]);
 
@@ -49,6 +55,7 @@ export const PROVIDER_BASE_URLS: Record<ProviderId, string> = {
   deepseek: 'https://api.deepseek.com/v1',
   ollama: 'http://localhost:11434/v1',
   openrouter: 'https://openrouter.ai/api/v1',
+  perplexity: 'https://api.perplexity.ai',
 };
 
 /** Environment variable names for API keys per provider */
@@ -60,6 +67,7 @@ export const PROVIDER_ENV_KEYS: Record<ProviderId, string[]> = {
   deepseek: ['DEEPSEEK_API_KEY', 'KEMDICODE_DEEPSEEK_API_KEY'],
   ollama: [], // No API key needed
   openrouter: ['OPENROUTER_API_KEY', 'KEMDICODE_OPENROUTER_API_KEY'],
+  perplexity: ['PERPLEXITY_API_KEY', 'PPLX_API_KEY', 'KEMDICODE_PERPLEXITY_API_KEY'],
 };
 
 /** Provider display names */
@@ -71,6 +79,7 @@ export const PROVIDER_DISPLAY_NAMES: Record<ProviderId, string> = {
   deepseek: 'DeepSeek',
   ollama: 'Ollama (local)',
   openrouter: 'OpenRouter',
+  perplexity: 'Perplexity (Research)',
 };
 
 /** Thinking/reasoning configuration parsed from model spec */

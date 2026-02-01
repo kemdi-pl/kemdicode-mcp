@@ -6,6 +6,7 @@
 
 export type {
   ProviderId,
+  ModelTier,
   ThinkingConfig,
   ProviderConfig,
   UnifiedCompletionRequest,

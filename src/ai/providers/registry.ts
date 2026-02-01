@@ -32,6 +32,7 @@ export function registerBuiltinProviders(): void {
   providers.set('deepseek', createOpenAICompatProvider('deepseek'));
   providers.set('ollama', createOpenAICompatProvider('ollama'));
   providers.set('openrouter', createOpenAICompatProvider('openrouter'));
+  providers.set('perplexity', createOpenAICompatProvider('perplexity'));
 
   Logger.info(`Registered ${providers.size} LLM providers`);
 }
@@ -49,7 +50,7 @@ export function setProviderConfig(id: ProviderId, config: Partial<ProviderConfig
     if (id === 'openai') providers.set(id, new OpenAIProvider());
     else if (id === 'anthropic') providers.set(id, new AnthropicProvider());
     else if (id === 'gemini') providers.set(id, new GeminiProvider());
-    else providers.set(id, createOpenAICompatProvider(id));
+    else providers.set(id, createOpenAICompatProvider(id as ProviderId));
   }
 }
 

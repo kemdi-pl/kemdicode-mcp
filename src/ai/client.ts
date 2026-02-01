@@ -39,6 +39,8 @@ export interface AIClientConfig {
   apiKey: string;
   defaultModel: string;
   fallbackModel?: string;
+  /** Research model for fact-checking (e.g., perplexity:sonar-pro). 3-tier: main → research → fallback */
+  researchModel?: string;
   timeout?: number;
   maxRetries?: number;
 }

@@ -117,5 +117,6 @@ export const DEFAULT_CONFIG: AppConfig = {
     deepseek: {},
     ollama: {},
     openrouter: {},
+    perplexity: {},
   },
 };

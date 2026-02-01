@@ -41,6 +41,9 @@ export { taskCommentTool } from './task-comment.tool.js';
 // Multi-agent push
 export { taskPushMultiTool } from './task-push-multi.tool.js';
 
+// Complexity analysis
+export { taskComplexityTool } from './task-complexity.tool.js';
+
 // Workspace tools
 export { workspaceCreateTool } from './workspace-create.tool.js';
 export { workspaceListTool } from './workspace-list.tool.js';

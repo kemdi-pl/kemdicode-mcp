@@ -46,6 +46,22 @@ export interface TaskNote {
   createdAt: number;
 }
 
+/** LLM-scored task complexity analysis */
+export interface TaskComplexity {
+  /** Complexity score 1-10 (1=trivial, 10=extremely complex) */
+  score: number;
+  /** Recommended number of subtasks */
+  recommendedSubtasks: number;
+  /** Brief reasoning for the score */
+  reasoning: string;
+  /** Suggested labels based on complexity */
+  suggestedLabels?: string[];
+  /** Timestamp of analysis */
+  analyzedAt: number;
+  /** Model used for analysis */
+  analyzedBy?: string;
+}
+
 /** Kanban task */
 export interface KanbanTask {
   id: string;
@@ -69,6 +85,8 @@ export interface KanbanTask {
   estimatedMinutes?: number;
   actualMinutes?: number;
   notes?: TaskNote[];
+  /** LLM-scored complexity analysis */
+  complexity?: TaskComplexity;
 }
 
 /** Task creation input */

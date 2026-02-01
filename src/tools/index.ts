@@ -542,6 +542,11 @@ registerLazyTool({
   description: 'Push task to N agents (assign/clone/notify)',
   loader: () => import('./kanban/index.js').then((m) => m.taskPushMultiTool),
 });
+registerLazyTool({
+  name: 'task-complexity',
+  description: 'LLM-scored complexity analysis (1-10) with subtask recommendations',
+  loader: () => import('./kanban/index.js').then((m) => m.taskComplexityTool),
+});
 
 // Kanban workspace tools
 registerLazyTool({

@@ -36,6 +36,7 @@ import { recordToolExecution } from '../rl/middleware.js';
 import type { BaseToolArguments } from '../types/tool-types.js';
 import type { ProviderId } from '../ai/providers/types.js';
 import { getAvailabilityChecker, type AIRequirementConfig } from './availability-checker.js';
+import { getToolAnnotations } from './annotations-map.js';
 
 /**
  * Type alias for tool arguments
@@ -169,6 +170,23 @@ export type ToolCategory =
   | 'cognition'
   | 'client';
 
+/**
+ * MCP Tool Annotations (Protocol-level hints for LLM safety awareness)
+ * See: https://modelcontextprotocol.io/docs/concepts/tools#annotations
+ */
+export interface ToolAnnotations {
+  /** Human-readable title shown in UI */
+  title?: string;
+  /** Hint: this tool only reads data, does not modify state */
+  readOnlyHint?: boolean;
+  /** Hint: this tool may perform destructive operations (delete, overwrite) */
+  destructiveHint?: boolean;
+  /** Hint: this tool may perform operations that are not reversible */
+  idempotentHint?: boolean;
+  /** Hint: this tool interacts with external services outside the local environment */
+  openWorldHint?: boolean;
+}
+
 /** Tool metadata for discovery, categorization and search */
 export interface ToolMetadata {
   /** Tool category for grouping */
@@ -187,6 +205,8 @@ export interface ToolMetadata {
   availabilityMode?: 'soft' | 'force';
   /** AI routing strategy: local, external, or hybrid */
   aiRouting?: 'local' | 'external' | 'hybrid';
+  /** MCP protocol-level annotations for safety hints */
+  annotations?: ToolAnnotations;
 }
 
 export interface UnifiedTool<TSchema extends ZodSchema = ZodSchema> {
@@ -202,6 +222,8 @@ export interface UnifiedTool<TSchema extends ZodSchema = ZodSchema> {
   skipContextShare?: boolean;
   /** Tool metadata for discovery and categorization */
   metadata?: ToolMetadata;
+  /** MCP-level annotations (shortcut - also available via metadata.annotations) */
+  annotations?: ToolAnnotations;
   /**
    * Tool execution function
    * When TSchema is explicitly provided, args is typed as z.infer<TSchema>
@@ -268,6 +290,8 @@ export interface LazyToolEntry {
   loaded: boolean;
   /** Cached tool instance (populated after first load) */
   tool?: UnifiedTool;
+  /** MCP-level annotations (available before tool is loaded) */
+  annotations?: ToolAnnotations;
 }
 
 /**
@@ -779,11 +803,20 @@ export function getToolDefinitions(): Tool[] {
       schemaCache.set(tool.name, inputSchema);
     }
 
-    definitions.push({
+    // Merge annotations: tool-level > metadata-level > annotations-map
+    const annotations = tool.annotations || tool.metadata?.annotations || getToolAnnotations(tool.name);
+
+    const toolDef: Tool = {
       name: tool.name,
       description: tool.description,
       inputSchema,
-    });
+    };
+
+    if (annotations) {
+      (toolDef as Record<string, unknown>).annotations = annotations;
+    }
+
+    definitions.push(toolDef);
   }
 
   // Add lazy tools - load schemas on first ListTools call (one-time cost)
@@ -794,24 +827,23 @@ export function getToolDefinitions(): Tool[] {
 
     // Check if tool was loaded (has cached schema)
     const cachedSchema = schemaCache.get(meta.name);
-    if (cachedSchema) {
-      definitions.push({
-        name: meta.name,
-        description: meta.description,
-        inputSchema: cachedSchema,
-      });
-    } else {
-      // Permissive schema - will be populated after first tool load
-      definitions.push({
-        name: meta.name,
-        description: meta.description,
-        inputSchema: {
-          type: 'object' as const,
-          properties: {},
-          additionalProperties: true,
-        },
-      });
+    const lazyAnnotations = getToolAnnotations(meta.name);
+
+    const lazyDef: Tool = {
+      name: meta.name,
+      description: meta.description,
+      inputSchema: cachedSchema || {
+        type: 'object' as const,
+        properties: {},
+        additionalProperties: true,
+      },
+    };
+
+    if (lazyAnnotations) {
+      (lazyDef as Record<string, unknown>).annotations = lazyAnnotations;
     }
+
+    definitions.push(lazyDef);
   }
 
   // Cache the complete array

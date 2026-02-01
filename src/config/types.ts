@@ -180,6 +180,9 @@ export interface ProvidersConfig {
   deepseek: ProviderEntry;
   ollama: ProviderEntry;
   openrouter: ProviderEntry;
+  perplexity: ProviderEntry;
+  /** Allow dynamic provider access */
+  [key: string]: string | ProviderEntry;
 }
 
 /** Complete application configuration */
