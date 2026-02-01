@@ -59,6 +59,7 @@ import { VERSION, type ServerConfig, startHttpServer, stopHttpServer, broadcastN
 import { initToolsBroadcast, warmupLazySchemas } from './tools/registry.js';
 import { initGlobalEventSystem } from './events/index.js';
 import { getRedisConnectionManager } from './infrastructure/redis/connection.js';
+import { initClusterBusSystem, shutdownClusterBusSystem } from './cluster-bus/init.js';
 
 // Re-export for backwards compatibility
 export {
@@ -246,6 +247,10 @@ async function main(): Promise<void> {
     }
   }
 
+  // Initialize cluster bus (L1 → L2 → L3 bus architecture)
+  const clusterBusActive = await initClusterBusSystem();
+  Logger.debug(`Cluster bus: ${clusterBusActive ? 'active' : 'inactive'}`);
+
   // Initialize Redis connection manager early for reuse in shutdown
   const redisManager = getRedisConnectionManager();
 
@@ -264,6 +269,7 @@ async function main(): Promise<void> {
     }, 10000);
 
     try {
+      await shutdownClusterBusSystem();
       await stopHttpServer();
       await redisManager.disconnect();
       Logger.debug('Shutdown complete');

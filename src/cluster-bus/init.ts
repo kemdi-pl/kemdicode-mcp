@@ -25,7 +25,9 @@
 
 import { Logger } from '../utils/logger.js';
 import { loadClusterBusConfig } from './types.js';
+import type { SignalPayloadMap, ClusterSignal } from './types.js';
 import { initClusterBus, shutdownClusterBus, getClusterBus } from './bus.js';
+import { complete } from '../ai/client.js';
 import { registerCluster, deregisterCluster } from './cluster-registry.js';
 import { ClusterHealthMonitor } from './health-monitor.js';
 import { connectBridges } from './bridges.js';
@@ -52,13 +54,13 @@ let registeredClusterId: string | null = null;
  * Reads config from environment (MCP_CLUSTER_*), connects Redis,
  * registers in the cluster mesh, starts heartbeats, and wires bridges.
  *
- * Returns false if cluster bus is disabled (MCP_CLUSTER_ENABLED != 1).
+ * Returns false if cluster bus is disabled (MCP_CLUSTER_ENABLED=0).
  */
 export async function initClusterBusSystem(): Promise<boolean> {
   const config = loadClusterBusConfig();
 
   if (!config.enabled) {
-    Logger.debug('[ClusterBus] Disabled (MCP_CLUSTER_ENABLED not set)');
+    Logger.debug('[ClusterBus] Disabled (MCP_CLUSTER_ENABLED=0)');
     return false;
   }
 
@@ -107,6 +109,53 @@ export async function initClusterBusSystem(): Promise<boolean> {
 
     // 7. Connect bridges (L1 ↔ L2 ↔ L3)
     bridgeHandle = connectBridges(bus);
+
+    // 8. Register local llm:request handler (execute LLM and respond with llm:result)
+    bus.onSignal<SignalPayloadMap['llm:request']>('llm:request', (signal: ClusterSignal<SignalPayloadMap['llm:request']>) => {
+      const startTime = Date.now();
+      const correlationId = signal.correlationId || signal.id;
+      const payload = signal.payload;
+
+      const replyTo = signal.sourceCluster;
+
+      complete({
+        model: payload.model || undefined,
+        messages: [
+          ...(payload.systemPrompt ? [{ role: 'system' as const, content: payload.systemPrompt }] : []),
+          { role: 'user' as const, content: payload.prompt },
+        ],
+        maxTokens: payload.maxTokens || undefined,
+        temperature: payload.temperature || undefined,
+      })
+        .then((response) => {
+          bus.send(replyTo, 'llm:result', {
+            requestId: correlationId,
+            content: response.content,
+            model: response.model || payload.model || 'unknown',
+            provider: 'local',
+            promptTokens: response.usage?.promptTokens,
+            completionTokens: response.usage?.completionTokens,
+            finishReason: response.finishReason,
+            latencyMs: Date.now() - startTime,
+          } satisfies SignalPayloadMap['llm:result'], {
+            correlationId,
+            priority: 2,
+            direction: 'upstream',
+          }).catch((err) => {
+            Logger.warn(`[ClusterBus] Failed to send llm:result: ${err instanceof Error ? err.message : String(err)}`);
+          });
+        })
+        .catch((err) => {
+          bus.send(replyTo, 'llm:error', {
+            requestId: correlationId,
+            error: err instanceof Error ? err.message : String(err),
+          } satisfies SignalPayloadMap['llm:error'], {
+            correlationId,
+            priority: 2,
+            direction: 'upstream',
+          }).catch(() => {});
+        });
+    });
 
     Logger.info(
       `[ClusterBus] System ready: ${config.clusterId} | tags: ${config.metaTags.map((t) => `${t.key}:${t.value}`).join(', ') || 'none'}`,

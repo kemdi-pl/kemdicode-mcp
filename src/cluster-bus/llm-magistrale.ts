@@ -393,13 +393,12 @@ export class LLMMagistrale {
       candidates = all.filter(
         (n) =>
           n.status === 'online' &&
-          n.connectedProviders.includes(cfg.preferredProvider!) &&
-          n.id !== this.bus.clusterId,
+          n.connectedProviders.includes(cfg.preferredProvider!),
       );
     } else {
-      // Find clusters with generic LLM capability
+      // Find clusters with generic LLM capability (including self for single-node)
       candidates = (await findByCapability('llm')).filter(
-        (n) => n.status === 'online' && n.id !== this.bus.clusterId,
+        (n) => n.status === 'online',
       );
     }
 

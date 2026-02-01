@@ -43,7 +43,7 @@ export const clusterStatusTool: UnifiedTool<typeof schema> = {
 
   execute: async (args) => {
     if (!isClusterBusActive()) {
-      return '# Cluster Bus\n\n**Status:** Inactive\n\nCluster bus is not enabled. Set `MCP_CLUSTER_ENABLED=1` to activate.';
+      return '# Cluster Bus\n\n**Status:** Inactive\n\nCluster bus failed to initialize. Check Redis connectivity and server logs.';
     }
 
     const status = getClusterBusSystemStatus();

@@ -277,7 +277,7 @@ export const CLUSTER_KEYS = {
 
 /** ClusterBus configuration from environment */
 export interface ClusterBusConfig {
-  /** Enable cluster bus (env: MCP_CLUSTER_ENABLED) */
+  /** Enable cluster bus (env: MCP_CLUSTER_ENABLED, default: true, set to '0' to disable) */
   enabled: boolean;
   /** This node's cluster ID (env: MCP_CLUSTER_ID) */
   clusterId: string;
@@ -376,7 +376,7 @@ function parseCustomEndpoints(raw: string): ClusterCustomEndpoint[] {
 
 /** Load cluster bus config from environment */
 export function loadClusterBusConfig(): ClusterBusConfig {
-  const enabled = process.env.MCP_CLUSTER_ENABLED === '1' || process.env.MCP_CLUSTER_ENABLED === 'true';
+  const enabled = process.env.MCP_CLUSTER_ENABLED !== '0' && process.env.MCP_CLUSTER_ENABLED !== 'false';
   const clusterId = process.env.MCP_CLUSTER_ID || `cluster_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   const clusterName = process.env.MCP_CLUSTER_NAME || clusterId;
   const tagsRaw = process.env.MCP_CLUSTER_TAGS || '';

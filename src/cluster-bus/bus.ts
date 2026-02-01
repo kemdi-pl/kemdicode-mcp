@@ -168,6 +168,16 @@ export class ClusterBus {
     } = {},
   ): Promise<string> {
     const signal = this.buildSignal(targetCluster, signalType, payload, options);
+
+    // Loopback: deliver locally when target is self (avoids Redis self-skip)
+    if (targetCluster === this.config.clusterId) {
+      this.markSeen(signal.id);
+      this.addToHistory(signal);
+      this.deliverToSubscriptions(signal as ClusterSignal);
+      Logger.debug(`[ClusterBus] Loopback ${signal.type} (${signal.id.slice(0, 8)})`);
+      return signal.id;
+    }
+
     const channel = CLUSTER_KEYS.channelUnicast(this.config.clusterId, targetCluster);
     await this.publishSignal(channel, signal);
     return signal.id;

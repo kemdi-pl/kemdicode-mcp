@@ -85,7 +85,7 @@ export const clusterMagistraleTool: UnifiedTool<typeof schema> = {
 
   execute: async (args) => {
     if (!isClusterBusActive()) {
-      return 'Cluster bus is not active. Enable with MCP_CLUSTER_ENABLED=1.';
+      return 'Cluster bus is not active. Check Redis connectivity and server logs.';
     }
 
     const bus = getClusterBus();
