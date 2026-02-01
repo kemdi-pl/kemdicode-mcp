@@ -26,14 +26,20 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { config } from '../../config/index.js';
 import { initAIClient, testConnection as testAIConnection } from '../../ai/index.js';
+import {
+  registerCustomEndpoint,
+  deregisterCustomEndpoint,
+  listCustomEndpoints,
+  getCustomEndpoint,
+} from '../../ai/providers/registry.js';
 
 /**
  * AI Config Tool Schema
  */
 const schema = z.object({
   action: z
-    .enum(['get', 'set', 'set-key', 'list-providers', 'test'])
-    .describe('Action to perform'),
+    .enum(['get', 'set', 'set-key', 'list-providers', 'test', 'add-custom', 'remove-custom', 'list-custom'])
+    .describe('Action: get|set|set-key|list-providers|test|add-custom|remove-custom|list-custom'),
   apiBaseUrl: z
     .string()
     .url()
@@ -48,7 +54,9 @@ const schema = z.object({
   provider: z
     .string()
     .optional()
-    .describe('Provider preset name'),
+    .describe('Provider preset name or custom endpoint name'),
+  defaultModel: z.string().optional().describe('Default model for custom endpoint'),
+  models: z.string().optional().describe('Pipe-separated model list for custom endpoint (e.g. "llama3|mistral")'),
 });
 
 /**
@@ -243,18 +251,22 @@ async function testConnectionHandler(): Promise<string> {
  */
 export const aiConfigTool: UnifiedTool = {
   name: 'ai-config',
-  description: 'Manage AI provider settings (URL, model, key). Saves to .kemdicode-mcp.json',
+  description: 'Manage AI provider settings (URL, model, key) and custom OpenAI-compatible endpoints. Hot-reload supported.',
   zodSchema: schema,
   prompt: {
-    description: 'Configure AI provider settings (API URL, model, API key)',
+    description: 'Configure AI provider settings, add/remove custom OpenAI-compatible endpoints with hot-reload',
   },
   metadata: {
     category: 'system',
-    tags: ['config', 'ai', 'provider'],
+    tags: ['config', 'ai', 'provider', 'custom-endpoint', 'hot-reload'],
     examples: [
       { args: { action: 'get' }, description: 'View current AI configuration' },
       { args: { action: 'set', provider: 'openai', primaryModel: 'gpt-4o' }, description: 'Set OpenAI as provider with gpt-4o model' },
       { args: { action: 'test' }, description: 'Test the current AI connection' },
+      { args: { action: 'add-custom', provider: 'vllm', apiBaseUrl: 'http://gpu:8000/v1', defaultModel: 'llama3' }, description: 'Register custom vLLM endpoint (hot-reload)' },
+      { args: { action: 'add-custom', provider: 'lmstudio', apiBaseUrl: 'http://localhost:1234/v1' }, description: 'Register LM Studio endpoint' },
+      { args: { action: 'remove-custom', provider: 'vllm' }, description: 'Remove custom endpoint' },
+      { args: { action: 'list-custom' }, description: 'List all custom endpoints' },
     ],
     relatedTools: ['ai-models', 'env-info'],
   },
@@ -296,8 +308,64 @@ export const aiConfigTool: UnifiedTool = {
       case 'test':
         return await testConnectionHandler();
 
+      case 'add-custom': {
+        const name = args.provider as string | undefined;
+        const baseURL = args.apiBaseUrl as string | undefined;
+        if (!name) throw new Error('Endpoint name required (--provider <name>)');
+        if (!baseURL) throw new Error('Base URL required (--apiBaseUrl <url>)');
+
+        const modelsRaw = args.models as string | undefined;
+        const providerId = registerCustomEndpoint({
+          name,
+          baseURL,
+          apiKey: (args.apiKey as string) || '',
+          defaultModel: args.defaultModel as string | undefined,
+          models: modelsRaw ? modelsRaw.split('|').map((m) => m.trim()) : undefined,
+        });
+
+        const existing = getCustomEndpoint(name);
+        return (
+          `Custom endpoint registered (hot-reload): ${providerId}\n` +
+          `  URL: ${baseURL}\n` +
+          `  Default model: ${existing?.defaultModel || '(none)'}\n` +
+          `  Models: ${existing?.models?.join(', ') || '(auto-detect)'}\n\n` +
+          `Usage: custom:${name}:<model>\n` +
+          `Example: custom:${name}:${existing?.defaultModel || 'my-model'}`
+        );
+      }
+
+      case 'remove-custom': {
+        const name = args.provider as string | undefined;
+        if (!name) throw new Error('Endpoint name required (--provider <name>)');
+
+        const removed = deregisterCustomEndpoint(name);
+        return removed
+          ? `Custom endpoint "custom:${name}" removed.`
+          : `Custom endpoint "${name}" not found.`;
+      }
+
+      case 'list-custom': {
+        const endpoints = listCustomEndpoints();
+        if (endpoints.length === 0) {
+          return 'No custom endpoints registered.\n\nUse: ai-config --action add-custom --provider <name> --apiBaseUrl <url>';
+        }
+
+        let output = `Custom Endpoints (${endpoints.length}):\n\n`;
+        for (const ep of endpoints) {
+          output += `custom:${ep.name}\n`;
+          output += `  URL: ${ep.baseURL}\n`;
+          output += `  API Key: ${ep.apiKey ? '***' : '(none)'}\n`;
+          output += `  Default model: ${ep.defaultModel || '(none)'}\n`;
+          if (ep.models?.length) {
+            output += `  Models: ${ep.models.join(', ')}\n`;
+          }
+          output += '\n';
+        }
+        return output;
+      }
+
       default:
-        return `Unknown action: ${action}. Use: get, set, set-key, list-providers, test`;
+        return `Unknown action: ${action}. Use: get, set, set-key, list-providers, test, add-custom, remove-custom, list-custom`;
     }
   },
 };

@@ -7,8 +7,8 @@
 
 import type { Message, CompletionResponse } from '../client.js';
 
-/** Supported LLM provider identifiers */
-export type ProviderId =
+/** Built-in LLM provider identifiers */
+export type BuiltinProviderId =
   | 'openai'
   | 'anthropic'
   | 'gemini'
@@ -17,6 +17,9 @@ export type ProviderId =
   | 'ollama'
   | 'openrouter'
   | 'perplexity';
+
+/** Provider identifier — built-in or custom (prefixed with "custom:") */
+export type ProviderId = BuiltinProviderId | `custom:${string}`;
 
 /** Model tier for routing: main (primary), research (fact-checking), fallback */
 export type ModelTier = 'main' | 'research' | 'fallback';
@@ -95,6 +98,33 @@ export interface ProviderConfig {
   id: ProviderId;
   apiKey: string;
   baseURL?: string;
+}
+
+/**
+ * Custom OpenAI-compatible endpoint configuration.
+ *
+ * Allows registering arbitrary endpoints (vLLM, LMStudio, Together AI,
+ * Fireworks AI, Azure OpenAI, NVIDIA NIM, etc.) that speak the OpenAI API.
+ *
+ * Syntax: `custom:<name>:<model>` (e.g., `custom:vllm:llama-3-70b`)
+ */
+export interface CustomEndpointConfig {
+  /** Unique endpoint name (used in model spec: `custom:<name>:<model>`) */
+  name: string;
+  /** Display name for UI */
+  displayName?: string;
+  /** OpenAI-compatible base URL */
+  baseURL: string;
+  /** API key (empty string if not needed) */
+  apiKey: string;
+  /** Default model to use when none specified */
+  defaultModel?: string;
+  /** Available models on this endpoint */
+  models?: string[];
+  /** Request timeout in ms */
+  timeout?: number;
+  /** Max retries */
+  maxRetries?: number;
 }
 
 /** OpenAI-compatible function definition for tool calling */

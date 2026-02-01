@@ -27,6 +27,11 @@ export interface ModelSpec {
   raw: string;
 }
 
+/** Check if a provider string is a custom endpoint reference */
+function isCustomPrefix(segment: string): boolean {
+  return segment.toLowerCase() === 'custom';
+}
+
 const REASONING_EFFORTS = new Set(['low', 'medium', 'high']);
 
 /**
@@ -75,7 +80,7 @@ function resolveProvider(segment: string): ProviderId | undefined {
 export function hasProviderPrefix(input: string): boolean {
   if (!input || !input.includes(':')) return false;
   const firstSegment = input.split(':')[0];
-  return resolveProvider(firstSegment) !== undefined;
+  return resolveProvider(firstSegment) !== undefined || isCustomPrefix(firstSegment);
 }
 
 /**
@@ -98,6 +103,33 @@ export function parseModelSpec(
   // Single segment → no provider prefix, use default
   if (parts.length === 1) {
     return { provider: defaultProvider, model: parts[0], raw: trimmed };
+  }
+
+  // Custom endpoint: custom:<endpoint-name>:<model>[:<thinking>]
+  // Provider ID becomes "custom:<endpoint-name>", model is the rest
+  if (isCustomPrefix(parts[0]) && parts.length >= 3) {
+    const endpointName = parts[1];
+    const customProviderId: ProviderId = `custom:${endpointName}`;
+
+    if (parts.length === 3) {
+      return { provider: customProviderId, model: parts[2], raw: trimmed };
+    }
+
+    // custom:name:model:thinking
+    if (parts.length === 4) {
+      const thinking = parseThinkingSuffix(parts[3]);
+      return { provider: customProviderId, model: parts[2], thinking, raw: trimmed };
+    }
+
+    // custom:name:model-with-colons...
+    const lastPart = parts[parts.length - 1];
+    const thinking = parseThinkingSuffix(lastPart);
+    if (thinking) {
+      const model = parts.slice(2, -1).join(':');
+      return { provider: customProviderId, model, thinking, raw: trimmed };
+    }
+    const model = parts.slice(2).join(':');
+    return { provider: customProviderId, model, raw: trimmed };
   }
 
   // Check if first segment is a known provider

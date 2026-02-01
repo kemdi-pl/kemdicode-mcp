@@ -167,7 +167,8 @@ export type ToolCategory =
   | 'rl'
   | 'thinking'
   | 'cognition'
-  | 'client';
+  | 'client'
+  | 'cluster-bus';
 
 /**
  * MCP Tool Annotations (Protocol-level hints for LLM safety awareness)

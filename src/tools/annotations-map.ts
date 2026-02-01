@@ -101,6 +101,10 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
   // Client capabilities
   'client-roots':      { title: 'Client Roots',       readOnlyHint: true },
 
+  // Cluster Bus read-only
+  'cluster-bus-status':    { title: 'Cluster Bus Status',    readOnlyHint: true },
+  'cluster-bus-topology':  { title: 'Cluster Bus Topology',  readOnlyHint: true },
+
   // ─── Mutating (Non-Destructive) Tools ──────────────────────────────────────
   // File write (creates backup)
   'file-write':        { title: 'Write File',         destructiveHint: false },
@@ -207,6 +211,10 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
   'mpc-split':         { title: 'MPC Split',          destructiveHint: false },
   'mpc-distribute':    { title: 'MPC Distribute',     destructiveHint: false },
   'mpc-reconstruct':   { title: 'MPC Reconstruct',    destructiveHint: false },
+
+  // Cluster Bus mutation
+  'cluster-bus-send':       { title: 'Cluster Bus Send',       destructiveHint: false, openWorldHint: true },
+  'cluster-bus-magistrale': { title: 'Cluster Bus Magistrale', destructiveHint: false, openWorldHint: true },
 
   // ─── Destructive Tools ─────────────────────────────────────────────────────
   'file-delete':       { title: 'Delete File',        destructiveHint: true },

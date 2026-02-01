@@ -5,10 +5,12 @@
  */
 
 export type {
+  BuiltinProviderId,
   ProviderId,
   ModelTier,
   ThinkingConfig,
   ProviderConfig,
+  CustomEndpointConfig,
   UnifiedCompletionRequest,
   LLMProvider,
 } from './types.js';
@@ -27,6 +29,13 @@ export {
   getProvider,
   isProviderAvailable,
   listProviders,
+  registerCustomEndpoint,
+  registerCustomEndpoints,
+  deregisterCustomEndpoint,
+  getCustomEndpoint,
+  listCustomEndpoints,
+  isCustomProvider,
+  customProviderName,
 } from './registry.js';
 
 export { OpenAIProvider } from './openai.provider.js';

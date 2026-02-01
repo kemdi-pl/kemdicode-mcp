@@ -768,4 +768,26 @@ registerLazyTool({
   loader: () => import('./client/index.js').then((m) => m.clientRootsTool),
 });
 
+// Cluster Bus tools
+registerLazyTool({
+  name: 'cluster-bus-status',
+  description: 'View cluster bus status, topology, and connected nodes',
+  loader: () => import('./cluster-bus/index.js').then((m) => m.clusterStatusTool),
+});
+registerLazyTool({
+  name: 'cluster-bus-send',
+  description: 'Send signal via cluster bus (unicast, broadcast, or meta-tag routed)',
+  loader: () => import('./cluster-bus/index.js').then((m) => m.clusterSendTool),
+});
+registerLazyTool({
+  name: 'cluster-bus-topology',
+  description: 'Manage cluster bus topology: register/deregister nodes, list providers, view signal history',
+  loader: () => import('./cluster-bus/index.js').then((m) => m.clusterTopologyTool),
+});
+registerLazyTool({
+  name: 'cluster-bus-magistrale',
+  description: 'Dispatch LLM prompt across multiple clusters in parallel with aggregation',
+  loader: () => import('./cluster-bus/index.js').then((m) => m.clusterMagistraleTool),
+});
+
 export * from './registry.js';
