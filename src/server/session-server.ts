@@ -213,6 +213,18 @@ export function createSessionServer(_sessionId: string): Server {
     { capabilities: { tools: {}, prompts: {}, logging: {} } }
   );
 
+  // Log client capabilities after initialization completes
+  sessionServer.oninitialized = () => {
+    const caps = sessionServer.getClientCapabilities();
+    const clientInfo = sessionServer.getClientVersion();
+    const clientName = clientInfo?.name || 'unknown';
+    const clientVer = clientInfo?.version || '';
+    Logger.info(
+      `Session ${_sessionId} — Client: ${clientName} ${clientVer}, ` +
+        `capabilities: sampling=${!!caps?.sampling}, elicitation=${!!caps?.elicitation}, roots=${!!caps?.roots}`,
+    );
+  };
+
   // Handler: List available tools
   sessionServer.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: getToolDefinitions() as unknown as Tool[],

@@ -8,7 +8,7 @@ Alternatively, manually: `read-memory --names ["active-session"]` and update wit
 
 ## Overview
 
-Model Context Protocol (MCP) server providing **127 specialized tools** for code analysis, generation, git operations, file management, line/symbol editing, project memory, cognition & self-improvement, multi-board kanban with workspaces, task comments, thinking chains, recursive tool invocation, pipelines, session monitoring, multi-agent coordination, tool availability checking, AI model cost optimization, ambient learning, and agent ranking.
+Model Context Protocol (MCP) server providing **130 specialized tools** for code analysis, generation, git operations, file management, line/symbol editing, project memory, cognition & self-improvement, multi-board kanban with workspaces, task comments, thinking chains, recursive tool invocation, pipelines, session monitoring, multi-agent coordination, tool availability checking, AI model cost optimization, ambient learning, agent ranking, and MCP client capabilities (sampling, elicitation, roots).
 
 ## Architecture
 
@@ -37,6 +37,9 @@ src/
 │   ├── crypto.ts            # Crypto utilities
 │   ├── net.ts               # Network utilities
 │   └── types.ts             # Unified types
+├── client/                  # MCP client capabilities bridge (sampling, elicitation, roots)
+│   ├── bridge.ts            # Client request functions and capability detection
+│   └── index.ts             # Module exports
 ├── context/                 # Multi-agent context sharing
 │   ├── agent-monitor.ts     # Redis Pub/Sub for agent coordination
 │   ├── storage.ts           # Redis-based context storage (DB 2)
@@ -87,6 +90,7 @@ src/
 │   ├── index.ts             # Tool registration
 │   ├── agents/              # Agent monitoring (9 tools)
 │   ├── code/                # Code navigation + symbol editing (9 tools)
+│   ├── client/              # MCP client capabilities (3 tools)
 │   ├── cognition/           # AI self-improvement (8 tools)
 │   ├── context/             # Context sharing (4 tools)
 │   ├── edit/                # Line-based editing (4 tools)
@@ -307,6 +311,13 @@ src/
 | Tool | Description |
 |------|-------------|
 | `thinking-chain` | Register and manage chains of thought with branching and forward-only constraint (actions: start, think, branch, revise, conclude, get, list) |
+
+### MCP Client (3 tools)
+| Tool | Description |
+|------|-------------|
+| `client-sampling` | Request LLM completion from the connected MCP client (uses client's model and API keys) |
+| `client-elicit` | Ask the user structured questions through the MCP client UI (text, number, boolean, enum fields) |
+| `client-roots` | List workspace roots (directories/projects) the MCP client has open |
 
 ## Key Components
 

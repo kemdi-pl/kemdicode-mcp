@@ -741,4 +741,21 @@ registerLazyTool({
   loader: () => import('./session/session-recover.tool.js').then((m) => m.sessionRecoverTool),
 });
 
+// MCP Client capability tools (sampling, elicitation, roots)
+registerLazyTool({
+  name: 'client-sampling',
+  description: 'Request LLM sampling (completion) from the connected MCP client',
+  loader: () => import('./client/index.js').then((m) => m.clientSamplingTool),
+});
+registerLazyTool({
+  name: 'client-elicit',
+  description: 'Ask the user questions through the MCP client UI with structured forms',
+  loader: () => import('./client/index.js').then((m) => m.clientElicitTool),
+});
+registerLazyTool({
+  name: 'client-roots',
+  description: 'List workspace roots from the connected MCP client',
+  loader: () => import('./client/index.js').then((m) => m.clientRootsTool),
+});
+
 export * from './registry.js';

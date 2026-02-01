@@ -166,7 +166,8 @@ export type ToolCategory =
   | 'session'
   | 'rl'
   | 'thinking'
-  | 'cognition';
+  | 'cognition'
+  | 'client';
 
 /** Tool metadata for discovery, categorization and search */
 export interface ToolMetadata {
