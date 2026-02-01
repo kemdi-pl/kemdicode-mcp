@@ -29,12 +29,16 @@ export function createOpenAICompatProvider(providerId: ProviderId): LLMProvider 
     id: providerId,
 
     init(config: ProviderConfig): void {
-      const baseURL = config.baseURL || PROVIDER_BASE_URLS[providerId];
+      const isBuiltin = !String(providerId).startsWith('custom:');
+      const baseURL = config.baseURL || (isBuiltin ? PROVIDER_BASE_URLS[providerId as keyof typeof PROVIDER_BASE_URLS] : undefined);
       client = new OpenAI({
         baseURL,
         apiKey: config.apiKey || 'not-needed',
         timeout: 120_000,
         maxRetries: 3,
+        defaultHeaders: {
+          'User-Agent': 'KemdiCode-MCP/1.24.0',
+        },
       });
       Logger.info(`${providerId} provider initialized (OpenAI-compatible: ${baseURL})`);
     },
@@ -74,6 +78,19 @@ export function createOpenAICompatProvider(providerId: ProviderId): LLMProvider 
         const response = (await client.chat.completions.create(
           baseParams as unknown as OpenAI.ChatCompletionCreateParamsNonStreaming
         )) as ChatCompletion;
+
+        // Some APIs return non-standard responses (no choices array).
+        // Fall back to extracting content from raw response.
+        if (!response.choices?.length) {
+          const raw = response as unknown as Record<string, unknown>;
+          const content = typeof raw.content === 'string' ? raw.content : JSON.stringify(raw);
+          return {
+            content,
+            model: response.model || request.model,
+            finishReason: 'stop',
+          };
+        }
+
         return buildCompletionResponse(response);
       } catch (error) {
         if (error instanceof OpenAI.APIError) {

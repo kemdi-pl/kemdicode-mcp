@@ -53,9 +53,15 @@ export function mapMessagesToOpenAI(messages: Message[]): ChatCompletionMessageP
  * Extracts tool_calls if present in the response.
  */
 export function buildCompletionResponse(response: ChatCompletion): CompletionResponse {
-  const choice = response.choices[0];
+  const choice = response.choices?.[0];
   const message = choice?.message as ReasoningMessage | undefined;
-  const content = message?.content || message?.reasoning_content || '';
+  // Some models (DeepSeek-V3.2, Kimi-K2, Qwen3-thinking) return content in reasoning_content
+  // or in a non-standard response shape. Handle gracefully.
+  const rawResponse = response as unknown as Record<string, unknown>;
+  const content = message?.content
+    || message?.reasoning_content
+    || (typeof rawResponse.content === 'string' ? rawResponse.content : '')
+    || '';
 
   // Extract tool calls from response
   const rawToolCalls = choice?.message?.tool_calls as Array<{ id: string; type: string; function: { name: string; arguments: string } }> | undefined;
