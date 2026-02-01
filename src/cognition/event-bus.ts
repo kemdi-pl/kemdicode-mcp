@@ -9,72 +9,82 @@
  */
 
 /**
- * Cognition Event Bus
+ * Cognition Event Bus — Backward Compatibility Wrapper
  *
- * Lightweight in-process EventEmitter for cross-tool communication.
- * NOT Redis Pub/Sub — purely for intra-process coordination between
- * cognition stores within the same server process.
+ * Thin wrapper that delegates to the Global Event Bus while maintaining
+ * the existing CognitionEventBus API. Cognition stores continue calling
+ * getCognitionEventBus().emit() without changes.
  *
- * Handlers run asynchronously via queueMicrotask so they never block
- * the emitting store. Errors in handlers are caught and logged.
+ * Old event types (e.g. 'decision:recorded') are automatically prefixed
+ * with 'cognition:' for the global bus.
  *
  * @module cognition/event-bus
  */
 
-import { EventEmitter } from 'node:events';
-import { Logger } from '../utils/logger.js';
+import { getGlobalEventBus } from '../events/global-bus.js';
 import type { CognitionEvent, CognitionEventType } from './types.js';
 
 type CognitionEventHandler = (event: CognitionEvent) => void | Promise<void>;
 
 class CognitionEventBus {
-  private emitter = new EventEmitter();
-  private _initialized = false;
-
-  constructor() {
-    // 8 stores + cross-linker + event-handlers + future subscribers
-    this.emitter.setMaxListeners(30);
-  }
-
   /**
    * Subscribe to a cognition event type.
-   * Handlers are invoked asynchronously (fire-and-forget) to avoid
-   * blocking the emitting store.
+   * Delegates to global bus with 'cognition:' prefix.
    */
   on(eventType: CognitionEventType, handler: CognitionEventHandler): void {
-    this.emitter.on(eventType, (event: CognitionEvent) => {
-      queueMicrotask(async () => {
-        try {
-          await handler(event);
-        } catch (err) {
-          Logger.error(`[CognitionEventBus] Handler error for ${eventType}:`, err);
-        }
-      });
+    const globalBus = getGlobalEventBus();
+    const globalType = `cognition:${eventType}`;
+
+    globalBus.on(globalType, (globalEvent) => {
+      // Convert GlobalEvent back to CognitionEvent for existing handlers
+      const cognitionEvent: CognitionEvent = {
+        type: eventType,
+        timestamp: globalEvent.timestamp,
+        sessionId: globalEvent.sessionId,
+        agentId: globalEvent.agentId,
+        sourceId: (globalEvent.payload.sourceId as string) || '',
+        sourceType: (globalEvent.payload.sourceType as string) || '',
+        payload: globalEvent.payload,
+      };
+      return handler(cognitionEvent);
     });
   }
 
   /**
-   * Emit a cognition event. Returns immediately; handlers run async.
+   * Emit a cognition event. Delegates to global bus with 'cognition:' prefix.
    */
   emit(event: CognitionEvent): void {
-    Logger.debug(`[CognitionEventBus] ${event.type} from ${event.sourceType}:${event.sourceId}`);
-    this.emitter.emit(event.type, event);
+    const globalBus = getGlobalEventBus();
+    const globalType = `cognition:${event.type}`;
+
+    globalBus.emit(
+      globalType,
+      {
+        sourceId: event.sourceId,
+        sourceType: event.sourceType,
+        ...event.payload as Record<string, unknown>,
+      },
+      {
+        sessionId: event.sessionId,
+        agentId: event.agentId,
+        sourceModule: 'cognition',
+      },
+    );
   }
 
   /**
    * Remove all listeners (for testing / shutdown).
    */
   reset(): void {
-    this.emitter.removeAllListeners();
-    this._initialized = false;
+    // Resetting is handled by the global bus
   }
 
   get isInitialized(): boolean {
-    return this._initialized;
+    return getGlobalEventBus().isInitialized;
   }
 
   markInitialized(): void {
-    this._initialized = true;
+    // Initialization is handled by the global event system
   }
 }
 
@@ -87,7 +97,6 @@ export function getCognitionEventBus(): CognitionEventBus {
 }
 
 export function resetCognitionEventBus(): void {
-  if (bus) bus.reset();
   bus = null;
 }
 

@@ -12,24 +12,24 @@
  * Cognition Event Handlers
  *
  * Central wiring of all cross-tool reactive handlers.
- * Subscribes to cognition events and triggers cross-store actions:
+ * Subscribes to cognition events (via global bus) and triggers cross-store actions:
  *
- *   decision:recorded       → auto-create confidence record + cross-link
- *   confidence:low          → trigger intent drift check
- *   error:recorded          → scan recent decisions, link related ones
- *   error:matched           → log for future subscribers
- *   critique:lesson-learned → link lessons to matching error patterns
- *   intent:drifted          → auto-create self-critique entry + link
- *   handoff:created         → link to current mental models
- *   model:stale             → link to affected decisions and active intents
- *   confidence:outcome-updated → propagate outcome to linked decisions
+ *   cognition:decision:recorded       → auto-create confidence record + cross-link
+ *   cognition:confidence:low          → trigger intent drift check
+ *   cognition:error:recorded          → scan recent decisions, link related ones
+ *   cognition:error:matched           → log for future subscribers
+ *   cognition:critique:lesson-learned → link lessons to matching error patterns
+ *   cognition:intent:drifted          → auto-create self-critique entry + link
+ *   cognition:handoff:created         → link to current mental models
+ *   cognition:model:stale             → link to affected decisions and active intents
+ *   cognition:confidence:outcome-updated → propagate outcome to linked decisions
  *
- * Call initCognitionEventHandlers() once at server startup.
+ * Call initCognitionEventHandlers() once at server startup (via initGlobalEventSystem).
  *
  * @module cognition/event-handlers
  */
 
-import { getCognitionEventBus } from './event-bus.js';
+import { getGlobalEventBus } from '../events/global-bus.js';
 import { getCrossLinker } from './cross-linker.js';
 import { getConfidenceStore } from './confidence-store.js';
 import { getDecisionStore } from './decision-store.js';
@@ -39,21 +39,25 @@ import { getSelfCritiqueStore } from './self-critique-store.js';
 import { getMentalModelStore } from './mental-model-store.js';
 import { Logger } from '../utils/logger.js';
 
+// Track whether cognition handlers have been registered
+let cognitionHandlersRegistered = false;
+
 /**
  * Initialize all cognition cross-tool event handlers.
  * Safe to call multiple times — only registers once.
  */
 export function initCognitionEventHandlers(): void {
-  const bus = getCognitionEventBus();
-  if (bus.isInitialized) return;
+  if (cognitionHandlersRegistered) return;
 
+  const bus = getGlobalEventBus();
   const linker = getCrossLinker();
 
-  // ── decision:recorded → auto-create confidence record ──────────────
-  bus.on('decision:recorded', async (event) => {
-    const { confidence, question } = event.payload as {
+  // ── cognition:decision:recorded → auto-create confidence record ──────
+  bus.on('cognition:decision:recorded', async (event) => {
+    const { confidence, question, sourceId } = event.payload as {
       confidence: number;
       question: string;
+      sourceId: string;
     };
 
     const confStore = getConfidenceStore();
@@ -69,7 +73,7 @@ export function initCognitionEventHandlers(): void {
     if (record) {
       await linker.link(
         'decision',
-        event.sourceId,
+        sourceId,
         'confidence',
         record.id,
         'auto-created confidence record for decision',
@@ -77,8 +81,8 @@ export function initCognitionEventHandlers(): void {
     }
   });
 
-  // ── confidence:low → check for intent drift ────────────────────────
-  bus.on('confidence:low', async (event) => {
+  // ── cognition:confidence:low → check for intent drift ────────────────
+  bus.on('cognition:confidence:low', async (event) => {
     const { toolName, confidence } = event.payload as {
       toolName: string;
       confidence: number;
@@ -97,12 +101,13 @@ export function initCognitionEventHandlers(): void {
     }
   });
 
-  // ── error:recorded → tag related recent decisions ──────────────────
-  bus.on('error:recorded', async (event) => {
-    const { context, symptoms } = event.payload as {
+  // ── cognition:error:recorded → tag related recent decisions ──────────
+  bus.on('cognition:error:recorded', async (event) => {
+    const { context, symptoms, sourceId } = event.payload as {
       context: string;
       symptoms: string[];
       errorType: string;
+      sourceId: string;
     };
 
     const decisionStore = getDecisionStore();
@@ -118,7 +123,7 @@ export function initCognitionEventHandlers(): void {
       if (matchCount >= 2) {
         await linker.link(
           'error-pattern',
-          event.sourceId,
+          sourceId,
           'decision',
           decision.id,
           'Error may relate to this recent decision',
@@ -127,8 +132,8 @@ export function initCognitionEventHandlers(): void {
     }
   });
 
-  // ── error:matched → informational log ──────────────────────────────
-  bus.on('error:matched', async (event) => {
+  // ── cognition:error:matched → informational log ──────────────────────
+  bus.on('cognition:error:matched', async (event) => {
     const { matchedPatternId, fix } = event.payload as {
       matchedPatternId: string;
       fix: string;
@@ -138,9 +143,9 @@ export function initCognitionEventHandlers(): void {
     );
   });
 
-  // ── critique:lesson-learned → link to matching error patterns ──────
-  bus.on('critique:lesson-learned', async (event) => {
-    const { lessons } = event.payload as { lessons: string[] };
+  // ── cognition:critique:lesson-learned → link to matching error patterns
+  bus.on('cognition:critique:lesson-learned', async (event) => {
+    const { lessons, sourceId } = event.payload as { lessons: string[]; sourceId: string };
 
     const errorStore = getErrorPatternStore();
     const allPatterns = await errorStore.listAll(50);
@@ -161,7 +166,7 @@ export function initCognitionEventHandlers(): void {
         if (matchCount >= 2) {
           await linker.link(
             'critique',
-            event.sourceId,
+            sourceId,
             'error-pattern',
             pattern.id,
             'Lesson may address this error pattern',
@@ -171,12 +176,13 @@ export function initCognitionEventHandlers(): void {
     }
   });
 
-  // ── intent:drifted → auto-create self-critique ─────────────────────
-  bus.on('intent:drifted', async (event) => {
-    const { driftScore, currentAction, expectedDirection } = event.payload as {
+  // ── cognition:intent:drifted → auto-create self-critique ─────────────
+  bus.on('cognition:intent:drifted', async (event) => {
+    const { driftScore, currentAction, expectedDirection, sourceId } = event.payload as {
       driftScore: number;
       currentAction: string;
       expectedDirection: string;
+      sourceId: string;
     };
 
     const critiqueStore = getSelfCritiqueStore();
@@ -184,7 +190,7 @@ export function initCognitionEventHandlers(): void {
       sessionId: event.sessionId,
       agentId: event.agentId || 'unknown',
       scope: 'task',
-      targetId: event.sourceId,
+      targetId: sourceId,
       wentWell: [],
       wentPoorly: [
         `Intent drift detected (score=${driftScore})`,
@@ -199,7 +205,7 @@ export function initCognitionEventHandlers(): void {
     if (critique) {
       await linker.link(
         'intent',
-        event.sourceId,
+        sourceId,
         'critique',
         critique.id,
         'Auto-created critique from intent drift',
@@ -207,15 +213,16 @@ export function initCognitionEventHandlers(): void {
     }
   });
 
-  // ── handoff:created → link to current mental models ────────────────
-  bus.on('handoff:created', async (event) => {
+  // ── cognition:handoff:created → link to current mental models ────────
+  bus.on('cognition:handoff:created', async (event) => {
+    const { sourceId } = event.payload as { sourceId: string };
     const modelStore = getMentalModelStore();
     const models = await modelStore.listBySession(event.sessionId);
 
     for (const model of models) {
       await linker.link(
         'handoff',
-        event.sourceId,
+        sourceId,
         'model',
         model.id,
         model.staleSince
@@ -225,8 +232,9 @@ export function initCognitionEventHandlers(): void {
     }
   });
 
-  // ── model:stale → flag affected decisions/intents ──────────────────
-  bus.on('model:stale', async (event) => {
+  // ── cognition:model:stale → flag affected decisions/intents ──────────
+  bus.on('cognition:model:stale', async (event) => {
+    const { sourceId } = event.payload as { sourceId: string };
     const decisionStore = getDecisionStore();
     const intentStore = getIntentStore();
 
@@ -235,7 +243,7 @@ export function initCognitionEventHandlers(): void {
       if (decision.relatedFiles && decision.relatedFiles.length > 0) {
         await linker.link(
           'model',
-          event.sourceId,
+          sourceId,
           'decision',
           decision.id,
           'Model staleness may affect this decision',
@@ -248,7 +256,7 @@ export function initCognitionEventHandlers(): void {
       if (intent.status === 'active') {
         await linker.link(
           'model',
-          event.sourceId,
+          sourceId,
           'intent',
           intent.id,
           'Stale model may affect active intent',
@@ -257,8 +265,8 @@ export function initCognitionEventHandlers(): void {
     }
   });
 
-  // ── confidence:outcome-updated → propagate to linked decisions ─────
-  bus.on('confidence:outcome-updated', async (event) => {
+  // ── cognition:confidence:outcome-updated → propagate to linked decisions
+  bus.on('cognition:confidence:outcome-updated', async (event) => {
     const { outcome, confidenceId } = event.payload as {
       outcome: string;
       confidenceId: string;
@@ -280,6 +288,6 @@ export function initCognitionEventHandlers(): void {
     }
   });
 
-  bus.markInitialized();
+  cognitionHandlersRegistered = true;
   Logger.info('[CognitionEventHandlers] All cross-tool handlers registered');
 }

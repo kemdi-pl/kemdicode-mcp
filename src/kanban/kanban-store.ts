@@ -881,14 +881,31 @@ async function removeBlocksRelation(blockerId: string, blockedId: string): Promi
 async function emitEvent(event: TaskEvent): Promise<void> {
   const client = await getRedis();
 
-  // Use pipeline to batch event storage operations
+  // Store in kanban-specific event list (for getBoardSummary)
   const pipeline = client.pipeline();
-
   pipeline.lpush(KANBAN_KEYS.events(event.sessionId), JSON.stringify(event));
   pipeline.ltrim(KANBAN_KEYS.events(event.sessionId), 0, MAX_EVENTS - 1);
-  pipeline.publish(KANBAN_KEYS.channel, JSON.stringify(event));
-
   await pipeline.exec();
+
+  // Emit to global event bus with Redis propagation
+  const { getGlobalEventBus } = await import('../events/global-bus.js');
+  const bus = getGlobalEventBus();
+
+  const globalType = `kanban:task:${event.type.replace('task-', '')}`;
+
+  bus.emit(
+    globalType,
+    {
+      taskId: event.taskId,
+      ...event.data as Record<string, unknown>,
+    },
+    {
+      sessionId: event.sessionId,
+      agentId: event.agentId,
+      sourceModule: 'kanban',
+    },
+    { publishToRedis: true },
+  );
 }
 
 /**
