@@ -19,7 +19,6 @@
 
 import { z } from 'zod';
 import type { UnifiedTool } from '../registry.js';
-import { getAvailabilityChecker } from '../availability-checker.js';
 import { getAgentRankStore } from '../../cognition/agent-rank-store.js';
 import { getAmbientLearner } from '../../cognition/ambient-learner.js';
 import { listProviders } from '../../ai/providers/registry.js';
@@ -65,7 +64,6 @@ export const sessionRecoverTool: UnifiedTool<typeof schema> = {
       includeAmbientLearning,
       includeAgentRankings,
       includeToolHealth,
-      verboseOutput,
     } = args;
 
     const sections: string[] = [];
@@ -75,14 +73,11 @@ export const sessionRecoverTool: UnifiedTool<typeof schema> = {
 
     // Step 1: Active session memory
     onProgress?.('[1/6] Reading active-session memory...\n');
-    let activeMemoryContent: string | null = null;
     try {
-      // Use executeTool internally to read memory
       const { executeTool } = await import('../registry.js');
       const memoryResult = await executeTool('read-memory', {
         names: ['active-session'],
       });
-      activeMemoryContent = memoryResult;
       sections.push(`## Active Session Memory\n\n${memoryResult}`);
       onProgress?.('  -> Active session memory recovered\n');
     } catch {

@@ -57,7 +57,6 @@ export const toolHealthTool: UnifiedTool<typeof schema> = {
     // Provider status
     const providers = listProviders();
     const available = providers.filter((p) => p.available);
-    const unavailable = providers.filter((p) => !p.available);
 
     let output = `# Tool Health Check\n\n`;
     output += `## AI Providers\n`;

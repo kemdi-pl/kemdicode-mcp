@@ -123,7 +123,7 @@ const providerEntrySchema = z.object({
 /** Providers config schema */
 export const providersSchema = z.object({
   defaultProvider: z
-    .enum(['openai', 'anthropic', 'gemini', 'groq', 'deepseek', 'ollama', 'openrouter'])
+    .enum(['openai', 'anthropic', 'gemini', 'groq', 'deepseek', 'ollama', 'openrouter', 'perplexity'])
     .describe('Default provider when no prefix'),
   openai: providerEntrySchema.describe('OpenAI configuration'),
   anthropic: providerEntrySchema.describe('Anthropic configuration'),
@@ -132,6 +132,7 @@ export const providersSchema = z.object({
   deepseek: providerEntrySchema.describe('DeepSeek configuration'),
   ollama: providerEntrySchema.describe('Ollama configuration'),
   openrouter: providerEntrySchema.describe('OpenRouter configuration'),
+  perplexity: providerEntrySchema.describe('Perplexity configuration'),
 });
 
 /** Complete app config schema */

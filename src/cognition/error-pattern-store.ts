@@ -30,7 +30,7 @@
 import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
 import { Logger } from '../utils/logger.js';
 import type { ErrorPattern, ErrorClassification } from './types.js';
-import { COGNITION_KEYS, COGNITION_TTL } from './types.js';
+import { COGNITION_KEYS } from './types.js';
 import { getCognitionEventBus } from './event-bus.js';
 import { randomBytes } from 'crypto';
 

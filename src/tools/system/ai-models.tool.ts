@@ -289,7 +289,7 @@ export const aiModelsTool: UnifiedTool<typeof schema> = {
 
       case 'auto-select': {
         try {
-          const { loadPricingDatabase, rankModelsByCost, calculateCostScore, formatPricingEntry } =
+          const { loadPricingDatabase, rankModelsByCost, formatPricingEntry } =
             await import('../../ai/pricing.js');
 
           const pricingDb = loadPricingDatabase();

@@ -32,7 +32,6 @@ import {
 import type { ProviderId } from '../ai/providers/types.js';
 import { PROVIDER_DISPLAY_NAMES } from '../ai/providers/types.js';
 import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
-import { Logger } from '../utils/logger.js';
 
 /** AI requirement specification for a tool */
 export interface AIRequirement {

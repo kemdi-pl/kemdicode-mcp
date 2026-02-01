@@ -32,7 +32,6 @@ import { UnifiedTool } from '../registry.js';
 import { getIntentStore } from '../../cognition/intent-store.js';
 import { Logger } from '../../utils/logger.js';
 import { executeCognitionTool } from './cognition-shared.js';
-import { resolveSessionId } from '../../kanban/resolvers.js';
 import type { Intent } from '../../cognition/types.js';
 
 const schema = z.object({

@@ -23,13 +23,11 @@ import { getGraphStorage } from './graph-storage.js';
 import { aStarSearch } from './graph-traversal.js';
 import { getLociManager } from './loci-manager.js';
 import { getSequenceTracker } from './sequence-tracker.js';
-import { getTimelineRecorder, hashProjectPath } from './timeline-recorder.js';
+import { getTimelineRecorder } from './timeline-recorder.js';
 import type {
   TimelineEvent,
   CompactionState,
   ResurrectionContext,
-  SessionContinuity,
-  CompactionLevel,
   GraphNode,
 } from './types.js';
 import { TIMELINE_KEYS, COMPACTION_TTL } from './types.js';

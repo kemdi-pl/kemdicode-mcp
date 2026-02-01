@@ -31,8 +31,6 @@ import {
   execGit,
   executeGitTool,
   getCurrentBranch,
-  enhanceGitErrorMessage,
-  formatGitError,
 } from '../../utils/git-utils.js';
 import { isSilent } from '../../config/silent.js';
 

@@ -49,6 +49,7 @@ import './tools/index.js';
 import { Command } from 'commander';
 import { Logger } from './utils/logger.js';
 import { config } from './config/index.js';
+import { appConfigSchema } from './config/schema.js';
 import { initSilentFromEnv, setOutputLevel, getOutputLevel } from './config/silent.js';
 import { initContext, initAgentMonitor, getSessionId } from './context/index.js';
 import { initAIClient } from './ai/index.js';
@@ -57,6 +58,7 @@ import type { ProviderId } from './ai/providers/types.js';
 import { VERSION, type ServerConfig, startHttpServer, stopHttpServer, broadcastNotification } from './server/index.js';
 import { initToolsBroadcast, warmupLazySchemas } from './tools/registry.js';
 import { initGlobalEventSystem } from './events/index.js';
+import { getRedisConnectionManager } from './infrastructure/redis/connection.js';
 
 // Re-export for backwards compatibility
 export {
@@ -176,6 +178,15 @@ async function main(): Promise<void> {
   // Load configuration from CLI args (merges with defaults and env vars)
   config.load(opts);
 
+  // Validate full configuration against Zod schema
+  const fullConfig = config.getAll();
+  const validationResult = appConfigSchema.safeParse(fullConfig);
+  if (!validationResult.success) {
+    for (const issue of validationResult.error.issues) {
+      Logger.warn(`Config validation: ${issue.path.join('.')} — ${issue.message}`);
+    }
+  }
+
   const serverConfig = config.get('server');
   const outputLevel = getOutputLevel();
   if (outputLevel === 'normal') {
@@ -211,30 +222,36 @@ async function main(): Promise<void> {
       fallbackModel: serverConfig.fallbackModel,
     });
     Logger.debug(`AI client initialized: ${serverConfig.primaryModel}`);
+  } else if (!serverConfig.apiBaseUrl && !serverConfig.apiKey) {
+    Logger.warn('AI client not initialized: both apiBaseUrl and apiKey are missing. Set via .kemdicode-mcp.json or ai-config tool.');
+  } else if (!serverConfig.apiBaseUrl) {
+    Logger.warn('AI client not initialized: apiBaseUrl not configured. Set KEMDICODE_SERVER_API_BASE_URL or use ai-config tool.');
   } else {
-    Logger.warn('AI client not initialized: apiBaseUrl or apiKey not configured');
+    Logger.warn('AI client not initialized: apiKey not configured. Set KEMDICODE_SERVER_API_KEY or use ai-config tool.');
   }
 
   // Initialize multi-provider registry with config values
   registerBuiltinProviders();
   const providersConfig = config.get('providers');
-  const providerIds: ProviderId[] = ['openai', 'anthropic', 'gemini', 'groq', 'deepseek', 'ollama', 'openrouter', 'perplexity'];
-  for (const id of providerIds) {
-    const entry = providersConfig[id];
+  const excludedKeys = new Set(['defaultProvider']);
+  for (const [key, entry] of Object.entries(providersConfig)) {
+    if (excludedKeys.has(key) || typeof entry === 'string') continue;
     if (entry && (entry.apiKey || entry.baseURL)) {
-      setProviderConfig(id, {
-        id,
+      setProviderConfig(key as ProviderId, {
+        id: key as ProviderId,
         apiKey: entry.apiKey || '',
         baseURL: entry.baseURL,
       });
     }
   }
 
+  // Initialize Redis connection manager early for reuse in shutdown
+  const redisManager = getRedisConnectionManager();
+
   // Handle graceful shutdown
   let isShuttingDown = false;
 
   const shutdown = async (signal: string) => {
-    // Zapobiegaj wielokrotnemu wywołaniu
     if (isShuttingDown) return;
     isShuttingDown = true;
 
@@ -243,16 +260,11 @@ async function main(): Promise<void> {
     const shutdownTimeout = setTimeout(() => {
       Logger.error('Shutdown timeout exceeded, forcing exit');
       process.exit(1);
-    }, 10000);  // 10s timeout
+    }, 10000);
 
     try {
-      // Stop HTTP server
       await stopHttpServer();
-      // Disconnect Redis
-      const { getRedisConnectionManager } = await import('./infrastructure/redis/connection.js');
-      const redisManager = getRedisConnectionManager();
       await redisManager.disconnect();
-      Logger.debug('Redis connection closed');
       Logger.debug('Shutdown complete');
       process.exit(0);
     } catch (error) {
@@ -272,10 +284,21 @@ async function main(): Promise<void> {
   // Enable runtime tool registration notifications
   initToolsBroadcast(() => broadcastNotification('notifications/tools/list_changed'));
 
-  // Background warmup: load all lazy tool schemas (non-blocking)
-  warmupLazySchemas().catch((err) => {
-    Logger.warn(`Schema warmup failed: ${err instanceof Error ? err.message : String(err)}`);
-  });
+  // Background warmup: load all lazy tool schemas with retry (non-blocking)
+  const runWarmup = async (attempt = 1): Promise<void> => {
+    try {
+      await warmupLazySchemas();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (attempt < 3) {
+        Logger.warn(`Schema warmup failed (attempt ${attempt}/3): ${msg} — retrying...`);
+        await new Promise((r) => setTimeout(r, attempt * 1000));
+        return runWarmup(attempt + 1);
+      }
+      Logger.warn(`Schema warmup failed after 3 attempts: ${msg}. Tools will be loaded on first use.`);
+    }
+  };
+  runWarmup();
 
   // Initialize global event system (cognition + kanban + loop handlers)
   initGlobalEventSystem();

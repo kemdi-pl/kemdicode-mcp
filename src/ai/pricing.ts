@@ -29,7 +29,6 @@ import type { ProviderId } from './providers/types.js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { Logger } from '../utils/logger.js';
 
 /** Model capability classifications */
 export type ModelCapability =

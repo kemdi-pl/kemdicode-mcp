@@ -27,7 +27,6 @@
  */
 
 import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
-import { Logger } from '../utils/logger.js';
 
 /** Agent rank tiers */
 export type AgentRank = 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond';

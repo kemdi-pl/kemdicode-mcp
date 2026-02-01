@@ -82,8 +82,6 @@ const schema = z.object({
     .describe('Override temperature for AI responses (default: from agent config — plan=0.7, build=0.3, explore=0.5, general=0.5)'),
 });
 
-type AgentOrchestrateArgs = z.infer<typeof schema>;
-
 export const agentOrchestrateTool: UnifiedTool = {
   name: 'agent-orchestrate',
   description:

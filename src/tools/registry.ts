@@ -34,7 +34,6 @@ import { isSilent } from '../config/silent.js';
 import { McpError, InputValidationError, ToolExecutionError } from '../utils/errors.js';
 import { recordToolExecution } from '../rl/middleware.js';
 import type { BaseToolArguments } from '../types/tool-types.js';
-import type { ProviderId } from '../ai/providers/types.js';
 import { getAvailabilityChecker, type AIRequirementConfig } from './availability-checker.js';
 import { getToolAnnotations } from './annotations-map.js';
 

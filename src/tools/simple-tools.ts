@@ -18,7 +18,6 @@
 
 import { z } from 'zod';
 import { UnifiedTool, getToolRegistry } from './registry.js';
-import { executeCommand } from '../utils/commandExecutor.js';
 import { executeAI, parseFiles } from '../ai/index.js';
 import { ERROR_MESSAGES } from '../constants.js';
 

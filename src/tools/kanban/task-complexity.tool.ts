@@ -11,7 +11,7 @@
 import { z } from 'zod';
 import type { UnifiedTool } from '../registry.js';
 import { handleToolError } from '../../utils/errors.js';
-import { getTask, updateTask, listTasks } from '../../kanban/kanban-store.js';
+import { getTask, listTasks } from '../../kanban/kanban-store.js';
 import type { TaskComplexity, KanbanTask } from '../../kanban/types.js';
 import { generateObject } from '../../ai/structured-output.js';
 

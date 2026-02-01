@@ -27,7 +27,6 @@
 
 import type { ProviderId } from './providers/types.js';
 import { isProviderAvailable } from './providers/registry.js';
-import { Logger } from '../utils/logger.js';
 
 /** Routing strategy for a tool */
 export type RoutingStrategy = 'local-capable' | 'external-required' | 'hybrid';

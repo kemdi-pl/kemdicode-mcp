@@ -34,7 +34,6 @@
 
 import { createHash } from 'crypto';
 import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
-import { Logger } from '../utils/logger.js';
 
 /** A detected tool sequence pattern */
 export interface ToolSequencePattern {

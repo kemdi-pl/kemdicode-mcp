@@ -29,9 +29,6 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import {
   execGit,
-  validateGitRepo,
-  formatGitError,
-  enhanceGitErrorMessage,
   executeGitTool,
 } from '../../utils/git-utils.js';
 
