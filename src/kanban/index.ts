@@ -37,6 +37,9 @@ export * from './workspace-store.js';
 export * from './board-store.js';
 export * from './membership-store.js';
 
+// Cluster store (LLM-driven clustering)
+export * from './cluster-store.js';
+
 // Resolvers (auto-sessionId, name-based lookup)
 export * from './resolvers.js';
 

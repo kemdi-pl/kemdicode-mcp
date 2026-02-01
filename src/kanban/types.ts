@@ -87,6 +87,8 @@ export interface KanbanTask {
   notes?: TaskNote[];
   /** LLM-scored complexity analysis */
   complexity?: TaskComplexity;
+  /** Cluster this task belongs to */
+  clusterId?: string;
 }
 
 /** Task creation input */
@@ -238,7 +240,102 @@ export const KANBAN_KEYS = {
   boardChannel: (boardId: string) => `mcp:channel:kanban:board:${boardId}`,
   /** Pub/Sub: per-workspace events - mcp:channel:kanban:workspace:{wsId} */
   workspaceChannel: (wsId: string) => `mcp:channel:kanban:workspace:${wsId}`,
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Cluster Keys (LLM-Driven Task Clustering)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /** HASH: cluster data - mcp:kanban:cluster:{clusterId} */
+  cluster: (clusterId: string) => `mcp:kanban:cluster:${clusterId}`,
+  /** SET: clusters in session - mcp:kanban:clusters:session:{sessionId} */
+  clustersBySession: (sessionId: string) => `mcp:kanban:clusters:session:${sessionId}`,
+  /** SET: clusters on board - mcp:kanban:clusters:board:{boardId} */
+  clustersByBoard: (boardId: string) => `mcp:kanban:clusters:board:${boardId}`,
+  /** SET: task IDs in cluster - mcp:kanban:cluster:{clusterId}:tasks */
+  clusterTasks: (clusterId: string) => `mcp:kanban:cluster:${clusterId}:tasks`,
 };
+
+// ============================================================================
+// CLUSTER TYPES (LLM-Driven Task Clustering)
+// ============================================================================
+
+/** Checklist item within a cluster */
+export interface ClusterChecklistItem {
+  /** Unique item ID */
+  id: string;
+  /** Description of what needs to be done or gathered */
+  content: string;
+  /** Whether this item is completed */
+  checked: boolean;
+  /** Who added this item */
+  addedBy: string;
+  /** Timestamp when added */
+  addedAt: number;
+  /** Timestamp when checked/unchecked */
+  checkedAt?: number;
+  /** Optional category (e.g., 'requirement', 'blocker', 'data-point', 'decision') */
+  category?: string;
+}
+
+/** Extracted context summary from a cluster's tasks */
+export interface ClusterContext {
+  /** LLM-generated summary of all tasks in the cluster */
+  summary: string;
+  /** Key data points extracted from tasks */
+  keyDataPoints: string[];
+  /** Identified risks or blockers across the cluster */
+  risks: string[];
+  /** Shared dependencies across tasks */
+  sharedDependencies: string[];
+  /** Suggested priority order for tasks in cluster */
+  suggestedOrder: string[];
+  /** When this context was last extracted */
+  extractedAt: number;
+  /** Model used for extraction */
+  extractedBy?: string;
+}
+
+/** Task cluster - groups related tasks with LLM-controlled context */
+export interface TaskCluster {
+  /** Unique cluster ID (cluster_xxxxxxxx) */
+  id: string;
+  /** Human-readable cluster name */
+  name: string;
+  /** LLM-generated description of what unifies these tasks */
+  description: string;
+  /** Session ID */
+  sessionId: string;
+  /** Optional board ID */
+  boardId?: string;
+  /** Task IDs in this cluster */
+  taskIds: string[];
+  /** Checklist for gathering project data */
+  checklist: ClusterChecklistItem[];
+  /** LLM-extracted context from cluster tasks */
+  context?: ClusterContext;
+  /** Model designated for this cluster's context management */
+  contextModel?: string;
+  /** Labels for cluster categorization */
+  labels: string[];
+  /** Agent who created the cluster (or 'auto' for LLM-driven) */
+  createdBy: string;
+  /** Creation timestamp */
+  createdAt: number;
+  /** Last update timestamp */
+  updatedAt: number;
+}
+
+/** Cluster creation input (for manual clusters) */
+export interface CreateClusterInput {
+  sessionId: string;
+  boardId?: string;
+  name: string;
+  description?: string;
+  taskIds?: string[];
+  labels?: string[];
+  createdBy: string;
+  contextModel?: string;
+}
 
 /** Default task TTL (7 days) */
 export const DEFAULT_TASK_TTL = 7 * 24 * 60 * 60;

@@ -547,6 +547,11 @@ registerLazyTool({
   description: 'LLM-scored complexity analysis (1-10) with subtask recommendations',
   loader: () => import('./kanban/index.js').then((m) => m.taskComplexityTool),
 });
+registerLazyTool({
+  name: 'task-cluster',
+  description: 'LLM-driven task clustering: auto-group, context extraction, checklists, digests',
+  loader: () => import('./kanban/index.js').then((m) => m.taskClusterTool),
+});
 
 // Kanban workspace tools
 registerLazyTool({

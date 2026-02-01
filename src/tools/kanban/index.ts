@@ -44,6 +44,9 @@ export { taskPushMultiTool } from './task-push-multi.tool.js';
 // Complexity analysis
 export { taskComplexityTool } from './task-complexity.tool.js';
 
+// Clustering
+export { taskClusterTool } from './task-cluster.tool.js';
+
 // Workspace tools
 export { workspaceCreateTool } from './workspace-create.tool.js';
 export { workspaceListTool } from './workspace-list.tool.js';

@@ -138,6 +138,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
   'task-assign':       { title: 'Assign Task',        destructiveHint: false },
   'task-comment':      { title: 'Add Comment',        destructiveHint: false },
   'task-push-multi':   { title: 'Push Task Multi',    destructiveHint: false },
+  'task-cluster':      { title: 'Task Clustering',    destructiveHint: false, openWorldHint: true },
   'board-create':      { title: 'Create Board',       destructiveHint: false },
   'board-share':       { title: 'Share Board',        destructiveHint: false },
   'board-members':     { title: 'Board Members',      destructiveHint: false },
