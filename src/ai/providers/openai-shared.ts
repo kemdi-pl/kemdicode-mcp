@@ -10,6 +10,7 @@ import type { ChatCompletionMessageParam, ChatCompletionChunk } from 'openai/res
 import type { ChatCompletion } from 'openai/resources/chat/completions';
 import type { CompletionResponse } from '../client.js';
 import type { Message } from '../client.js';
+import type { ToolCallResult } from './types.js';
 
 /** Extended delta with reasoning_content for o-series / DeepSeek models */
 export interface ReasoningDelta extends ChatCompletionChunk.Choice.Delta {
@@ -25,21 +26,46 @@ export interface ReasoningMessage {
 
 /**
  * Map internal Message[] to OpenAI ChatCompletionMessageParam[].
+ * Handles tool role messages and assistant messages with tool_calls.
  */
 export function mapMessagesToOpenAI(messages: Message[]): ChatCompletionMessageParam[] {
-  return messages.map((m) => ({
-    role: m.role,
-    content: m.content,
-  }));
+  return messages.map((m) => {
+    if (m.role === 'tool' && m.toolCallId) {
+      return { role: 'tool' as const, content: m.content, tool_call_id: m.toolCallId };
+    }
+    if (m.role === 'assistant' && m.toolCalls?.length) {
+      return {
+        role: 'assistant' as const,
+        content: m.content || null,
+        tool_calls: m.toolCalls.map((tc) => ({
+          id: tc.id,
+          type: 'function' as const,
+          function: { name: tc.function.name, arguments: tc.function.arguments },
+        })),
+      };
+    }
+    return { role: m.role as 'system' | 'user' | 'assistant', content: m.content };
+  });
 }
 
 /**
  * Build a CompletionResponse from a non-streaming ChatCompletion.
+ * Extracts tool_calls if present in the response.
  */
 export function buildCompletionResponse(response: ChatCompletion): CompletionResponse {
   const choice = response.choices[0];
   const message = choice?.message as ReasoningMessage | undefined;
   const content = message?.content || message?.reasoning_content || '';
+
+  // Extract tool calls from response
+  const rawToolCalls = choice?.message?.tool_calls as Array<{ id: string; type: string; function: { name: string; arguments: string } }> | undefined;
+  const toolCalls: ToolCallResult[] | undefined = rawToolCalls
+    ?.filter((tc) => tc.type === 'function' && tc.function)
+    .map((tc) => ({
+      id: tc.id,
+      type: 'function' as const,
+      function: { name: tc.function.name, arguments: tc.function.arguments },
+    }));
 
   return {
     content,
@@ -52,6 +78,7 @@ export function buildCompletionResponse(response: ChatCompletion): CompletionRes
         }
       : undefined,
     finishReason: choice?.finish_reason || undefined,
+    toolCalls: toolCalls?.length ? toolCalls : undefined,
   };
 }
 

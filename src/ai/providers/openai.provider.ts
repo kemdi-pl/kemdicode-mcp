@@ -57,6 +57,11 @@ export class OpenAIProvider implements LLMProvider {
       baseParams.temperature = request.temperature ?? 0.7;
     }
 
+    if (request.tools?.length) {
+      baseParams.tools = request.tools;
+      if (request.toolChoice) baseParams.tool_choice = request.toolChoice;
+    }
+
     try {
       if (request.stream && request.onProgress) {
         return await this.completeStreaming(baseParams, request);

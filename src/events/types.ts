@@ -61,7 +61,11 @@ export type KanbanEventType =
   | 'kanban:task:blocked'
   | 'kanban:task:unblocked'
   | 'kanban:board:created'
-  | 'kanban:board:deleted';
+  | 'kanban:board:deleted'
+  | 'kanban:workspace:created'
+  | 'kanban:workspace:deleted'
+  | 'kanban:workspace:member-joined'
+  | 'kanban:workspace:member-left';
 
 export type LoopEventType =
   | 'loop:started'
@@ -72,6 +76,18 @@ export type LoopEventType =
   | 'loop:completed'
   | 'loop:error';
 
+export type MemoryEventType =
+  | 'memory:written'
+  | 'memory:deleted'
+  | 'memory:edited'
+  | 'checkpoint:saved'
+  | 'checkpoint:restored';
+
+export type RecursiveEventType =
+  | 'recursive:invocation:started'
+  | 'recursive:invocation:completed'
+  | 'recursive:invocation:failed';
+
 export type SessionEventType =
   | 'session:created'
   | 'session:switched'
@@ -81,6 +97,8 @@ export type GlobalEventType =
   | CognitionEventType
   | KanbanEventType
   | LoopEventType
+  | MemoryEventType
+  | RecursiveEventType
   | SessionEventType;
 
 // ---------------------------------------------------------------------------

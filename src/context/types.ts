@@ -151,6 +151,16 @@ export const TTL = {
   get DEFAULT() {
     return getContextTTL().DEFAULT;
   },
+  /** Agent heartbeat TTL (env: MCP_AGENT_HEARTBEAT_TTL, default: 60s) */
+  get HEARTBEAT() {
+    const val = process.env.MCP_AGENT_HEARTBEAT_TTL;
+    return val ? parseInt(val, 10) || 60 : 60;
+  },
+  /** Agent summary TTL (env: MCP_AGENT_SUMMARY_TTL, default: 3600s) */
+  get AGENT_SUMMARY() {
+    const val = process.env.MCP_AGENT_SUMMARY_TTL;
+    return val ? parseInt(val, 10) || 3600 : 3600;
+  },
 } as const;
 
 /**

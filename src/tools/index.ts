@@ -618,6 +618,11 @@ registerLazyTool({
   description: 'View agent tool invocation history',
   loader: () => import('./recursive/index.js').then((m) => m.invocationLogTool),
 });
+registerLazyTool({
+  name: 'agent-orchestrate',
+  description: 'Launch autonomous AI agent loop: reasons → calls tools → iterates until done',
+  loader: () => import('./recursive/index.js').then((m) => m.agentOrchestrateTool),
+});
 
 // Session management tools
 registerLazyTool({

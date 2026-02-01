@@ -29,6 +29,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../utils/logger.js';
 import { getSharedRedis } from '../infrastructure/redis/connection.js';
+import { getGlobalEventBus } from '../events/global-bus.js';
 import {
   KanbanBoard,
   CreateBoardInput,
@@ -513,6 +514,13 @@ export async function deleteBoard(boardId: string): Promise<boolean> {
 
   Logger.debug(`board-store: deleted board ${boardId}`);
 
+  getGlobalEventBus().emit(
+    'kanban:board:deleted',
+    { boardId, name: board.name, sessionId: board.sessionId },
+    { sessionId: board.sessionId, sourceModule: 'kanban' },
+    { publishToRedis: true },
+  );
+
   return true;
 }
 
@@ -537,6 +545,14 @@ async function emitBoardEvent(event: BoardEvent): Promise<void> {
   pipeline.publish(KANBAN_KEYS.boardChannel(event.boardId), JSON.stringify(event));
 
   await pipeline.exec();
+
+  const globalType = `kanban:board:${event.type.replace('board-', '')}`;
+  getGlobalEventBus().emit(
+    globalType,
+    { boardId: event.boardId, eventType: event.type },
+    { sessionId: event.sessionId || 'unknown', sourceModule: 'kanban' },
+    { publishToRedis: true },
+  );
 }
 
 /**

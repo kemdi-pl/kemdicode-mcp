@@ -276,7 +276,7 @@ export class AgentMonitor {
       // Update heartbeat timestamp
       await this.redis.setex(
         `${REDIS_KEYS.AGENT_HEARTBEAT}${agentId}`,
-        60, // 1 minute TTL
+        TTL.HEARTBEAT ?? 60,
         Date.now().toString()
       );
 
@@ -682,7 +682,7 @@ export class AgentMonitor {
 
       // Use pipeline to batch summary update operations
       const pipeline = this.redis.pipeline();
-      pipeline.setex(key, 3600, JSON.stringify(fullSummary)); // 1 hour TTL
+      pipeline.setex(key, TTL.AGENT_SUMMARY ?? 3600, JSON.stringify(fullSummary));
       pipeline.publish(
         REDIS_KEYS.PREFIX + REDIS_KEYS.CHANNEL_AGENT_SUMMARY,
         JSON.stringify(fullSummary)

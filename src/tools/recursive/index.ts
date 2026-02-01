@@ -27,3 +27,4 @@
 export { invokeToolTool } from './invoke-tool.tool.js';
 export { invokeBatchTool } from './invoke-batch.tool.js';
 export { invocationLogTool } from './invocation-log.tool.js';
+export { agentOrchestrateTool } from './agent-orchestrate.tool.js';

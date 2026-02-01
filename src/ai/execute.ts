@@ -6,6 +6,8 @@
  */
 
 import { complete, getClientConfig } from './client.js';
+import type { Message, CompletionResponse } from './client.js';
+import type { FunctionTool } from './providers/types.js';
 import { hasProviderPrefix } from './model-spec.js';
 import { routeToolExecution } from './routing.js';
 import {
@@ -47,6 +49,9 @@ export interface ExecuteAIOptions {
 
   /** Override max tokens */
   maxTokens?: number;
+
+  /** Override system prompt (replaces agent's default system prompt) */
+  systemPrompt?: string;
 }
 
 export interface ExecuteAIResult {
@@ -84,7 +89,7 @@ async function prepareAndExecute(options: ExecuteAIOptions) {
   }
 
   const startTime = Date.now();
-  const { prompt, agent, model, files, continueSession, sessionId, projectRoot, onProgress, temperature, maxTokens } = options;
+  const { prompt, agent, model, files, continueSession, sessionId, projectRoot, onProgress, temperature, maxTokens, systemPrompt } = options;
 
   // Load file contents if specified
   let fileContext = '';
@@ -97,8 +102,18 @@ async function prepareAndExecute(options: ExecuteAIOptions) {
   const historyKey = sessionId || 'default';
   const history = continueSession ? sessionHistory.get(historyKey) : undefined;
 
-  // Build messages and execute
-  const messages = buildAgentMessages(agent, prompt, fileContext, history);
+  // Build messages: use custom systemPrompt if provided, otherwise agent defaults
+  let messages: import('./client.js').Message[];
+  if (systemPrompt) {
+    messages = [{ role: 'system' as const, content: systemPrompt }];
+    if (history?.length) {
+      messages.push(...history);
+    }
+    const fullPrompt = fileContext ? `${prompt}\n\n---\n\n${fileContext}` : prompt;
+    messages.push({ role: 'user' as const, content: fullPrompt });
+  } else {
+    messages = buildAgentMessages(agent, prompt, fileContext, history);
+  }
 
   // AI routing: determine optimal provider/model if no explicit model override
   let resolvedModel = model;
@@ -184,6 +199,51 @@ export async function executeAIWithResult(options: ExecuteAIOptions): Promise<Ex
     usage: response.usage,
     duration: Date.now() - startTime,
   };
+}
+
+/**
+ * Execute AI completion with native function calling support.
+ * Returns the full CompletionResponse including toolCalls.
+ */
+export async function completeWithTools(options: {
+  messages: Message[];
+  agent: AgentType;
+  model?: string;
+  systemPrompt?: string;
+  tools?: FunctionTool[];
+  toolChoice?: 'auto' | 'none' | 'required' | { type: 'function'; function: { name: string } };
+  temperature?: number;
+  maxTokens?: number;
+}): Promise<CompletionResponse> {
+  const config = getClientConfig();
+  if (!config && !(options.model && hasProviderPrefix(options.model))) {
+    throw new Error('AI client not initialized. Call initAIClient() first.');
+  }
+
+  // AI routing: determine optimal provider/model if no explicit model override
+  let resolvedModel = options.model;
+  if (!resolvedModel) {
+    try {
+      const toolName = options.agent === 'plan' ? 'plan' : options.agent === 'build' ? 'build' : undefined;
+      if (toolName) {
+        const decision = routeToolExecution(toolName, { complexity: 'medium' });
+        if (decision.model) {
+          resolvedModel = decision.provider ? `${decision.provider}:${decision.model}` : decision.model;
+        }
+      }
+    } catch {
+      // Routing is best-effort
+    }
+  }
+
+  return complete({
+    model: resolvedModel,
+    messages: options.messages,
+    temperature: options.temperature ?? getAgentTemperature(options.agent),
+    maxTokens: options.maxTokens ?? getAgentMaxTokens(options.agent),
+    tools: options.tools,
+    toolChoice: options.toolChoice,
+  });
 }
 
 /**

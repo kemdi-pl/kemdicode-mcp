@@ -48,25 +48,32 @@ export function createOpenAICompatProvider(providerId: ProviderId): LLMProvider 
 
       const messages = mapMessagesToOpenAI(request.messages);
 
-      const baseParams = {
+      const baseParams: Record<string, unknown> = {
         model: request.model,
         messages,
         max_tokens: request.maxTokens ?? 8192,
         temperature: request.temperature ?? 0.7,
       };
 
+      if (request.tools?.length) {
+        baseParams.tools = request.tools;
+        if (request.toolChoice) baseParams.tool_choice = request.toolChoice;
+      }
+
       try {
         if (request.stream && request.onProgress) {
           const stream = await client.chat.completions.create({
             ...baseParams,
             stream: true,
-          });
+          } as unknown as OpenAI.ChatCompletionCreateParamsStreaming);
 
           return await handleStreaming(stream, request.model, request.onProgress);
         }
 
         // Non-streaming
-        const response = (await client.chat.completions.create(baseParams)) as ChatCompletion;
+        const response = (await client.chat.completions.create(
+          baseParams as unknown as OpenAI.ChatCompletionCreateParamsNonStreaming
+        )) as ChatCompletion;
         return buildCompletionResponse(response);
       } catch (error) {
         if (error instanceof OpenAI.APIError) {

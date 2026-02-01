@@ -29,6 +29,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../utils/logger.js';
 import { getSharedRedis } from '../infrastructure/redis/connection.js';
+import { getGlobalEventBus } from '../events/global-bus.js';
 import { Workspace, CreateWorkspaceInput, KANBAN_KEYS, DEFAULT_TASK_TTL } from './types.js';
 
 const getRedis = getSharedRedis;
@@ -109,6 +110,13 @@ export async function createWorkspace(input: CreateWorkspaceInput): Promise<Work
   await pipeline.exec();
 
   Logger.debug(`workspace-store: created workspace '${input.name}' (${id})`);
+
+  getGlobalEventBus().emit(
+    'kanban:workspace:created',
+    { workspaceId: id, name: input.name, ownerId: input.ownerId },
+    { sessionId: input.ownerSessionId, sourceModule: 'kanban' },
+    { publishToRedis: true },
+  );
 
   return workspace;
 }
@@ -256,6 +264,13 @@ export async function joinWorkspace(workspaceId: string, sessionId: string): Pro
   await pipeline.exec();
 
   Logger.debug(`workspace-store: session ${sessionId} joined workspace ${workspaceId}`);
+
+  getGlobalEventBus().emit(
+    'kanban:workspace:member-joined',
+    { workspaceId, sessionId },
+    { sessionId, sourceModule: 'kanban' },
+    { publishToRedis: true },
+  );
 
   return true;
 }

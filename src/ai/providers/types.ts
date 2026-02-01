@@ -88,6 +88,26 @@ export interface ProviderConfig {
   baseURL?: string;
 }
 
+/** OpenAI-compatible function definition for tool calling */
+export interface FunctionTool {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>; // JSON Schema
+  };
+}
+
+/** Tool call returned in AI response */
+export interface ToolCallResult {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string; // JSON string
+  };
+}
+
 /** Unified completion request sent to any provider */
 export interface UnifiedCompletionRequest {
   provider: ProviderId;
@@ -98,6 +118,8 @@ export interface UnifiedCompletionRequest {
   thinking?: ThinkingConfig;
   stream?: boolean;
   onProgress?: (chunk: string) => void;
+  tools?: FunctionTool[];
+  toolChoice?: 'auto' | 'none' | 'required' | { type: 'function'; function: { name: string } };
 }
 
 /** Provider adapter interface - each provider implements this */

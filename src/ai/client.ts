@@ -7,12 +7,14 @@
 
 import OpenAI from 'openai';
 import type {
+  ChatCompletion,
   ChatCompletionMessageParam,
   ChatCompletionChunk,
 } from 'openai/resources/chat/completions';
 import { Logger } from '../utils/logger.js';
 import { parseModelSpec, hasProviderPrefix } from './model-spec.js';
 import { getProvider, isProviderAvailable, registerBuiltinProviders } from './providers/registry.js';
+import type { FunctionTool, ToolCallResult } from './providers/types.js';
 
 /**
  * Extended types for reasoning models (DeepSeek, Kimi, etc.)
@@ -42,8 +44,10 @@ export interface AIClientConfig {
 }
 
 export interface Message {
-  role: 'system' | 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  toolCalls?: ToolCallResult[];   // assistant response with tool calls
+  toolCallId?: string;            // tool response referencing call ID
 }
 
 export interface CompletionRequest {
@@ -53,6 +57,8 @@ export interface CompletionRequest {
   maxTokens?: number;
   temperature?: number;
   onProgress?: (chunk: string) => void;
+  tools?: FunctionTool[];
+  toolChoice?: 'auto' | 'none' | 'required' | { type: 'function'; function: { name: string } };
 }
 
 export interface CompletionResponse {
@@ -64,6 +70,7 @@ export interface CompletionResponse {
     totalTokens: number;
   };
   finishReason?: string;
+  toolCalls?: ToolCallResult[];
 }
 
 export class AIError extends Error {
@@ -169,6 +176,8 @@ export async function complete(request: CompletionRequest): Promise<CompletionRe
           temperature: request.temperature,
           stream: request.stream,
           onProgress: request.onProgress,
+          tools: request.tools,
+          toolChoice: request.toolChoice,
         });
       } catch (error) {
         // Try fallback model if configured
@@ -189,10 +198,23 @@ export async function complete(request: CompletionRequest): Promise<CompletionRe
   // Default: use existing OpenAI SDK (backward compatible)
   const openai = getAIClient();
 
-  const messages: ChatCompletionMessageParam[] = request.messages.map((m) => ({
-    role: m.role,
-    content: m.content,
-  }));
+  const messages: ChatCompletionMessageParam[] = request.messages.map((m) => {
+    if (m.role === 'tool' && m.toolCallId) {
+      return { role: 'tool' as const, content: m.content, tool_call_id: m.toolCallId };
+    }
+    if (m.role === 'assistant' && m.toolCalls?.length) {
+      return {
+        role: 'assistant' as const,
+        content: m.content || null,
+        tool_calls: m.toolCalls.map((tc) => ({
+          id: tc.id,
+          type: 'function' as const,
+          function: { name: tc.function.name, arguments: tc.function.arguments },
+        })),
+      };
+    }
+    return { role: m.role as 'system' | 'user' | 'assistant', content: m.content };
+  });
 
   try {
     // Streaming mode
@@ -232,17 +254,34 @@ export async function complete(request: CompletionRequest): Promise<CompletionRe
     }
 
     // Non-streaming mode
-    const response = await openai.chat.completions.create({
+    const createParams: OpenAI.ChatCompletionCreateParamsNonStreaming = {
       model,
       messages,
       max_tokens: request.maxTokens ?? 8192,
       temperature: request.temperature ?? 0.7,
-    });
+    };
+
+    if (request.tools?.length) {
+      (createParams as unknown as Record<string, unknown>).tools = request.tools;
+      if (request.toolChoice) (createParams as unknown as Record<string, unknown>).tool_choice = request.toolChoice;
+    }
+
+    const response: ChatCompletion = await openai.chat.completions.create(createParams);
 
     const choice = response.choices[0];
     // Handle reasoning models (DeepSeek, Kimi, etc.)
     const message = choice?.message as ReasoningMessage | undefined;
     const content = message?.content || message?.reasoning_content || '';
+
+    // Extract tool calls from response
+    const rawToolCalls = choice?.message?.tool_calls as Array<{ id: string; type: string; function: { name: string; arguments: string } }> | undefined;
+    const toolCalls: ToolCallResult[] | undefined = rawToolCalls
+      ?.filter((tc) => tc.type === 'function' && tc.function)
+      .map((tc) => ({
+        id: tc.id,
+        type: 'function' as const,
+        function: { name: tc.function.name, arguments: tc.function.arguments },
+      }));
 
     return {
       content,
@@ -255,6 +294,7 @@ export async function complete(request: CompletionRequest): Promise<CompletionRe
           }
         : undefined,
       finishReason: choice?.finish_reason || undefined,
+      toolCalls: toolCalls?.length ? toolCalls : undefined,
     };
   } catch (error) {
     // Try fallback model if primary fails

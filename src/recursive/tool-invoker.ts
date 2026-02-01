@@ -28,6 +28,7 @@ import { getSharedRedis } from '../infrastructure/redis/connection.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../utils/logger.js';
 import { getToolByName, executeTool, type ToolArguments } from '../tools/registry.js';
+import { getGlobalEventBus } from '../events/global-bus.js';
 import {
   ToolInvocationRequest,
   ToolInvocationResult,
@@ -256,6 +257,12 @@ export async function invokeTool(
       throw new Error(`Tool '${request.toolName}' not found`);
     }
 
+    getGlobalEventBus().emit(
+      'recursive:invocation:started',
+      { toolName: request.toolName, depth: context.currentDepth, invocationId },
+      { sessionId: request.sessionId || 'unknown', agentId: request.agentId, sourceModule: 'recursive' },
+    );
+
     const result = await executeTool(request.toolName, request.args as ToolArguments);
 
     const duration = Date.now() - startTime;
@@ -276,6 +283,12 @@ export async function invokeTool(
     } else {
       contextStack.delete(request.agentId);
     }
+
+    getGlobalEventBus().emit(
+      'recursive:invocation:completed',
+      { toolName: request.toolName, duration, depth: context.currentDepth, invocationId },
+      { sessionId: request.sessionId || 'unknown', agentId: request.agentId, sourceModule: 'recursive' },
+    );
 
     Logger.debug(
       `invoke-tool: ${request.toolName} completed in ${duration}ms at depth ${context.currentDepth}`
@@ -306,6 +319,12 @@ export async function invokeTool(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const duration = Date.now() - startTime;
+
+    getGlobalEventBus().emit(
+      'recursive:invocation:failed',
+      { toolName: request.toolName, error: errorMessage, duration, invocationId },
+      { sessionId: request.sessionId || 'unknown', agentId: request.agentId, sourceModule: 'recursive' },
+    );
 
     // Log failed invocation (best-effort, do not throw)
     try {

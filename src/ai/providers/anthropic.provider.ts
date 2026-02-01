@@ -8,7 +8,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { MessageParam, ContentBlock, Message } from '@anthropic-ai/sdk/resources/messages';
 import type { CompletionResponse } from '../client.js';
-import type { LLMProvider, ProviderConfig, UnifiedCompletionRequest } from './types.js';
+import type { LLMProvider, ProviderConfig, UnifiedCompletionRequest, ToolCallResult } from './types.js';
 import { Logger } from '../../utils/logger.js';
 
 export class AnthropicProvider implements LLMProvider {
@@ -36,6 +36,31 @@ export class AnthropicProvider implements LLMProvider {
     for (const msg of request.messages) {
       if (msg.role === 'system') {
         systemPrompt = msg.content;
+      } else if (msg.role === 'tool' && msg.toolCallId) {
+        // Map tool results to Anthropic's tool_result format
+        messages.push({
+          role: 'user',
+          content: [{
+            type: 'tool_result',
+            tool_use_id: msg.toolCallId,
+            content: msg.content,
+          }],
+        } as MessageParam);
+      } else if (msg.role === 'assistant' && msg.toolCalls?.length) {
+        // Map assistant tool calls to Anthropic's tool_use format
+        const contentBlocks: Array<{ type: 'text'; text: string } | { type: 'tool_use'; id: string; name: string; input: unknown }> = [];
+        if (msg.content) {
+          contentBlocks.push({ type: 'text', text: msg.content });
+        }
+        for (const tc of msg.toolCalls) {
+          contentBlocks.push({
+            type: 'tool_use',
+            id: tc.id,
+            name: tc.function.name,
+            input: JSON.parse(tc.function.arguments),
+          });
+        }
+        messages.push({ role: 'assistant', content: contentBlocks } as unknown as MessageParam);
       } else {
         messages.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
       }
@@ -53,6 +78,30 @@ export class AnthropicProvider implements LLMProvider {
 
     if (systemPrompt) {
       params.system = systemPrompt;
+    }
+
+    // Map OpenAI-compatible tools to Anthropic format
+    if (request.tools?.length) {
+      const paramsAny = params as unknown as Record<string, unknown>;
+      paramsAny.tools = request.tools.map((t) => ({
+        name: t.function.name,
+        description: t.function.description,
+        input_schema: t.function.parameters,
+      }));
+      if (request.toolChoice) {
+        if (request.toolChoice === 'auto') {
+          paramsAny.tool_choice = { type: 'auto' };
+        } else if (request.toolChoice === 'required') {
+          paramsAny.tool_choice = { type: 'any' };
+        } else if (request.toolChoice === 'none') {
+          // Anthropic doesn't have a direct 'none' — omit tools instead
+        } else if (typeof request.toolChoice === 'object') {
+          paramsAny.tool_choice = {
+            type: 'tool',
+            name: request.toolChoice.function.name,
+          };
+        }
+      }
     }
 
     // Add thinking support (temperature is mutually exclusive with thinking)
@@ -98,6 +147,21 @@ export class AnthropicProvider implements LLMProvider {
       content = this.extractContent(finalMessage.content);
     }
 
+    // Extract tool_use blocks from streamed response
+    const toolCalls: ToolCallResult[] = [];
+    for (const block of finalMessage.content) {
+      if (block.type === 'tool_use') {
+        toolCalls.push({
+          id: block.id,
+          type: 'function',
+          function: {
+            name: block.name,
+            arguments: JSON.stringify(block.input),
+          },
+        });
+      }
+    }
+
     return {
       content,
       model: finalMessage.model,
@@ -107,6 +171,7 @@ export class AnthropicProvider implements LLMProvider {
         totalTokens: finalMessage.usage.input_tokens + finalMessage.usage.output_tokens,
       },
       finishReason: finalMessage.stop_reason || undefined,
+      toolCalls: toolCalls.length ? toolCalls : undefined,
     };
   }
 
@@ -118,6 +183,21 @@ export class AnthropicProvider implements LLMProvider {
 
     const content = this.extractContent(response.content);
 
+    // Extract tool_use blocks and map to ToolCallResult
+    const toolCalls: ToolCallResult[] = [];
+    for (const block of response.content) {
+      if (block.type === 'tool_use') {
+        toolCalls.push({
+          id: block.id,
+          type: 'function',
+          function: {
+            name: block.name,
+            arguments: JSON.stringify(block.input),
+          },
+        });
+      }
+    }
+
     return {
       content,
       model: response.model,
@@ -127,6 +207,7 @@ export class AnthropicProvider implements LLMProvider {
         totalTokens: response.usage.input_tokens + response.usage.output_tokens,
       },
       finishReason: response.stop_reason || undefined,
+      toolCalls: toolCalls.length ? toolCalls : undefined,
     };
   }
 

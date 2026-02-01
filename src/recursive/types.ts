@@ -62,20 +62,34 @@ export interface InvocationPolicy {
 }
 
 /**
- * Default policy for recursive tool invocation
+ * Read an integer from environment variable with a fallback default.
+ */
+function envInt(key: string, fallback: number): number {
+  const val = process.env[key];
+  if (val !== undefined) {
+    const parsed = parseInt(val, 10);
+    if (!isNaN(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+/**
+ * Default policy for recursive tool invocation.
+ *
+ * All numeric limits can be overridden via environment variables:
+ *   - MCP_INVOKE_MAX_DEPTH (default: 5)
+ *   - MCP_INVOKE_RATE_LIMIT (default: 30 per minute)
  *
  * @description Allows multi-level agent invocation with safety limits:
  *   - Agent -> invoke-tool -> Tool (depth 1) ✅
  *   - Agent -> invoke-tool -> invoke-tool -> Tool (depth 2) ✅
  *   - Deeper recursive invoke-tool chains are blocked in tool-invoker.ts
- *   - Overall max depth: 5 (for any tool)
- *   - Rate limit: 30 invocations/min per agent
  */
 export const DEFAULT_POLICY: InvocationPolicy = {
-  maxDepth: 5,
-  maxInvocationsPerMinute: 30,
+  maxDepth: envInt('MCP_INVOKE_MAX_DEPTH', 5),
+  maxInvocationsPerMinute: envInt('MCP_INVOKE_RATE_LIMIT', 30),
   requiresApproval: ['shell-exec', 'file-write'],
-  blockedTools: [], // Recursive invoke-tool limited to depth 2 in tool-invoker.ts
+  blockedTools: [],
   allowWorkerInvocation: true,
 };
 
@@ -118,11 +132,11 @@ export const RECURSIVE_KEYS = {
   log: (agentId: string) => `mcp:invoke:log:${agentId}`,
 };
 
-/** Invocation TTL (1 hour) */
-export const INVOCATION_TTL = 60 * 60;
+/** Invocation TTL in seconds (env: MCP_INVOKE_TTL, default: 3600 = 1 hour) */
+export const INVOCATION_TTL = envInt('MCP_INVOKE_TTL', 3600);
 
-/** Rate limit window (1 minute) */
-export const RATE_LIMIT_WINDOW = 60 * 1000;
+/** Rate limit window in ms (env: MCP_INVOKE_RATE_WINDOW, default: 60000 = 1 minute) */
+export const RATE_LIMIT_WINDOW = envInt('MCP_INVOKE_RATE_WINDOW', 60_000);
 
-/** Max log entries per agent */
-export const MAX_LOG_ENTRIES = 100;
+/** Max log entries per agent (env: MCP_INVOKE_MAX_LOG, default: 100) */
+export const MAX_LOG_ENTRIES = envInt('MCP_INVOKE_MAX_LOG', 100);

@@ -27,6 +27,7 @@ import { Redis } from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../utils/logger.js';
 import { RedisConfig } from '../context/types.js';
+import { getGlobalEventBus } from '../events/global-bus.js';
 import {
   SessionConfig,
   SessionUpdate,
@@ -231,6 +232,14 @@ export class SessionManager {
     await this.persistSession(session);
 
     Logger.sessionEvent('created', sessionId, { cwd, projectType, projectName });
+
+    getGlobalEventBus().emit(
+      'session:created',
+      { cwd, projectType, projectName },
+      { sessionId, sourceModule: 'session' },
+      { publishToRedis: true },
+    );
+
     return session;
   }
 
@@ -384,6 +393,14 @@ export class SessionManager {
         await this.redis.zrem(SESSION_REDIS_KEYS.INDEX, sessionId);
 
         Logger.sessionEvent('deleted', sessionId, { source: 'explicit' });
+
+        getGlobalEventBus().emit(
+          'session:deleted',
+          { source: 'explicit' },
+          { sessionId, sourceModule: 'session' },
+          { publishToRedis: true },
+        );
+
         return true;
       } catch (error) {
         Logger.error(`Failed to delete session from Redis: ${sessionId}`, error);

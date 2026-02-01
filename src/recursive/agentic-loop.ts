@@ -37,7 +37,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { executeAI, completeWithTools } from '../ai/execute.js';
 import type { Message } from '../ai/client.js';
 import type { FunctionTool } from '../ai/providers/types.js';
-import type { AgentType } from '../ai/agents.js';
+import { getAgentMaxTokens, getAgentTemperature, type AgentType } from '../ai/agents.js';
 import { Logger } from '../utils/logger.js';
 import { getGlobalEventBus } from '../events/global-bus.js';
 import type { EventMetadata } from '../events/types.js';
@@ -95,6 +95,12 @@ export interface AgenticLoopConfig {
 
   /** Use native function calling (true, default) or text-based parsing (false) */
   useFunctionCalling?: boolean;
+
+  /** Override max tokens for AI responses (default: from agent config) */
+  maxTokens?: number;
+
+  /** Override temperature for AI responses (default: from agent config) */
+  temperature?: number;
 
   /** Progress callback */
   onProgress?: (message: string) => void;
@@ -348,7 +354,9 @@ ${blocked}${cognitiveSection}${subAgentInstr}
 ## Rules
 - MUST emit tool-call blocks — never fabricate results.
 - Use cognitive tools to record important findings and decisions.
-- Be thorough but efficient.`;
+- Be thorough but efficient.
+- NEVER write truncated content to files. If a file-read result was truncated, re-read the file with a smaller line range before writing.
+- When using file-write, ALWAYS write the COMPLETE file content. Never include "... (truncated" markers in file content.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -388,7 +396,9 @@ ${cognitiveSection}${subAgentInstr}
 ## Rules
 - ALWAYS call tools to gather information — never fabricate results.
 - Be thorough but efficient.
-- When done, respond with your final answer as plain text.`;
+- When done, respond with your final answer as plain text.
+- NEVER write truncated content to files. If a file-read result was truncated, re-read it with a smaller line range.
+- When using file-write, ALWAYS write the COMPLETE file content — never include "... (truncated" markers.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -425,6 +435,49 @@ function buildFunctionTools(
 // Execute a single tool call with safety checks
 // ---------------------------------------------------------------------------
 
+/**
+ * Tools that deal with file content need higher truncation limits
+ * so the agent can read full files and write them back without corruption.
+ */
+const FILE_CONTENT_TOOLS = new Set([
+  'file-read', 'file-write', 'file-search', 'file-diff', 'file-copy',
+  'code-review', 'explain-code', 'find-definition', 'find-references',
+  'find-symbols', 'code-outline',
+]);
+
+/** Truncation marker pattern — used to detect corrupted content */
+const TRUNCATION_MARKER_RE = /\.\.\. \(truncated, \d+ total chars\)/;
+
+/**
+ * Read an integer from environment variable with a fallback default.
+ */
+function envInt(key: string, fallback: number): number {
+  const val = process.env[key];
+  if (val !== undefined) {
+    const parsed = parseInt(val, 10);
+    if (!isNaN(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+/** Default truncation limit for most tools (env: MCP_TOOL_RESULT_LIMIT, default: 16000) */
+const DEFAULT_TRUNCATION_LIMIT = envInt('MCP_TOOL_RESULT_LIMIT', 16000);
+
+/** Higher limit for file-content tools (env: MCP_FILE_RESULT_LIMIT, default: 50000) */
+const FILE_CONTENT_TRUNCATION_LIMIT = envInt('MCP_FILE_RESULT_LIMIT', 50000);
+
+/** Max iterations for sub-agents (env: MCP_SUB_AGENT_MAX_ITER, default: 5) */
+const SUB_AGENT_MAX_ITERATIONS = envInt('MCP_SUB_AGENT_MAX_ITER', 5);
+
+/** Max chars of sub-agent answer injected back to parent (env: MCP_SUB_AGENT_ANSWER_LIMIT, default: 4000) */
+const SUB_AGENT_ANSWER_LIMIT = envInt('MCP_SUB_AGENT_ANSWER_LIMIT', 4000);
+
+function getTruncationLimit(toolName: string): number {
+  return FILE_CONTENT_TOOLS.has(toolName)
+    ? FILE_CONTENT_TRUNCATION_LIMIT
+    : DEFAULT_TRUNCATION_LIMIT;
+}
+
 async function executeSingleToolCall(
   call: { tool: string; args: Record<string, unknown>; id?: string },
   executor: ToolExecutor,
@@ -453,6 +506,19 @@ async function executeSingleToolCall(
     };
   }
 
+  // Guard: prevent writing truncated content to files
+  if (call.tool === 'file-write' && typeof call.args.content === 'string') {
+    if (TRUNCATION_MARKER_RE.test(call.args.content)) {
+      return {
+        tool: call.tool,
+        args: { ...call.args, content: '<content omitted from error>' },
+        result: 'ERROR: Refusing to write truncated content to file. The content contains a truncation marker ("... (truncated, N total chars)"). Re-read the full file first, then write the complete content.',
+        success: false,
+        duration: 0,
+      };
+    }
+  }
+
   const callStart = Date.now();
   try {
     progress(`Executing ${call.tool}`);
@@ -460,8 +526,10 @@ async function executeSingleToolCall(
     const duration = Date.now() - callStart;
 
     // Truncate large results to prevent context explosion
-    const truncated = result.length > 4000
-      ? result.slice(0, 4000) + `\n... (truncated, ${result.length} total chars)`
+    // File-content tools get a much higher limit to preserve full file content
+    const limit = getTruncationLimit(call.tool);
+    const truncated = result.length > limit
+      ? result.slice(0, limit) + `\n... (truncated, ${result.length} total chars — use line range or smaller scope)`
       : result;
 
     return { tool: call.tool, args: call.args, result: truncated, success: true, duration };
@@ -518,8 +586,8 @@ async function executeWithFunctionCalling(
         model: config.model,
         tools: functionTools.length > 0 ? functionTools : undefined,
         toolChoice: functionTools.length > 0 ? 'auto' : undefined,
-        temperature: 0.3,
-        maxTokens: 4096,
+        temperature: config.temperature ?? getAgentTemperature(config.agent),
+        maxTokens: config.maxTokens ?? getAgentMaxTokens(config.agent),
       });
     } catch (error) {
       progress(`AI error: ${error instanceof Error ? error.message : String(error)}`);
@@ -598,7 +666,7 @@ async function executeWithFunctionCalling(
               task: req.task,
               agent: req.agent || 'general',
               currentDepth: currentDepth + 1,
-              maxIterations: Math.min(maxIterations, 5),
+              maxIterations: Math.min(maxIterations, SUB_AGENT_MAX_ITERATIONS),
               sessionId: `${config.sessionId}:sub:${uuidv4().slice(0, 8)}`,
               onProgress: (msg) => progress(`  [sub-agent] ${msg}`),
             });
@@ -612,7 +680,7 @@ async function executeWithFunctionCalling(
             // Inject sub-agent result as user message
             messages.push({
               role: 'user',
-              content: `Sub-agent result for "${req.task.slice(0, 40)}":\n${subResult.answer.slice(0, 2000)}`,
+              content: `Sub-agent result for "${req.task.slice(0, 40)}":\n${subResult.answer.slice(0, SUB_AGENT_ANSWER_LIMIT)}`,
             });
           } catch (error) {
             const errMsg = error instanceof Error ? error.message : String(error);
@@ -681,7 +749,7 @@ async function executeWithFunctionCalling(
             task: req.task,
             agent: req.agent || 'general',
             currentDepth: currentDepth + 1,
-            maxIterations: Math.min(maxIterations, 5),
+            maxIterations: Math.min(maxIterations, SUB_AGENT_MAX_ITERATIONS),
             sessionId: `${config.sessionId}:sub:${uuidv4().slice(0, 8)}`,
             onProgress: (msg) => progress(`  [sub-agent] ${msg}`),
           });
@@ -694,7 +762,7 @@ async function executeWithFunctionCalling(
 
           messages.push({
             role: 'user',
-            content: `Sub-agent result for "${req.task.slice(0, 40)}":\n${subResult.answer.slice(0, 2000)}`,
+            content: `Sub-agent result for "${req.task.slice(0, 40)}":\n${subResult.answer.slice(0, SUB_AGENT_ANSWER_LIMIT)}`,
           });
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : String(error);
@@ -765,8 +833,8 @@ async function executeWithTextParsing(
         systemPrompt: orchestratorPrompt,
         sessionId: `${config.sessionId}:orchestrate:${currentDepth}`,
         continueSession: iteration > 1,
-        temperature: 0.3,
-        maxTokens: 4096,
+        temperature: config.temperature ?? getAgentTemperature(config.agent),
+        maxTokens: config.maxTokens ?? getAgentMaxTokens(config.agent),
       });
     } catch (error) {
       progress(`AI error: ${error instanceof Error ? error.message : String(error)}`);
@@ -840,7 +908,7 @@ async function executeWithTextParsing(
             task: req.task,
             agent: req.agent || 'general',
             currentDepth: currentDepth + 1,
-            maxIterations: Math.min(maxIterations, 5), // Sub-agents get fewer iterations
+            maxIterations: Math.min(maxIterations, SUB_AGENT_MAX_ITERATIONS), // Sub-agents get fewer iterations
             sessionId: `${config.sessionId}:sub:${uuidv4().slice(0, 8)}`,
             onProgress: (msg) => progress(`  [sub-agent] ${msg}`),
           });
@@ -851,7 +919,7 @@ async function executeWithTextParsing(
             iterations: subResult.iterations,
           });
 
-          conversationContext += `\n[sub-agent: ${req.task.slice(0, 40)}] Result:\n${subResult.answer.slice(0, 2000)}\n`;
+          conversationContext += `\n[sub-agent: ${req.task.slice(0, 40)}] Result:\n${subResult.answer.slice(0, SUB_AGENT_ANSWER_LIMIT)}\n`;
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : String(error);
           conversationContext += `\n[sub-agent ERROR]: ${errMsg}\n`;
