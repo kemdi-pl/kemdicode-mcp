@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -419,4 +419,36 @@ export async function getRepoSummary(cwd?: string): Promise<{
  */
 export function clearGitCache(): void {
   gitCache.clear();
+}
+
+/**
+ * Execute a git tool command with standard validation and error handling.
+ * Eliminates duplicated repo-validation + try/catch boilerplate across 8 git tools.
+ *
+ * @param toolName - Tool name for error messages
+ * @param cwd - Working directory (resolved by the tool)
+ * @param fn - Function that performs the git operation and returns the result
+ * @returns Tool result string
+ *
+ * @example
+ * ```typescript
+ * return executeGitTool('git-status', cwd, () => {
+ *   const output = execGit(['status', '--short'], { cwd });
+ *   return output || 'Working tree clean';
+ * });
+ * ```
+ */
+export function executeGitTool(
+  toolName: string,
+  cwd: string | undefined,
+  fn: () => string
+): string {
+  const repoError = validateGitRepo(cwd);
+  if (repoError) return repoError;
+
+  try {
+    return fn();
+  } catch (error) {
+    return formatGitError(error, toolName);
+  }
 }

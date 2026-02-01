@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,8 +31,8 @@ import { promises as fs } from 'fs';
 import { dirname, basename } from 'path';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
-import { fromNodeError, formatErrorResponse } from '../../utils/errors.js';
-import { validatePath, ValidationError, checkRateLimit } from '../../utils/validation.js';
+import { fromNodeError, formatErrorResponse, handleToolError } from '../../utils/errors.js';
+import { validatePathSafe, rateLimitGuard } from '../../utils/validation.js';
 import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
@@ -125,38 +125,21 @@ export const fileBackupRestoreTool: UnifiedTool = {
   execute: async (args): Promise<string> => {
     const { action, path: inputPath, backupPath } = args as unknown as FileBackupRestoreArgs;
 
-    if (!checkRateLimit('file-operations', { maxRequests: 50, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for file operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
+    const blocked = rateLimitGuard('file-operations', { maxRequests: 50, windowMs: 60000 });
+    if (blocked) return blocked;
 
     const sessionCwd = (args as Record<string, unknown>)._sessionCwd as string | undefined;
 
     // Validate the original file path
-    let validatedPath: string;
-    try {
-      validatedPath = await validatePath(inputPath, {
-        allowSymlinks: false,
+    const pathResult = await validatePathSafe(inputPath, {allowSymlinks: false,
         requireWithinProject: false,
         allowReadFromBlocked: true,
         operation: 'read',
-        projectRoot: sessionCwd,
-      });
-    } catch (validationError) {
-      if (validationError instanceof ValidationError) {
-        Logger.warn(`file-backup-restore validation failed: ${validationError.message}`);
-        return JSON.stringify({
-          success: false,
-          error: validationError.message,
-          code: (validationError as ValidationError).code,
-          path: inputPath,
-        });
-      }
-      throw validationError;
-    }
+        projectRoot: sessionCwd}, 'file-backup-restore');
+
+    if (!pathResult.ok) return JSON.stringify({ success: false, error: pathResult.error, code: pathResult.code, path: inputPath });
+
+    const validatedPath = pathResult.path;
 
     if (action === 'list') {
       try {
@@ -175,14 +158,8 @@ export const fileBackupRestoreTool: UnifiedTool = {
           backups,
         });
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        Logger.error(`file-backup-restore list error: ${errorMessage}`);
-        return JSON.stringify({
-          success: false,
-          error: errorMessage,
-          code: 'LIST_ERROR',
-          path: validatedPath,
-        });
+
+        return handleToolError('file-backup-restore', error);
       }
     }
 
@@ -193,25 +170,15 @@ export const fileBackupRestoreTool: UnifiedTool = {
 
       if (backupPath) {
         // Validate the specified backup path
-        try {
-          restoreFrom = await validatePath(backupPath, {
-            allowSymlinks: false,
-            requireWithinProject: false,
-            allowReadFromBlocked: true,
-            operation: 'read',
-            projectRoot: sessionCwd,
-          });
-        } catch (validationError) {
-          if (validationError instanceof ValidationError) {
-            return JSON.stringify({
-              success: false,
-              error: validationError.message,
-              code: (validationError as ValidationError).code,
-              backupPath,
-            });
-          }
-          throw validationError;
-        }
+        const bkResult = await validatePathSafe(backupPath, {
+          allowSymlinks: false,
+          requireWithinProject: false,
+          allowReadFromBlocked: true,
+          operation: 'read',
+          projectRoot: sessionCwd,
+        }, 'file-backup-restore');
+        if (!bkResult.ok) return JSON.stringify({ success: false, error: bkResult.error, code: bkResult.code, backupPath });
+        restoreFrom = bkResult.path;
       } else {
         // Find the most recent backup
         const backups = await findBackups(validatedPath);
@@ -253,26 +220,15 @@ export const fileBackupRestoreTool: UnifiedTool = {
       }
 
       // Validate destination for write
-      let writePath: string;
-      try {
-        writePath = await validatePath(inputPath, {
-          allowSymlinks: false,
-          requireWithinProject: false,
-          allowReadFromBlocked: false,
-          operation: 'write',
-          projectRoot: sessionCwd,
-        });
-      } catch (validationError) {
-        if (validationError instanceof ValidationError) {
-          return JSON.stringify({
-            success: false,
-            error: validationError.message,
-            code: (validationError as ValidationError).code,
-            path: inputPath,
-          });
-        }
-        throw validationError;
-      }
+      const wpResult = await validatePathSafe(inputPath, {
+        allowSymlinks: false,
+        requireWithinProject: false,
+        allowReadFromBlocked: false,
+        operation: 'write',
+        projectRoot: sessionCwd,
+      }, 'file-backup-restore');
+      if (!wpResult.ok) return JSON.stringify({ success: false, error: wpResult.error, code: wpResult.code, path: inputPath });
+      const writePath = wpResult.path;
 
       // Create a safety backup of the current file before restoring
       let safetyBackupPath: string | null = null;

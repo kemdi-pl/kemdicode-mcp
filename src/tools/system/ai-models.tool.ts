@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,10 +38,10 @@ interface ModelInfo {
  */
 const schema = z.object({
   action: z
-    .enum(['list', 'select', 'search'])
+    .enum(['list', 'select', 'search', 'force-reload', 'auto-select'])
     .default('list')
     .describe(
-      'Action: list (show all models), select (choose model for session), search (filter models)'
+      'Action: list, select, search, force-reload (refresh model list), auto-select (cost-optimized)'
     ),
   filter: z
     .string()
@@ -59,6 +59,14 @@ const schema = z.object({
     .enum(['all', 'chat', 'code', 'vision', 'embedding'])
     .default('all')
     .describe('Filter by model category (based on common naming patterns)'),
+  requiredCapabilities: z
+    .array(z.enum(['chat', 'code', 'vision', 'function-calling', 'json-mode', 'thinking', 'long-context']))
+    .optional()
+    .describe('Required model capabilities (for auto-select)'),
+  maxCostPerMToken: z
+    .number()
+    .optional()
+    .describe('Maximum acceptable cost per million tokens (for auto-select)'),
 });
 
 /**
@@ -196,16 +204,19 @@ export const aiModelsTool: UnifiedTool<typeof schema> = {
   metadata: {
     category: 'system',
     tags: ['models', 'ai', 'discovery'],
+    aiRequired: true,
+    aiRouting: 'external',
     examples: [
       { args: { action: 'list' }, description: 'List all available models from the provider' },
       { args: { action: 'search', filter: 'llama', category: 'chat' }, description: 'Search for llama chat models' },
       { args: { action: 'select', model: 'gpt-4o' }, description: 'Select a model for the current session' },
+      { args: { action: 'auto-select', requiredCapabilities: ['chat', 'code'] }, description: 'Find cheapest model with chat+code' },
     ],
     relatedTools: ['ai-config', 'ask-ai'],
   },
 
   execute: async (args) => {
-    const { action, filter, model, limit, category } = args;
+    const { action, filter, model, limit, category, requiredCapabilities, maxCostPerMToken } = args;
     const serverConfig = config.get('server');
 
     switch (action) {
@@ -264,6 +275,51 @@ export const aiModelsTool: UnifiedTool<typeof schema> = {
         }
 
         return `Model selected: ${model}\n\nThis model will be used for all AI operations in this session.`;
+      }
+
+      case 'force-reload': {
+        try {
+          const models = await fetchModels();
+          return `Force-reloaded ${models.length} models from provider.\n\n${formatModelList(models, filter, category)}`;
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
+          return `Failed to reload models: ${msg}`;
+        }
+      }
+
+      case 'auto-select': {
+        try {
+          const { loadPricingDatabase, rankModelsByCost, calculateCostScore, formatPricingEntry } =
+            await import('../../ai/pricing.js');
+
+          const pricingDb = loadPricingDatabase();
+
+          // Filter by capabilities and cost
+          const ranked = rankModelsByCost(
+            pricingDb,
+            requiredCapabilities || [],
+            maxCostPerMToken
+          );
+
+          if (ranked.length === 0) {
+            return 'No models found matching criteria. Try relaxing requirements.';
+          }
+
+          const top3 = ranked.slice(0, 3);
+
+          let output = `# Cost-Optimized Model Recommendations\n\n`;
+          for (let i = 0; i < top3.length; i++) {
+            output += formatPricingEntry(top3[i], i + 1) + '\n\n';
+          }
+
+          output += `To switch to the recommended model, run:\n`;
+          output += `  ai-models --action select --model "${top3[0].modelId}"\n`;
+
+          return output;
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
+          return `Auto-select failed: ${msg}`;
+        }
       }
 
       default:

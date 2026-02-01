@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
-import { execGit, validateGitRepo, parseFileList, formatGitError } from '../../utils/git-utils.js';
+import { execGit, executeGitTool, parseFileList } from '../../utils/git-utils.js';
 import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
@@ -63,90 +63,29 @@ export const gitDiffTool: UnifiedTool = {
     relatedTools: ['git-status', 'git-log', 'file-diff'],
   },
   execute: async (args) => {
-    const {
-      cwd,
-      staged,
-      files,
-      commit,
-      commitRange,
-      stat,
-      nameOnly,
-      nameStatus,
-      context,
-      ignoreWhitespace,
-      colorWords,
-      format,
-    } = args as z.infer<typeof schema>;
+    const { cwd, staged, files, commit, commitRange, stat, nameOnly, nameStatus, context, ignoreWhitespace, colorWords, format } = args as z.infer<typeof schema>;
 
-    // Check if directory is a git repo
-    const repoError = validateGitRepo(cwd);
-    if (repoError) {
-      return repoError;
-    }
+    return executeGitTool('git-diff', cwd, () => {
+      const diffArgs: string[] = ['diff', '--no-color'];
+      if (staged) diffArgs.push('--staged');
+      if (nameOnly) diffArgs.push('--name-only');
+      else if (nameStatus) diffArgs.push('--name-status');
+      else if (stat) diffArgs.push('--stat');
+      if (context !== 3) diffArgs.push(`-U${context}`);
+      if (ignoreWhitespace) diffArgs.push('-w');
+      if (colorWords) diffArgs.push('--color-words');
+      if (commitRange) diffArgs.push(commitRange);
+      else if (commit) diffArgs.push(commit);
+      if (files) { diffArgs.push('--'); diffArgs.push(...parseFileList(files)); }
 
-    const diffArgs: string[] = ['diff', '--no-color'];
-
-    // Add staged/cached flag
-    if (staged) {
-      diffArgs.push('--staged');
-    }
-
-    // Output format flags (mutually exclusive priority)
-    if (nameOnly) {
-      diffArgs.push('--name-only');
-    } else if (nameStatus) {
-      diffArgs.push('--name-status');
-    } else if (stat) {
-      diffArgs.push('--stat');
-    }
-
-    // Context lines
-    if (context !== 3) {
-      diffArgs.push(`-U${context}`);
-    }
-
-    // Whitespace handling
-    if (ignoreWhitespace) {
-      diffArgs.push('-w');
-    }
-
-    // Color words
-    if (colorWords) {
-      diffArgs.push('--color-words');
-    }
-
-    // Commit or commit range
-    if (commitRange) {
-      diffArgs.push(commitRange);
-    } else if (commit) {
-      diffArgs.push(commit);
-    }
-
-    // Add specific files if provided
-    if (files) {
-      diffArgs.push('--');
-      diffArgs.push(...parseFileList(files));
-    }
-
-    try {
       const output = execGit(diffArgs, { cwd });
 
-      // If output is empty, provide a helpful message
       if (!output.trim()) {
-        let message: string;
-        if (staged) {
-          message = 'No staged changes.';
-        } else if (commitRange) {
-          message = `No differences between ${commitRange}.`;
-        } else if (commit) {
-          message = `No differences from ${commit}.`;
-        } else {
-          message = 'No changes detected.';
-        }
-        if (format === 'json') {
-          return JSON.stringify({ success: true, output: message, tool: 'git-diff' });
-        }
-        return message;
+        const message = staged ? 'No staged changes.'
+          : commitRange ? `No differences between ${commitRange}.`
+          : commit ? `No differences from ${commit}.`
+          : 'No changes detected.';
+        return format === 'json' ? JSON.stringify({ success: true, output: message, tool: 'git-diff' }) : message;
       }
 
       const result = output.trim();
@@ -154,8 +93,6 @@ export const gitDiffTool: UnifiedTool = {
         return JSON.stringify({ success: true, output: result, tool: 'git-diff' });
       }
       return result;
-    } catch (error) {
-      return formatGitError(error, 'Git diff');
-    }
+    });
   },
 };

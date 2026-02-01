@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -57,6 +57,8 @@ export const autoFixAgentTool: UnifiedTool = {
     category: 'specialized',
     tags: ['fix', 'agent', 'diff'],
     longRunning: true,
+    aiRequired: { fallbackTools: ['auto-fix', 'replace-content'] },
+    aiRouting: 'external',
     examples: [
       { args: { files: '@src/auth.ts', focus: 'security' }, description: 'Fix security issues using AI agent' },
       { args: { files: '@src/api.ts', focus: 'all', dryRun: true }, description: 'Preview all fixes without applying' },

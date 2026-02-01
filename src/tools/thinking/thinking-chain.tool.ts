@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
-import { checkRateLimit } from '../../utils/validation.js';
+import { executeWithGuard } from '../tool-shared.js';
 import { resolveSessionId } from '../../kanban/resolvers.js';
 import {
   createChain,
@@ -272,15 +272,7 @@ export const thinkingChainTool: UnifiedTool = {
   execute: async (args): Promise<string> => {
     const input = args as unknown as ThinkingChainArgs;
 
-    if (!checkRateLimit('thinking-chain', { maxRequests: 60, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for thinking-chain operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
-
-    try {
+    return executeWithGuard('thinking-chain', 'thinking-chain', async () => {
       switch (input.action) {
         case 'start': {
           const sessionId = input.sessionId || resolveSessionId();
@@ -431,12 +423,6 @@ export const thinkingChainTool: UnifiedTool = {
             code: 'INVALID_ACTION',
           });
       }
-    } catch (error) {
-      return JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        code: 'EXECUTION_ERROR',
-      });
-    }
+    });
   },
 };

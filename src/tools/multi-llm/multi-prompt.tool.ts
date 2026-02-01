@@ -117,6 +117,8 @@ export const multiPromptTool: UnifiedTool = {
     category: 'multi-llm',
     tags: ['multi-model', 'parallel', 'compare'],
     longRunning: true,
+    aiRequired: true,
+    aiRouting: 'external',
     examples: [
       { args: { prompt: 'Explain the benefits of microservices vs monolith', models: ['o:gpt-4o', 'a:claude-sonnet-4-20250514', 'g:gemini-2.0-flash'] }, description: 'Compare responses from three different providers' },
     ],

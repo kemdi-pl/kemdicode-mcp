@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getMentalModelStore } from '../../cognition/mental-model-store.js';
 import { Logger } from '../../utils/logger.js';
-import { checkRateLimit } from '../../utils/validation.js';
+import { executeCognitionTool } from './cognition-shared.js';
 import { resolveSessionId } from '../../kanban/resolvers.js';
 import type { MentalModel } from '../../cognition/types.js';
 
@@ -300,17 +300,7 @@ export const mentalModelTool: UnifiedTool<typeof schema> = {
   execute: async (args): Promise<string> => {
     const input = args as unknown as MentalModelArgs;
 
-    if (!checkRateLimit('mental-model', { maxRequests: 60, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for mental-model operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
-
-    const store = getMentalModelStore();
-
-    try {
+    return executeCognitionTool('mental-model', getMentalModelStore, async (store) => {
       switch (input.action) {
         // ─────────────────────────────────────────────────────────────────────
         // CREATE
@@ -797,13 +787,6 @@ export const mentalModelTool: UnifiedTool<typeof schema> = {
             code: 'INVALID_ACTION',
           });
       }
-    } catch (error) {
-      Logger.error('mental-model: execution error', error);
-      return JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        code: 'EXECUTION_ERROR',
-      });
-    }
+    });
   },
 };

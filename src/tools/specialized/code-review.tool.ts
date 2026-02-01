@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -97,6 +97,8 @@ export const codeReviewTool: UnifiedTool = {
     category: 'specialized',
     tags: ['review', 'security', 'quality'],
     longRunning: true,
+    aiRequired: { fallbackTools: ['run-lint', 'check-types'] },
+    aiRouting: 'hybrid',
     examples: [
       { args: { files: '@src/index.ts', focus: 'security' }, description: 'Security-focused review of a single file' },
       { args: { files: '@src/auth.ts @src/middleware.ts', focus: 'all', severity: 'critical' }, description: 'Critical issues review across multiple files' },

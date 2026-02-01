@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
-import { execGit, validateGitRepo, formatGitError } from '../../utils/git-utils.js';
+import { execGit, executeGitTool } from '../../utils/git-utils.js';
 import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
@@ -55,37 +55,18 @@ export const gitCommitTool: UnifiedTool = {
   execute: async (args) => {
     const { message, all, amend, allowEmpty, cwd } = args as unknown as z.infer<typeof schema>;
 
-    const repoError = validateGitRepo(cwd);
-    if (repoError) {
-      return repoError;
-    }
-
-    try {
+    return executeGitTool('git-commit', cwd, () => {
       const commitArgs: string[] = ['commit'];
-
-      if (all) {
-        commitArgs.push('-a');
-      }
-      if (amend) {
-        commitArgs.push('--amend');
-      }
-      if (allowEmpty) {
-        commitArgs.push('--allow-empty');
-      }
-
+      if (all) commitArgs.push('-a');
+      if (amend) commitArgs.push('--amend');
+      if (allowEmpty) commitArgs.push('--allow-empty');
       commitArgs.push('-m', message);
 
       const output = execGit(commitArgs, { cwd });
-
-      // Get the commit hash for the summary
       const hash = execGit(['rev-parse', '--short', 'HEAD'], { cwd }).trim();
 
-      if (isSilent()) {
-        return hash;
-      }
+      if (isSilent()) return hash;
       return `Commit ${hash} created successfully.\n\n${output.trim()}`;
-    } catch (error) {
-      return formatGitError(error, 'Git commit');
-    }
+    });
   },
 };

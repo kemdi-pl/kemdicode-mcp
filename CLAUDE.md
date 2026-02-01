@@ -2,13 +2,15 @@
 
 ## Session Recovery
 
-After compaction or session start, always run `read-memory --names ["active-session"]` to restore current working context (session ID, workspace, boards, current phase, pending tasks). Update it with `write-memory` whenever the active session changes.
+After compaction or session start, run `session-recover` to restore full context in one call. This orchestrates: active-session memory, latest handoff, loci resurrection, tool availability, agent rankings, and ambient learning insights.
+
+Alternatively, manually: `read-memory --names ["active-session"]` and update with `write-memory` when the active session changes.
 
 ## Overview
 
-Model Context Protocol (MCP) server providing **124 specialized tools** for code analysis, generation, git operations, file management, line/symbol editing, project memory, cognition & self-improvement, multi-board kanban with workspaces, task comments, thinking chains, recursive tool invocation, pipelines, session monitoring, and multi-agent coordination.
+Model Context Protocol (MCP) server providing **127 specialized tools** for code analysis, generation, git operations, file management, line/symbol editing, project memory, cognition & self-improvement, multi-board kanban with workspaces, task comments, thinking chains, recursive tool invocation, pipelines, session monitoring, multi-agent coordination, tool availability checking, AI model cost optimization, ambient learning, and agent ranking.
 
-**Version:** 1.23.1
+**Version:** 1.24.0
 
 ## Architecture
 

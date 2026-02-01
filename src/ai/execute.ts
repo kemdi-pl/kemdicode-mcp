@@ -7,6 +7,7 @@
 
 import { complete, getClientConfig } from './client.js';
 import { hasProviderPrefix } from './model-spec.js';
+import { routeToolExecution } from './routing.js';
 import {
   buildAgentMessages,
   getAgentTemperature,
@@ -98,8 +99,29 @@ async function prepareAndExecute(options: ExecuteAIOptions) {
 
   // Build messages and execute
   const messages = buildAgentMessages(agent, prompt, fileContext, history);
+
+  // AI routing: determine optimal provider/model if no explicit model override
+  let resolvedModel = model;
+  if (!resolvedModel) {
+    try {
+      const toolName = agent === 'plan' ? 'plan' : agent === 'build' ? 'build' : undefined;
+      if (toolName) {
+        const decision = routeToolExecution(toolName, {
+          fileSize: fileContext.length,
+          complexity: agent === 'plan' ? 'high' : 'medium',
+        });
+        if (decision.model) {
+          resolvedModel = decision.provider ? `${decision.provider}:${decision.model}` : decision.model;
+          Logger.debug(`[AI Router] ${toolName} → ${resolvedModel} (${decision.rationale})`);
+        }
+      }
+    } catch {
+      // Routing is best-effort, fall through to default model
+    }
+  }
+
   const response = await complete({
-    model,
+    model: resolvedModel,
     messages,
     stream: !!onProgress,
     temperature: temperature ?? getAgentTemperature(agent),

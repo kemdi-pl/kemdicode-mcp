@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,6 +34,8 @@ import { isSilent } from '../config/silent.js';
 import { McpError, InputValidationError, ToolExecutionError } from '../utils/errors.js';
 import { recordToolExecution } from '../rl/middleware.js';
 import type { BaseToolArguments } from '../types/tool-types.js';
+import type { ProviderId } from '../ai/providers/types.js';
+import { getAvailabilityChecker, type AIRequirementConfig } from './availability-checker.js';
 
 /**
  * Type alias for tool arguments
@@ -178,6 +180,12 @@ export interface ToolMetadata {
   examples?: Array<{ args: Record<string, unknown>; description: string }>;
   /** Related tools that are commonly used together */
   relatedTools?: string[];
+  /** AI requirement: true = any provider, object = specific requirements */
+  aiRequired?: AIRequirementConfig;
+  /** Availability check mode override for this tool (soft=guidance, force=block) */
+  availabilityMode?: 'soft' | 'force';
+  /** AI routing strategy: local, external, or hybrid */
+  aiRouting?: 'local' | 'external' | 'hybrid';
 }
 
 export interface UnifiedTool<TSchema extends ZodSchema = ZodSchema> {
@@ -860,6 +868,23 @@ export async function executeTool(
     throw new ToolExecutionError(name, `Unknown tool: ${name}`, {
       availableTools: allTools.slice(0, 10),
     });
+  }
+
+  // Pre-execution AI availability check
+  if (tool.metadata?.aiRequired) {
+    const checker = getAvailabilityChecker();
+    if (!checker.isConnected()) {
+      await checker.connect().catch(() => {});
+    }
+    const mode = tool.metadata.availabilityMode || 'soft';
+    const result = await checker.check(name, tool.metadata.aiRequired, mode);
+    if (!result.available) {
+      if (mode === 'force') {
+        throw new ToolExecutionError(name, result.message || 'AI provider unavailable');
+      }
+      // Soft mode: return guidance message
+      return result.message || 'AI provider unavailable. Configure a provider via ai-config.';
+    }
   }
 
   const silent = isSilent();

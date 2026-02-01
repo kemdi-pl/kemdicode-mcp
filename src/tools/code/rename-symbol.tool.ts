@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,8 +30,9 @@ import { promises as fs } from 'fs';
 import { UnifiedTool } from '../registry.js';
 import { executeCommand } from '../../utils/commandExecutor.js';
 import { Logger } from '../../utils/logger.js';
-import { validatePath, ValidationError, checkRateLimit } from '../../utils/validation.js';
+import { validatePathSafe, rateLimitGuard } from '../../utils/validation.js';
 import { isSilent } from '../../config/silent.js';
+import { handleToolError } from '../../utils/errors.js';
 
 /**
  * Get file type filters for ripgrep
@@ -197,14 +198,8 @@ export const renameSymbolTool: UnifiedTool = {
       createBackups,
     } = args as RenameSymbolArgs;
 
-    // Rate limit check
-    if (!checkRateLimit('edit-operations', { maxRequests: 20, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for rename operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
+    const blocked = rateLimitGuard('edit-operations', { maxRequests: 20, windowMs: 60000 });
+    if (blocked) return blocked;
 
     // Validate names
     if (oldName === newName) {
@@ -279,26 +274,26 @@ export const renameSymbolTool: UnifiedTool = {
       for (const change of changes) {
         try {
           // Validate path
-          const validatedPath = await validatePath(change.file, {
+          const vpResult = await validatePathSafe(change.file, {
             allowSymlinks: false,
             requireWithinProject: false,
             operation: 'write',
             projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
-          });
+          }, 'rename-symbol');
+          if (!vpResult.ok) {
+            errors.push(`${change.file}: ${vpResult.error}`);
+            continue;
+          }
 
-          const replaced = await replaceInFile(validatedPath, oldName, newName, createBackups);
+          const replaced = await replaceInFile(vpResult.path, oldName, newName, createBackups);
           if (replaced > 0) {
             filesModified++;
             totalReplaced += replaced;
           }
         } catch (error) {
-          if (error instanceof ValidationError) {
-            errors.push(`${change.file}: ${error.message}`);
-          } else {
-            errors.push(
-              `${change.file}: ${error instanceof Error ? error.message : String(error)}`
-            );
-          }
+          errors.push(
+            `${change.file}: ${error instanceof Error ? error.message : String(error)}`
+          );
         }
       }
 
@@ -323,13 +318,8 @@ export const renameSymbolTool: UnifiedTool = {
         language,
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`rename-symbol error: ${errorMessage}`);
 
-      return JSON.stringify({
-        success: false,
-        error: errorMessage,
-      });
+      return handleToolError('rename-symbol', error);
     }
   },
 };

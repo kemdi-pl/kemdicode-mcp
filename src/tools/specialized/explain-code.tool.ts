@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -49,6 +49,8 @@ export const explainCodeTool: UnifiedTool = {
     category: 'specialized',
     tags: ['explain', 'documentation'],
     longRunning: true,
+    aiRequired: { fallbackTools: ['code-outline', 'find-symbols'] },
+    aiRouting: 'local',
     examples: [
       { args: { files: '@src/services/PaymentService.ts' }, description: 'Explain a service file at detailed level' },
       { args: { files: '@app/Http/Controllers/OrderController.php', depth: 'deep', audience: 'junior' }, description: 'Deep explanation for junior developer' },

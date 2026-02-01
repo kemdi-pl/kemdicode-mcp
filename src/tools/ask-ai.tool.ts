@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,6 +41,8 @@ export const askAITool: UnifiedTool = {
     category: 'specialized',
     tags: ['ai', 'query', 'direct'],
     longRunning: true,
+    aiRequired: true,
+    aiRouting: 'hybrid',
     examples: [
       { args: { prompt: 'Explain the SOLID principles with TypeScript examples' }, description: 'Ask AI a question using default agent' },
       { args: { prompt: 'Refactor this code for readability', agent: 'build', files: '@src/index.ts' }, description: 'Execute AI with file context and build agent' },

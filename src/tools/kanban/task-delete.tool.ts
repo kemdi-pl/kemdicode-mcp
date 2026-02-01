@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
-import { checkRateLimit } from '../../utils/validation.js';
+import { executeWithGuard } from '../tool-shared.js';
 import { deleteTask, resolveSessionId } from '../../kanban/index.js';
 import { isSilent } from '../../config/silent.js';
 
@@ -62,14 +62,7 @@ export const taskDeleteTool: UnifiedTool = {
   execute: async (args): Promise<string> => {
     const input = args as unknown as TaskDeleteArgs;
 
-    if (!checkRateLimit('kanban-operations', { maxRequests: 100, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for kanban operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
-
+    return executeWithGuard('task-delete', 'kanban-operations', async () => {
     // Resolve sessionId from args or active connection context
     const sessionId = resolveSessionId(input.sessionId);
 
@@ -128,6 +121,7 @@ export const taskDeleteTool: UnifiedTool = {
         success: r.success,
         error: r.error,
       })),
+    });
     });
   },
 };

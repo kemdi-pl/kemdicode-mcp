@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,6 +31,8 @@ import { getDopamineEmitter } from './dopamine.js';
 import { getSequenceTracker } from '../loci/sequence-tracker.js';
 import { getTimelineRecorder } from '../loci/timeline-recorder.js';
 import { getCompactionEngine } from '../loci/compaction-engine.js';
+import { getAmbientLearner } from '../cognition/ambient-learner.js';
+import { getAgentRankStore } from '../cognition/agent-rank-store.js';
 import type { IntrinsicRewards } from './types.js';
 import { Logger } from '../utils/logger.js';
 
@@ -47,6 +49,9 @@ const RL_SKIP_TOOLS = new Set([
   'ping',
   'Help',
   'timeout-test',
+  'tool-health',
+  'agent-rank',
+  'session-recover',
 ]);
 
 /**
@@ -219,6 +224,25 @@ export async function recordToolExecution(
         }
       }
       await timelineRecorder.recordToolExecution(toolName, args, success, durationMs, sessionId, agentId);
+    }
+
+    // 8. Ambient learning (fire-and-forget — never blocks response)
+    const ambientLearner = getAmbientLearner();
+    if (!ambientLearner.isConnected()) {
+      await ambientLearner.connect().catch(() => {});
+    }
+    if (ambientLearner.isConnected()) {
+      await ambientLearner.processToolExecution(toolName, args, success, durationMs, sessionId, agentId);
+    }
+
+    // 9. Agent ranking update (fire-and-forget)
+    const rankStore = getAgentRankStore();
+    if (!rankStore.isConnected()) {
+      await rankStore.connect().catch(() => {});
+    }
+    if (rankStore.isConnected()) {
+      const complexity = durationMs > 10000 ? 0.8 : durationMs > 5000 ? 0.6 : 0.4;
+      await rankStore.updateScore(agentId, success, durationMs, complexity);
     }
   } catch (error) {
     // Never let RL errors propagate — log and swallow

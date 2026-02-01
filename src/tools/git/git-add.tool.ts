@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@
 
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
-import { execGit, validateGitRepo, formatGitError } from '../../utils/git-utils.js';
+import { execGit, executeGitTool } from '../../utils/git-utils.js';
 import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
@@ -57,42 +57,24 @@ export const gitAddTool: UnifiedTool = {
   execute: async (args) => {
     const { files, all, cwd } = args as unknown as z.infer<typeof schema>;
 
-    const repoError = validateGitRepo(cwd);
-    if (repoError) {
-      return repoError;
-    }
-
-    // Require either files or --all
     if (!all && (!files || files.length === 0)) {
       return 'Error: Provide files to stage or set all=true to stage all changes.';
     }
 
-    try {
+    return executeGitTool('git-add', cwd, () => {
       if (all) {
         execGit(['add', '-A'], { cwd });
         return 'Staged all changes (git add -A).';
       }
 
-      // Stage specific files
       execGit(['add', '--', ...files], { cwd });
-
-      // Get status of staged files for summary
       const status = execGit(['status', '--short'], { cwd }).trim();
-      const stagedLines = status
-        .split('\n')
-        .filter((line) => line.length > 0 && line[0] !== ' ' && line[0] !== '?');
+      const stagedLines = status.split('\n').filter((line) => line.length > 0 && line[0] !== ' ' && line[0] !== '?');
 
-      if (isSilent()) {
-        return `Staged ${files.length} file(s).`;
-      }
-
-      const summary = stagedLines.length > 0
+      if (isSilent()) return `Staged ${files.length} file(s).`;
+      return stagedLines.length > 0
         ? `Staged ${files.length} file(s):\n${stagedLines.join('\n')}`
         : `Staged ${files.length} file(s).`;
-
-      return summary;
-    } catch (error) {
-      return formatGitError(error, 'Git add');
-    }
+    });
   },
 };

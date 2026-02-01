@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -45,7 +45,7 @@ import { getErrorPatternStore } from '../../cognition/error-pattern-store.js';
 import { getSelfCritiqueStore } from '../../cognition/self-critique-store.js';
 import { getMentalModelStore } from '../../cognition/mental-model-store.js';
 import { Logger } from '../../utils/logger.js';
-import { checkRateLimit } from '../../utils/validation.js';
+import { executeCognitionTool } from './cognition-shared.js';
 
 const schema = z.object({
   action: z
@@ -273,19 +273,7 @@ export const smartHandoffTool: UnifiedTool<typeof schema> = {
   execute: async (args): Promise<string> => {
     const input = args as unknown as SmartHandoffArgs;
 
-    if (
-      !checkRateLimit('smart-handoff', { maxRequests: 60, windowMs: 60000 })
-    ) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for smart-handoff operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
-
-    const store = getHandoffStore();
-
-    try {
+    return executeCognitionTool('smart-handoff', getHandoffStore, async (store) => {
       switch (input.action) {
         // ─────────────────────────── CREATE ──────────────────────────────
         case 'create': {
@@ -530,13 +518,6 @@ export const smartHandoffTool: UnifiedTool<typeof schema> = {
             code: 'INVALID_ACTION',
           });
       }
-    } catch (error) {
-      Logger.error('[smart-handoff] Execution error:', error);
-      return JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        code: 'EXECUTION_ERROR',
-      });
-    }
+    });
   },
 };

@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,6 +32,7 @@ import {
   validateGitRepo,
   formatGitError,
   enhanceGitErrorMessage,
+  executeGitTool,
 } from '../../utils/git-utils.js';
 
 const schema = z.object({
@@ -88,96 +89,30 @@ export const gitBlameTool: UnifiedTool = {
       porcelain,
     } = args as z.infer<typeof schema>;
 
-    // Validate file parameter
     if (!file || !file.trim()) {
       return 'Error: File path is required for git blame.';
     }
-
-    // Check if directory is a git repo
-    const repoError = validateGitRepo(cwd);
-    if (repoError) {
-      return repoError;
+    if (lineStart !== undefined && lineEnd !== undefined && lineEnd < lineStart) {
+      return `Error: lineEnd (${lineEnd}) must be >= lineStart (${lineStart})`;
     }
 
-    // Note: git blame doesn't support --color=never or --no-color
-    // It only has --color-lines and --color-by-age for enabling color
-    // Default output is already uncolored
-    const blameArgs: string[] = ['blame'];
+    return executeGitTool('git-blame', cwd, () => {
+      const blameArgs: string[] = ['blame'];
+      if (porcelain) blameArgs.push('--porcelain');
+      if (showEmail) blameArgs.push('-e');
+      if (showDate && !porcelain) blameArgs.push(`--date=${dateFormat}`);
+      if (lineStart !== undefined && lineEnd !== undefined) blameArgs.push(`-L${lineStart},${lineEnd}`);
+      else if (lineStart !== undefined) blameArgs.push(`-L${lineStart},`);
+      else if (lineEnd !== undefined) blameArgs.push(`-L1,${lineEnd}`);
+      if (ignoreWhitespace) blameArgs.push('-w');
+      if (ignoreRevs) blameArgs.push(`--ignore-revs-file=${ignoreRevs}`);
+      if (showMovement) blameArgs.push('-C', '-C', '-C');
+      if (rev) blameArgs.push(rev);
+      blameArgs.push('--', file);
 
-    // Porcelain output (machine-readable)
-    if (porcelain) {
-      blameArgs.push('--porcelain');
-    }
-
-    // Email or name
-    if (showEmail) {
-      blameArgs.push('-e');
-    }
-
-    // Date format
-    if (showDate && !porcelain) {
-      blameArgs.push(`--date=${dateFormat}`);
-    }
-
-    // Line range
-    if (lineStart !== undefined && lineEnd !== undefined) {
-      if (lineEnd < lineStart) {
-        return `Error: lineEnd (${lineEnd}) must be >= lineStart (${lineStart})`;
-      }
-      blameArgs.push(`-L${lineStart},${lineEnd}`);
-    } else if (lineStart !== undefined) {
-      // Just start line - blame from that line to end
-      blameArgs.push(`-L${lineStart},`);
-    } else if (lineEnd !== undefined) {
-      // Just end line - blame from start to that line
-      blameArgs.push(`-L1,${lineEnd}`);
-    }
-
-    // Ignore whitespace
-    if (ignoreWhitespace) {
-      blameArgs.push('-w');
-    }
-
-    // Ignore revs file
-    if (ignoreRevs) {
-      blameArgs.push(`--ignore-revs-file=${ignoreRevs}`);
-    }
-
-    // Show line movement
-    if (showMovement) {
-      blameArgs.push('-C', '-C', '-C');
-    }
-
-    // Specific revision
-    if (rev) {
-      blameArgs.push(rev);
-    }
-
-    // Add the file
-    blameArgs.push('--', file);
-
-    try {
       const output = execGit(blameArgs, { cwd });
-
-      // If output is empty, provide a helpful message
-      if (!output.trim()) {
-        return `No blame information available for '${file}'.`;
-      }
-
+      if (!output.trim()) return `No blame information available for '${file}'.`;
       return output.trim();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const enhanced = enhanceGitErrorMessage(message);
-
-      // Add context for specific errors
-      if (message.includes('no such path')) {
-        return `Error: File '${file}' not found in repository.`;
-      }
-      if (message.includes('bad revision')) {
-        return `Error: Invalid revision '${rev}'.`;
-      }
-
-      return formatGitError(new Error(enhanced), 'Git blame');
-    }
+    });
   },
 };

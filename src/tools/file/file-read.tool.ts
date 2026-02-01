@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,10 +31,10 @@ import { UnifiedTool, errorToJsonString } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { fromNodeError } from '../../utils/errors.js';
 import {
-  validatePath,
+  validatePathSafe,
   validateFileSize,
   ValidationError,
-  checkRateLimit,
+  rateLimitGuard,
 } from '../../utils/validation.js';
 import { isSilent } from '../../config/silent.js';
 
@@ -184,22 +184,15 @@ async function readSingleFile(
 ): Promise<Record<string, unknown>> {
   const inputPath = item.path;
   try {
-    let validatedPath: string;
-    try {
-      validatedPath = await validatePath(inputPath, {
-        allowSymlinks: false,
+    const pathResult = await validatePathSafe(inputPath, {allowSymlinks: false,
         requireWithinProject: false,
         allowReadFromBlocked: true,
         operation: 'read',
-        projectRoot: sessionCwd,
-      });
-    } catch (validationError) {
-      if (validationError instanceof ValidationError) {
-        Logger.warn(`file-read security validation failed: ${validationError.message}`);
-        return { success: false, error: validationError.message, code: (validationError as ValidationError).code, path: inputPath };
-      }
-      throw validationError;
-    }
+        projectRoot: sessionCwd}, 'file-read');
+
+    if (!pathResult.ok) return { success: false, error: pathResult.error, code: pathResult.code, path: inputPath };
+
+    const validatedPath = pathResult.path;
 
     let fileStats: { size: number; isFile: boolean };
     try {
@@ -292,13 +285,8 @@ export const fileReadTool: UnifiedTool = {
     const { files, encoding, maxSize } = args as unknown as FileReadArgs;
     const maxBytes = maxSize ?? MAX_FILE_SIZE;
 
-    if (!checkRateLimit('file-read', { maxRequests: 200, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for file-read operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
+    const blocked = rateLimitGuard('file-read', { maxRequests: 200, windowMs: 60000 });
+    if (blocked) return blocked;
 
     const sessionCwd = (args as Record<string, unknown>)._sessionCwd as string | undefined;
 

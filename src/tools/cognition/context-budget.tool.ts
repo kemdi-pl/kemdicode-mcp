@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getContextBudgetManager } from '../../cognition/context-budget-manager.js';
 import { Logger } from '../../utils/logger.js';
-import { checkRateLimit } from '../../utils/validation.js';
+import { executeCognitionTool } from './cognition-shared.js';
 import type { ContextBudgetItem, ContextBudgetEstimate } from '../../cognition/types.js';
 
 const schema = z.object({
@@ -296,19 +296,7 @@ export const contextBudgetTool: UnifiedTool<typeof schema> = {
   execute: async (args): Promise<string> => {
     const input = args as unknown as ContextBudgetArgs;
 
-    if (
-      !checkRateLimit('context-budget', { maxRequests: 30, windowMs: 60000 })
-    ) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for context-budget operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
-
-    const manager = getContextBudgetManager();
-
-    try {
+    return executeCognitionTool('context-budget', getContextBudgetManager, async (manager) => {
       switch (input.action) {
         // ────────────────────────── ESTIMATE ──────────────────────────
         case 'estimate': {
@@ -399,13 +387,6 @@ export const contextBudgetTool: UnifiedTool<typeof schema> = {
             code: 'INVALID_ACTION',
           });
       }
-    } catch (error) {
-      Logger.error('[context-budget] Execution error:', error);
-      return JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        code: 'EXECUTION_ERROR',
-      });
-    }
+    }, 30);
   },
 };

@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
-import { validatePath, ValidationError, checkRateLimit } from '../../utils/validation.js';
+import { validatePathSafe, rateLimitGuard } from '../../utils/validation.js';
 import { readFileLines, writeFileLines } from '../../utils/edit-utils.js';
 import {
   findSymbolDefinition,
@@ -36,6 +36,7 @@ import {
   type SymbolLocation,
 } from './symbol-search.js';
 import { isSilent } from '../../config/silent.js';
+import { handleToolError } from '../../utils/errors.js';
 
 const schema = z.object({
   symbol: z.string().min(1).describe('Symbol name'),
@@ -80,14 +81,8 @@ export const insertBeforeSymbolTool: UnifiedTool = {
       createBackup,
     } = args as InsertBeforeSymbolArgs;
 
-    // Rate limit check
-    if (!checkRateLimit('edit-operations', { maxRequests: 50, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for edit operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
+    const blocked = rateLimitGuard('edit-operations', { maxRequests: 50, windowMs: 60000 });
+    if (blocked) return blocked;
 
     const searchPath = inputPath || process.cwd();
 
@@ -118,23 +113,16 @@ export const insertBeforeSymbolTool: UnifiedTool = {
 
       // Validate the file path for writing
       let validatedPath: string;
-      try {
-        validatedPath = await validatePath(location.file, {
-          allowSymlinks: false,
-          requireWithinProject: false,
-          operation: 'write',
-          projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
-        });
-      } catch (validationError) {
-        if (validationError instanceof ValidationError) {
-          return JSON.stringify({
-            success: false,
-            error: validationError.message,
-            code: validationError.code,
-            file: location.file,
-          });
-        }
-        throw validationError;
+      const vpResult = await validatePathSafe(location.file, {
+        allowSymlinks: false,
+        requireWithinProject: false,
+        operation: 'write',
+        projectRoot: (args as Record<string, unknown>)._sessionCwd as string | undefined,
+      }, 'insert-before-symbol');
+      if (!vpResult.ok) {
+        return JSON.stringify({ success: false, error: vpResult.error, code: vpResult.code, file: location.file });
+      } else {
+        validatedPath = vpResult.path;
       }
 
       // Read file and insert content
@@ -175,13 +163,8 @@ export const insertBeforeSymbolTool: UnifiedTool = {
         language: detectedLanguage,
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`insert-before-symbol error: ${errorMessage}`);
 
-      return JSON.stringify({
-        success: false,
-        error: errorMessage,
-      });
+      return handleToolError('insert-before-symbol', error);
     }
   },
 };

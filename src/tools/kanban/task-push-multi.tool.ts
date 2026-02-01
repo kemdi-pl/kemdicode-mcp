@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,9 +28,10 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
-import { checkRateLimit } from '../../utils/validation.js';
+import { executeWithGuard } from '../tool-shared.js';
 import { getTask, createTask, assignTask, TaskPriority, resolveSessionId, resolveBoardId } from '../../kanban/index.js';
 import { isSilent } from '../../config/silent.js';
+import { getAgentRankStore } from '../../cognition/agent-rank-store.js';
 
 /** Target agent specification */
 const targetAgentSchema = z.object({
@@ -119,15 +120,7 @@ export const taskPushMultiTool: UnifiedTool = {
     }
     const input = validated.data;
 
-    if (!checkRateLimit('kanban-operations', { maxRequests: 50, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for multi-push operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
-
-    try {
+    return executeWithGuard('task-push-multi', 'kanban-operations', async () => {
       // Resolve sessionId from args or active connection context
       const sessionId = resolveSessionId(input.sessionId);
 
@@ -319,6 +312,28 @@ export const taskPushMultiTool: UnifiedTool = {
         );
       }
 
+      // Check agent rankings and suggest better agents if available
+      let rankingSuggestion: string | undefined;
+      try {
+        const rankStore = getAgentRankStore();
+        if (!rankStore.isConnected()) {
+          await rankStore.connect().catch(() => {});
+        }
+        if (rankStore.isConnected() && input.targetAgents.length === 1) {
+          const targetId = input.targetAgents[0].agentId;
+          const targetScore = await rankStore.getScore(targetId);
+          const leaderboard = await rankStore.getLeaderboard(3);
+          if (targetScore && leaderboard.length > 0 && leaderboard[0].agentId !== targetId) {
+            const topAgent = leaderboard[0];
+            if (topAgent.score > (targetScore.score + 100)) {
+              rankingSuggestion = `Consider agent "${topAgent.agentId}" (${topAgent.rank}, score: ${topAgent.score}) for better results. Current target "${targetId}" has score ${targetScore.score}.`;
+            }
+          }
+        }
+      } catch {
+        // Ranking is best-effort
+      }
+
       const successCount = results.filter((r) => r.success).length;
       const failCount = results.filter((r) => !r.success).length;
 
@@ -340,16 +355,8 @@ export const taskPushMultiTool: UnifiedTool = {
           failed: failCount,
         },
         results,
+        ...(rankingSuggestion ? { rankingSuggestion } : {}),
       });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`task-push-multi error: ${errorMessage}`);
-
-      return JSON.stringify({
-        success: false,
-        error: errorMessage,
-        code: 'PUSH_ERROR',
-      });
-    }
+    });
   },
 };

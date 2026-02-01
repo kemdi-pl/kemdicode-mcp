@@ -13,7 +13,7 @@ import { join, relative } from 'path';
 
 const LICENSE_HEADER = `/**
  * KemdiCode MCP Server
- * Copyright (C) 2024-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

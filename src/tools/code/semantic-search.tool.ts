@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -140,6 +140,8 @@ export const semanticSearchTool: UnifiedTool = {
     category: 'code',
     tags: ['search', 'semantic', 'ai'],
     longRunning: true,
+    aiRequired: { fallbackTools: ['file-search', 'find-definition', 'find-references'] },
+    aiRouting: 'local',
     examples: [
       {
         args: { query: 'error handling middleware', type: 'pattern', files: '@src/', maxResults: 5 },

@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@
 
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
-import { execGit, validateGitRepo, formatGitError } from '../../utils/git-utils.js';
+import { execGit, executeGitTool } from '../../utils/git-utils.js';
 
 const schema = z.object({
   action: z
@@ -61,74 +61,30 @@ export const gitStashTool: UnifiedTool = {
   execute: async (args) => {
     const { action, message, index, includeUntracked, cwd } = args as unknown as z.infer<typeof schema>;
 
-    const repoError = validateGitRepo(cwd);
-    if (repoError) {
-      return repoError;
-    }
-
-    try {
+    return executeGitTool(`git-stash ${action}`, cwd, () => {
       const stashArgs: string[] = ['stash'];
+      const stashRef = index !== undefined ? `stash@{${index}}` : undefined;
 
       switch (action) {
-        case 'push': {
+        case 'push':
           stashArgs.push('push');
-          if (includeUntracked) {
-            stashArgs.push('--include-untracked');
-          }
-          if (message) {
-            stashArgs.push('-m', message);
-          }
+          if (includeUntracked) stashArgs.push('--include-untracked');
+          if (message) stashArgs.push('-m', message);
           break;
-        }
-        case 'pop': {
-          stashArgs.push('pop');
-          if (index !== undefined) {
-            stashArgs.push(`stash@{${index}}`);
-          }
-          break;
-        }
-        case 'list': {
-          stashArgs.push('list');
-          break;
-        }
-        case 'drop': {
-          stashArgs.push('drop');
-          if (index !== undefined) {
-            stashArgs.push(`stash@{${index}}`);
-          }
-          break;
-        }
-        case 'apply': {
-          stashArgs.push('apply');
-          if (index !== undefined) {
-            stashArgs.push(`stash@{${index}}`);
-          }
-          break;
-        }
-        case 'show': {
-          stashArgs.push('show', '-p');
-          if (index !== undefined) {
-            stashArgs.push(`stash@{${index}}`);
-          }
-          break;
-        }
+        case 'pop':    stashArgs.push('pop');    if (stashRef) stashArgs.push(stashRef); break;
+        case 'list':   stashArgs.push('list');   break;
+        case 'drop':   stashArgs.push('drop');   if (stashRef) stashArgs.push(stashRef); break;
+        case 'apply':  stashArgs.push('apply');  if (stashRef) stashArgs.push(stashRef); break;
+        case 'show':   stashArgs.push('show', '-p'); if (stashRef) stashArgs.push(stashRef); break;
       }
 
       const output = execGit(stashArgs, { cwd });
-
       if (!output.trim()) {
-        if (action === 'list') {
-          return 'No stash entries found.';
-        }
-        if (action === 'push') {
-          return 'No local changes to save.';
-        }
+        if (action === 'list') return 'No stash entries found.';
+        if (action === 'push') return 'No local changes to save.';
         return `Stash ${action} completed (no output).`;
       }
-
       return output.trim();
-    } catch (error) {
-      return formatGitError(error, `Git stash ${action}`);
-    }
+    });
   },
 };

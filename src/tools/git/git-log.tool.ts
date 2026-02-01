@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
-import { execGit, validateGitRepo, parseFileList, formatGitError } from '../../utils/git-utils.js';
+import { execGit, executeGitTool, parseFileList } from '../../utils/git-utils.js';
 
 const schema = z.object({
   cwd: z.string().optional().describe('Working directory'),
@@ -86,92 +86,30 @@ export const gitLogTool: UnifiedTool = {
       ref,
     } = args as z.infer<typeof schema>;
 
-    // Check if directory is a git repo
-    const repoError = validateGitRepo(cwd);
-    if (repoError) {
-      return repoError;
+    // Ref validation before entering git wrapper (needs early return with custom message)
+    if (ref && ref.startsWith('-')) {
+      return `Error: Invalid ref '${ref}'. Refs must not start with '-'.`;
     }
 
-    const logArgs: string[] = ['log', '--no-color'];
+    return executeGitTool('git-log', cwd, () => {
+      const logArgs: string[] = ['log', '--no-color'];
+      if (format === 'oneline') logArgs.push('--oneline');
+      else logArgs.push(`--format=${format}`);
+      logArgs.push(`-n${limit}`);
+      if (author) logArgs.push(`--author=${author}`);
+      if (since) logArgs.push(`--since=${since}`);
+      if (until) logArgs.push(`--until=${until}`);
+      if (grep) logArgs.push(`--grep=${grep}`);
+      if (all) logArgs.push('--all');
+      if (graph) { logArgs.push('--graph'); logArgs.push('--decorate'); }
+      if (stat) logArgs.push('--stat');
+      if (patch) logArgs.push('-p');
+      if (!merges) logArgs.push('--no-merges');
+      if (firstParent) logArgs.push('--first-parent');
+      if (ref) logArgs.push(ref);
+      if (files) { logArgs.push('--'); logArgs.push(...parseFileList(files)); }
 
-    // Format
-    if (format === 'oneline') {
-      logArgs.push('--oneline');
-    } else {
-      logArgs.push(`--format=${format}`);
-    }
-
-    // Limit
-    logArgs.push(`-n${limit}`);
-
-    // Author filter
-    if (author) {
-      logArgs.push(`--author=${author}`);
-    }
-
-    // Date filters
-    if (since) {
-      logArgs.push(`--since=${since}`);
-    }
-    if (until) {
-      logArgs.push(`--until=${until}`);
-    }
-
-    // Message filter
-    if (grep) {
-      logArgs.push(`--grep=${grep}`);
-    }
-
-    // All branches
-    if (all) {
-      logArgs.push('--all');
-    }
-
-    // Graph
-    if (graph) {
-      logArgs.push('--graph');
-      // Add decorations for graph view
-      logArgs.push('--decorate');
-    }
-
-    // Statistics
-    if (stat) {
-      logArgs.push('--stat');
-    }
-
-    // Patch/diff
-    if (patch) {
-      logArgs.push('-p');
-    }
-
-    // Merge commits
-    if (!merges) {
-      logArgs.push('--no-merges');
-    }
-
-    // First parent only
-    if (firstParent) {
-      logArgs.push('--first-parent');
-    }
-
-    // Specific ref (prevent flag injection via refs starting with --)
-    if (ref) {
-      if (ref.startsWith('-')) {
-        return `Error: Invalid ref '${ref}'. Refs must not start with '-'.`;
-      }
-      logArgs.push(ref);
-    }
-
-    // Specific files
-    if (files) {
-      logArgs.push('--');
-      logArgs.push(...parseFileList(files));
-    }
-
-    try {
       const output = execGit(logArgs, { cwd });
-
-      // If output is empty, provide a helpful message
       if (!output.trim()) {
         const filters = [];
         if (author) filters.push(`author: ${author}`);
@@ -179,16 +117,9 @@ export const gitLogTool: UnifiedTool = {
         if (until) filters.push(`until: ${until}`);
         if (grep) filters.push(`grep: ${grep}`);
         if (files) filters.push(`files: ${files}`);
-
-        if (filters.length > 0) {
-          return `No commits found matching filters: ${filters.join(', ')}`;
-        }
-        return 'No commits found.';
+        return filters.length > 0 ? `No commits found matching filters: ${filters.join(', ')}` : 'No commits found.';
       }
-
       return output.trim();
-    } catch (error) {
-      return formatGitError(error, 'Git log');
-    }
+    });
   },
 };

@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,6 +39,8 @@ export const fixBugTool: UnifiedTool = {
     category: 'specialized',
     tags: ['bug', 'fix', 'debug'],
     longRunning: true,
+    aiRequired: { fallbackTools: ['file-read', 'file-diff', 'git-blame'] },
+    aiRouting: 'hybrid',
     examples: [
       { args: { files: '@src/services/OrderService.ts', description: 'Orders are duplicated when payment fails' }, description: 'Analyze and fix a bug with description' },
       { args: { files: '@app/Jobs/ProcessPayment.php', description: 'Job fails silently', errorLog: 'ErrorException: Undefined index', steps: '1. Create order 2. Process payment 3. Job fails' }, description: 'Fix bug with error log and reproduction steps' },

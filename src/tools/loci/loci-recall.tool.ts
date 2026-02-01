@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,10 +29,11 @@ import { getLociManager, LOCI_TEMPLATES } from '../../loci/index.js';
 import { getTimelineRecorder } from '../../loci/timeline-recorder.js';
 import { getCompactionEngine } from '../../loci/compaction-engine.js';
 import type { CompactionLevel } from '../../loci/types.js';
+import { getAmbientLearner } from '../../cognition/ambient-learner.js';
 
 const schema = z.object({
-  action: z.enum(['recall', 'walk', 'resurrect', 'timeline', 'link-session']).default('recall')
-    .describe('Action: recall (default), walk (all loci), resurrect (post-compaction), timeline (view events), link-session'),
+  action: z.enum(['recall', 'walk', 'resurrect', 'timeline', 'link-session', 'ambient-insights']).default('recall')
+    .describe('Action: recall (default), walk (all loci), resurrect (post-compaction), timeline (view events), link-session, ambient-insights'),
   lociId: z.string().optional().describe('Loci ID to recall from (action=recall)'),
   lociName: z.string().optional().describe('Loci name (action=recall)'),
   sessionId: z.string().describe('Session ID'),
@@ -40,7 +41,9 @@ const schema = z.object({
   // Timeline/resurrection params
   projectPath: z.string().optional().describe('Project path (action=resurrect, link-session)'),
   level: z.enum(['L0', 'L1', 'L2', 'L3']).default('L0').describe('Compaction level (action=timeline)'),
-  limit: z.number().default(20).describe('Max events to return (action=timeline)'),
+  limit: z.number().default(20).describe('Max events/insights to return (action=timeline, ambient-insights)'),
+  insightType: z.enum(['sequences', 'file-relations', 'time-patterns', 'agent-effectiveness', 'all']).default('all')
+    .describe('Type of ambient insight (action=ambient-insights)'),
   currentGoal: z.string().optional().describe('Current goal for goal-oriented resurrection (action=resurrect)'),
   predecessorSessionId: z.string().optional().describe('Predecessor session (action=link-session)'),
 });
@@ -66,6 +69,11 @@ export const lociRecallTool: UnifiedTool<typeof schema> = {
   execute: async (args) => {
     const { action, lociId, lociName, sessionId, walkAll } = args;
 
+    // Handle ambient insights
+    if (action === 'ambient-insights') {
+      return handleAmbientInsights(args.insightType || 'all', args.limit);
+    }
+
     // Handle timeline/resurrection/link-session actions
     if (action === 'resurrect') {
       return handleResurrect(args.projectPath || process.cwd(), args.currentGoal, sessionId);
@@ -88,6 +96,61 @@ export const lociRecallTool: UnifiedTool<typeof schema> = {
     return handleRecall(sessionId, lociId, lociName);
   },
 };
+
+async function handleAmbientInsights(insightType: string, limit: number): Promise<string> {
+  const learner = getAmbientLearner();
+  if (!learner.isConnected()) {
+    await learner.connect().catch(() => {});
+  }
+  if (!learner.isConnected()) {
+    return 'Ambient learning unavailable (Redis not connected).';
+  }
+
+  const insights = await learner.getInsights(limit);
+  const hasData =
+    insights.commonSequences.length > 0 ||
+    insights.fileRelationships.length > 0 ||
+    insights.peakHours.length > 0 ||
+    insights.topAgents.length > 0;
+
+  if (!hasData) {
+    return 'No ambient insights collected yet. Insights are gathered passively as tools are used.';
+  }
+
+  const lines: string[] = ['## Ambient Learning Insights', ''];
+
+  if ((insightType === 'all' || insightType === 'sequences') && insights.commonSequences.length > 0) {
+    lines.push('### Tool Sequences (Common Patterns)');
+    for (const seq of insights.commonSequences.slice(0, limit)) {
+      lines.push(`- ${seq.sequence.join(' -> ')} (freq: ${seq.frequency}, success: ${(seq.successRate * 100).toFixed(0)}%)`);
+    }
+    lines.push('');
+  }
+
+  if ((insightType === 'all' || insightType === 'file-relations') && insights.fileRelationships.length > 0) {
+    lines.push('### File Relationships (Co-edited)');
+    for (const rel of insights.fileRelationships.slice(0, limit)) {
+      lines.push(`- ${rel.files.join(' <-> ')} (${rel.frequency}x, ${rel.type})`);
+    }
+    lines.push('');
+  }
+
+  if ((insightType === 'all' || insightType === 'time-patterns') && insights.peakHours.length > 0) {
+    lines.push('### Peak Activity Hours');
+    lines.push(`- ${insights.peakHours.map((h) => `${h}:00`).join(', ')}`);
+    lines.push('');
+  }
+
+  if ((insightType === 'all' || insightType === 'agent-effectiveness') && insights.topAgents.length > 0) {
+    lines.push('### Agent Effectiveness');
+    for (const ae of insights.topAgents.slice(0, limit)) {
+      lines.push(`- ${ae.agentId}: ${ae.taskType} (success: ${(ae.successRate * 100).toFixed(0)}%)`);
+    }
+    lines.push('');
+  }
+
+  return lines.length <= 2 ? 'No ambient insights collected yet.' : lines.join('\n');
+}
 
 async function handleResurrect(projectPath: string, currentGoal?: string, sessionId?: string): Promise<string> {
   const engine = getCompactionEngine();

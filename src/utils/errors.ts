@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,6 +26,8 @@
  *
  * @module utils/errors
  */
+
+import { Logger } from './logger.js';
 
 /**
  * Base error class for all MCP tool errors
@@ -388,4 +390,31 @@ export function isErrorType<T extends McpError>(
  */
 export function errorToJsonString(error: unknown): string {
   return JSON.stringify(formatErrorResponse(error));
+}
+
+/**
+ * Standard error handler for tool execute() catch blocks.
+ * Logs the error and returns a JSON error response string.
+ *
+ * Replaces the common pattern:
+ *   const msg = error instanceof Error ? error.message : String(error);
+ *   Logger.error(`[tool] error: ${msg}`);
+ *   return JSON.stringify({ success: false, error: msg });
+ *
+ * @param toolName - Tool name for logging context
+ * @param error - Caught error
+ * @param extra - Optional extra fields merged into the JSON response
+ */
+export function handleToolError(
+  toolName: string,
+  error: unknown,
+  extra?: Record<string, unknown>
+): string {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  Logger.error(`[${toolName}] error: ${errorMessage}`);
+  return JSON.stringify({
+    success: false,
+    error: errorMessage,
+    ...extra,
+  });
 }

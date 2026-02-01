@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@ import { dirname } from 'path';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { fromNodeError, formatErrorResponse } from '../../utils/errors.js';
-import { validatePath, ValidationError, checkRateLimit } from '../../utils/validation.js';
+import { validatePathSafe, rateLimitGuard } from '../../utils/validation.js';
 import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
@@ -77,51 +77,26 @@ async function copySingleFile(
 ): Promise<Record<string, unknown>> {
   try {
     // Validate source path
-    let validatedSource: string;
-    try {
-      validatedSource = await validatePath(source, {
-        allowSymlinks: false,
-        requireWithinProject: false,
-        allowReadFromBlocked: true,
-        operation: 'read',
-        projectRoot: sessionCwd,
-      });
-    } catch (validationError) {
-      if (validationError instanceof ValidationError) {
-        Logger.warn(`file-copy source validation failed: ${validationError.message}`);
-        return {
-          success: false,
-          error: validationError.message,
-          code: (validationError as ValidationError).code,
-          source,
-        };
-      }
-      throw validationError;
-    }
+    const srcResult = await validatePathSafe(source, {
+      allowSymlinks: false,
+      requireWithinProject: false,
+      allowReadFromBlocked: true,
+      operation: 'read',
+      projectRoot: sessionCwd,
+    }, 'file-copy');
+    if (!srcResult.ok) return { success: false, error: srcResult.error, code: srcResult.code, source };
+    const validatedSource = srcResult.path;
 
     // Validate destination path
-    let validatedDest: string;
-    try {
-      validatedDest = await validatePath(destination, {
-        allowSymlinks: false,
-        requireWithinProject: false,
-        allowReadFromBlocked: false,
-        operation: 'write',
-        projectRoot: sessionCwd,
-      });
-    } catch (validationError) {
-      if (validationError instanceof ValidationError) {
-        Logger.warn(`file-copy destination validation failed: ${validationError.message}`);
-        return {
-          success: false,
-          error: validationError.message,
-          code: (validationError as ValidationError).code,
-          source,
-          destination,
-        };
-      }
-      throw validationError;
-    }
+    const destResult = await validatePathSafe(destination, {
+      allowSymlinks: false,
+      requireWithinProject: false,
+      allowReadFromBlocked: false,
+      operation: 'write',
+      projectRoot: sessionCwd,
+    }, 'file-copy');
+    if (!destResult.ok) return { success: false, error: destResult.error, code: destResult.code, source, destination };
+    const validatedDest = destResult.path;
 
     // Check source exists and is a file
     let sourceStats;
@@ -216,13 +191,8 @@ export const fileCopyTool: UnifiedTool = {
   execute: async (args): Promise<string> => {
     const { operations, overwrite, createDirs } = args as unknown as FileCopyArgs;
 
-    if (!checkRateLimit('file-operations', { maxRequests: 50, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for file operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
+    const blocked = rateLimitGuard('file-operations', { maxRequests: 50, windowMs: 60000 });
+    if (blocked) return blocked;
 
     const sessionCwd = (args as Record<string, unknown>)._sessionCwd as string | undefined;
 

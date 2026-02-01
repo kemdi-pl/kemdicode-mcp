@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -50,6 +50,8 @@ export const writeTestsTool: UnifiedTool = {
     category: 'specialized',
     tags: ['test', 'generation', 'tdd'],
     longRunning: true,
+    aiRequired: { fallbackTools: ['file-read', 'file-write'] },
+    aiRouting: 'hybrid',
     examples: [
       { args: { files: '@app/Services/PaymentService.php', type: 'unit', coverage: 'happy-path' }, description: 'Generate unit tests for a service' },
       { args: { files: '@app/Http/Controllers/OrderController.php', type: 'feature', coverage: 'full' }, description: 'Generate full-coverage feature tests' },

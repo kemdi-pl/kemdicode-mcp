@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@ import { UnifiedTool } from '../registry.js';
 import { getSelfCritiqueStore } from '../../cognition/self-critique-store.js';
 import { getDecisionStore } from '../../cognition/decision-store.js';
 import { Logger } from '../../utils/logger.js';
-import { checkRateLimit } from '../../utils/validation.js';
+import { executeCognitionTool } from './cognition-shared.js';
 
 const schema = z.object({
   action: z.enum(['reflect', 'get', 'list', 'lessons', 'trend', 'check-application']).describe('Action'),
@@ -236,17 +236,7 @@ export const selfCritiqueTool: UnifiedTool<typeof schema> = {
   execute: async (args): Promise<string> => {
     const input = args as unknown as SelfCritiqueArgs;
 
-    if (!checkRateLimit('self-critique', { maxRequests: 60, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for self-critique operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
-
-    const store = getSelfCritiqueStore();
-
-    try {
+    return executeCognitionTool('self-critique', getSelfCritiqueStore, async (store) => {
       switch (input.action) {
         // ───────────────────────────────────────────────────────── reflect
         case 'reflect': {
@@ -541,13 +531,6 @@ export const selfCritiqueTool: UnifiedTool<typeof schema> = {
             code: 'INVALID_ACTION',
           });
       }
-    } catch (error) {
-      Logger.error('[self-critique] Execution error:', error);
-      return JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        code: 'EXECUTION_ERROR',
-      });
-    }
+    });
   },
 };

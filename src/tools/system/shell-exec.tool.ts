@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,7 +42,7 @@ import {
   validatePath,
   sanitizeEnvVars,
   ValidationError,
-  checkRateLimit,
+  rateLimitGuard,
 } from '../../utils/validation.js';
 import { maskSensitiveData } from '../../utils/security.js';
 import { isSilent } from '../../config/silent.js';
@@ -310,8 +310,8 @@ export const shellExecTool: UnifiedTool = {
     const envVars = args.env as Record<string, string> | undefined;
     const allowDangerous = Boolean(args.allowDangerous);
 
-    // Rate limit check for shell commands (stricter limit)
-    if (!checkRateLimit('shell-exec', { maxRequests: 30, windowMs: 60000 })) {
+    const blocked = rateLimitGuard('shell-exec', { maxRequests: 30, windowMs: 60000 });
+    if (blocked) {
       logSecurityEvent('RATE_LIMIT_EXCEEDED', { command: maskForLogs(command, 100) });
       throw new Error(
         'Rate limit exceeded for shell-exec operations. Please wait before executing more commands.'

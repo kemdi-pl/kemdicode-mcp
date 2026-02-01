@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
-import { checkRateLimit } from '../../utils/validation.js';
+import { executeWithGuard } from '../tool-shared.js';
 import {
   type ProjectMemory,
   MEMORY_PREFIX,
@@ -91,14 +91,7 @@ export const writeMemoryTool: UnifiedTool = {
   execute: async (args): Promise<string> => {
     const { memories } = args as unknown as WriteMemoryArgs;
 
-    if (!checkRateLimit('memory-operations', { maxRequests: 100, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for memory operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
-
+    return executeWithGuard('write-memory', 'memory-operations', async () => {
     const projectId = getProjectId();
     const indexKey = `${MEMORY_INDEX_PREFIX}${projectId}`;
 
@@ -179,6 +172,7 @@ export const writeMemoryTool: UnifiedTool = {
       stored: successful.length,
       failed: failed.length,
       results,
+    });
     });
   },
 };

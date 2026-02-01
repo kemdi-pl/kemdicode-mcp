@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
-import { checkRateLimit } from '../../utils/validation.js';
+import { executeWithGuard } from '../tool-shared.js';
 import { type Checkpoint, CHECKPOINT_PREFIX, getRedis, getProjectId } from './shared.js';
 import { isSilent } from '../../config/silent.js';
 
@@ -53,18 +53,9 @@ export const checkpointRestoreTool: UnifiedTool = {
   execute: async (args): Promise<string> => {
     const { name } = args as CheckpointRestoreArgs;
 
-    if (!checkRateLimit('checkpoint-operations', { maxRequests: 200, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for checkpoint operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
-
+    return executeWithGuard('checkpoint-restore', 'checkpoint-operations', async () => {
     const projectId = getProjectId();
     const checkpointKey = `${CHECKPOINT_PREFIX}${projectId}:${name}`;
-
-    try {
       const client = await getRedis();
 
       const data = await client.get(checkpointKey);
@@ -99,15 +90,6 @@ export const checkpointRestoreTool: UnifiedTool = {
         ttlSeconds: ttl > 0 ? ttl : null,
         ttlDays: ttl > 0 ? Math.round(ttl / 86400) : null,
       });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`checkpoint-restore error: ${errorMessage}`);
-
-      return JSON.stringify({
-        success: false,
-        error: errorMessage,
-        code: 'STORAGE_ERROR',
-      });
-    }
+    }, { maxRequests: 200, windowMs: 60000 });
   },
 };

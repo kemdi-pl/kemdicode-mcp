@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -59,6 +59,8 @@ export const refactorTool: UnifiedTool = {
     category: 'specialized',
     tags: ['refactor', 'improve', 'solid'],
     longRunning: true,
+    aiRequired: { fallbackTools: ['file-read', 'code-outline'] },
+    aiRouting: 'hybrid',
     examples: [
       { args: { files: '@src/services/UserService.ts', goal: 'readability' }, description: 'Refactor for readability' },
       { args: { files: '@app/Http/Controllers/OrderController.php', goal: 'solid', scope: 'aggressive' }, description: 'Aggressive SOLID refactoring' },

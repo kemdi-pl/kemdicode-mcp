@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@ import { promises as fs } from 'fs';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { fromNodeError, formatErrorResponse } from '../../utils/errors.js';
-import { validatePath, ValidationError, checkRateLimit } from '../../utils/validation.js';
+import { validatePathSafe, rateLimitGuard } from '../../utils/validation.js';
 import { isSilent } from '../../config/silent.js';
 
 /**
@@ -97,27 +97,15 @@ async function deleteSingleFile(
   sessionCwd?: string
 ): Promise<Record<string, unknown>> {
   try {
-    let validatedPath: string;
-    try {
-      validatedPath = await validatePath(inputPath, {
-        allowSymlinks: false,
+    const pathResult = await validatePathSafe(inputPath, {allowSymlinks: false,
         requireWithinProject: false,
         allowReadFromBlocked: false,
         operation: 'write',
-        projectRoot: sessionCwd,
-      });
-    } catch (validationError) {
-      if (validationError instanceof ValidationError) {
-        Logger.warn(`file-delete security validation failed: ${validationError.message}`);
-        return {
-          success: false,
-          error: validationError.message,
-          code: (validationError as ValidationError).code,
-          path: inputPath,
-        };
-      }
-      throw validationError;
-    }
+        projectRoot: sessionCwd}, 'file-delete');
+
+    if (!pathResult.ok) return { success: false, error: pathResult.error, code: pathResult.code, path: inputPath };
+
+    const validatedPath = pathResult.path;
 
     // Check critical file protection
     if (isCriticalFile(validatedPath)) {
@@ -199,13 +187,8 @@ export const fileDeleteTool: UnifiedTool = {
   execute: async (args): Promise<string> => {
     const { files, dryRun } = args as unknown as FileDeleteArgs;
 
-    if (!checkRateLimit('file-operations', { maxRequests: 50, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for file operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
+    const blocked = rateLimitGuard('file-operations', { maxRequests: 50, windowMs: 60000 });
+    if (blocked) return blocked;
 
     const sessionCwd = (args as Record<string, unknown>)._sessionCwd as string | undefined;
 

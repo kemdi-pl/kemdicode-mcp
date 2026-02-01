@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
-import { checkRateLimit } from '../../utils/validation.js';
+import { executeWithGuard } from '../tool-shared.js';
 import {
   type ProjectMemory,
   MEMORY_PREFIX,
@@ -72,19 +72,9 @@ export const listMemoriesTool: UnifiedTool = {
   execute: async (args): Promise<string> => {
     const { tag, limit, includeContent } = args as ListMemoriesArgs;
 
-    // Rate limit check
-    if (!checkRateLimit('memory-operations', { maxRequests: 100, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for memory operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
-
+    return executeWithGuard('list-memories', 'memory-operations', async () => {
     const projectId = getProjectId();
     const indexKey = `${MEMORY_INDEX_PREFIX}${projectId}`;
-
-    try {
       const client = await getRedis();
 
       // Get all memory names from index
@@ -192,15 +182,6 @@ export const listMemoriesTool: UnifiedTool = {
         filter: tag ? { tag } : null,
         memories: includeContent ? memoriesWithContent : memories,
       });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`list-memories error: ${errorMessage}`);
-
-      return JSON.stringify({
-        success: false,
-        error: errorMessage,
-        code: 'STORAGE_ERROR',
-      });
-    }
+    });
   },
 };

@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,10 +29,10 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import {
   execGit,
-  validateGitRepo,
+  executeGitTool,
   getCurrentBranch,
-  formatGitError,
   enhanceGitErrorMessage,
+  formatGitError,
 } from '../../utils/git-utils.js';
 import { isSilent } from '../../config/silent.js';
 
@@ -85,13 +85,7 @@ export const gitBranchTool: UnifiedTool = {
       track,
     } = args as z.infer<typeof schema>;
 
-    // Check if directory is a git repo
-    const repoError = validateGitRepo(cwd);
-    if (repoError) {
-      return repoError;
-    }
-
-    try {
+    return executeGitTool('git-branch', cwd, () => {
       switch (action) {
         case 'current': {
           const currentBranch = getCurrentBranch(cwd);
@@ -194,25 +188,6 @@ export const gitBranchTool: UnifiedTool = {
         default:
           return `Error: Unknown action '${action}'. Valid actions: list, create, delete, rename, current`;
       }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const enhanced = enhanceGitErrorMessage(message);
-
-      // Provide more helpful error messages with context
-      if (message.includes('already exists')) {
-        return `Error: Branch '${name}' already exists.`;
-      }
-      if (message.includes('not found')) {
-        return `Error: Branch '${name}' not found.`;
-      }
-      if (message.includes('not fully merged')) {
-        return `Error: Branch '${name}' is not fully merged. Use force=true to delete anyway.`;
-      }
-      if (message.includes('invalid branch name')) {
-        return `Error: Invalid branch name '${name}'.`;
-      }
-
-      return formatGitError(new Error(enhanced), 'Git branch');
-    }
+    });
   },
 };

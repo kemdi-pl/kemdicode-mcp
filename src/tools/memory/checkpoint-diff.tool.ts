@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@ import { z } from 'zod';
 import { readFile, access } from 'fs/promises';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
-import { checkRateLimit } from '../../utils/validation.js';
+import { executeWithGuard } from '../tool-shared.js';
 import { type Checkpoint, CHECKPOINT_PREFIX, getRedis, getProjectId } from './shared.js';
 import { isSilent } from '../../config/silent.js';
 
@@ -123,18 +123,9 @@ export const checkpointDiffTool: UnifiedTool = {
   execute: async (args): Promise<string> => {
     const { checkpointId, files: requestedFiles } = args as CheckpointDiffArgs;
 
-    if (!checkRateLimit('checkpoint-operations', { maxRequests: 200, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for checkpoint operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
-
+    return executeWithGuard('checkpoint-diff', 'checkpoint-operations', async () => {
     const projectId = getProjectId();
     const checkpointKey = `${CHECKPOINT_PREFIX}${projectId}:${checkpointId}`;
-
-    try {
       const client = await getRedis();
 
       // Load checkpoint data
@@ -259,15 +250,6 @@ export const checkpointDiffTool: UnifiedTool = {
         checkpointUpdatedAt: checkpoint.updatedAt,
         checkpointTags: checkpoint.tags,
       });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`checkpoint-diff error: ${errorMessage}`);
-
-      return JSON.stringify({
-        success: false,
-        error: errorMessage,
-        code: 'DIFF_ERROR',
-      });
-    }
+    }, { maxRequests: 200, windowMs: 60000 });
   },
 };

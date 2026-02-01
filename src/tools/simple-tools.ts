@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -76,6 +76,13 @@ export const planTool: UnifiedTool = {
   description: 'Execute AI in plan mode for structured analysis',
   zodSchema: agentSchema,
   prompt: { description: 'Run AI with plan agent' },
+  metadata: {
+    category: 'specialized',
+    tags: ['ai', 'plan', 'analysis'],
+    longRunning: true,
+    aiRequired: true,
+    aiRouting: 'hybrid',
+  },
   execute: async (args, onProgress) => {
     if (!args.prompt?.toString().trim()) throw new Error(ERROR_MESSAGES.NO_PROMPT);
     return executeAI({
@@ -93,6 +100,13 @@ export const buildTool: UnifiedTool = {
   description: 'Execute AI in build mode for immediate implementation',
   zodSchema: agentSchema,
   prompt: { description: 'Run AI with build agent' },
+  metadata: {
+    category: 'specialized',
+    tags: ['ai', 'build', 'execution'],
+    longRunning: true,
+    aiRequired: true,
+    aiRouting: 'hybrid',
+  },
   execute: async (args, onProgress) => {
     if (!args.prompt?.toString().trim()) throw new Error(ERROR_MESSAGES.NO_PROMPT);
     return executeAI({

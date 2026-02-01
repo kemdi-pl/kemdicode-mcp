@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@ import { dirname } from 'path';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
 import { fromNodeError, formatErrorResponse } from '../../utils/errors.js';
-import { validatePath, ValidationError, checkRateLimit } from '../../utils/validation.js';
+import { validatePathSafe, rateLimitGuard } from '../../utils/validation.js';
 import { isSilent } from '../../config/silent.js';
 
 const fileItemSchema = z.object({
@@ -118,22 +118,15 @@ async function writeSingleFile(
     return { success: false, error: `Content too large: ${content.length} bytes`, code: 'CONTENT_TOO_LARGE', path: inputPath };
   }
 
-  let validatedPath: string;
-  try {
-    validatedPath = await validatePath(inputPath, {
-      allowSymlinks: false,
-      requireWithinProject: false,
-      allowReadFromBlocked: false,
-      operation: 'write',
-      projectRoot: sessionCwd,
-    });
-  } catch (validationError) {
-    if (validationError instanceof ValidationError) {
-      Logger.warn(`file-write security validation failed: ${validationError.message}`);
-      return { success: false, error: validationError.message, code: (validationError as ValidationError).code, path: inputPath };
-    }
-    throw validationError;
-  }
+  const pathResult = await validatePathSafe(inputPath, {
+    allowSymlinks: false,
+    requireWithinProject: false,
+    allowReadFromBlocked: false,
+    operation: 'write',
+    projectRoot: sessionCwd,
+  }, 'file-write');
+  if (!pathResult.ok) return { success: false, error: pathResult.error, code: pathResult.code, path: inputPath };
+  const validatedPath = pathResult.path;
 
   const result: Record<string, unknown> = { success: false, path: validatedPath };
 
@@ -211,13 +204,8 @@ export const fileWriteTool: UnifiedTool = {
   execute: async (args): Promise<string> => {
     const { files, createBackup, createDirs, append, encoding } = args as unknown as FileWriteArgs;
 
-    if (!checkRateLimit('file-write', { maxRequests: 50, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for file-write operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
+    const blocked = rateLimitGuard('file-write', { maxRequests: 50, windowMs: 60000 });
+    if (blocked) return blocked;
 
     const sessionCwd = (args as Record<string, unknown>)._sessionCwd as string | undefined;
     const options = { createBackup, createDirs, append, encoding };

@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
-import { checkRateLimit } from '../../utils/validation.js';
+import { executeWithGuard } from '../tool-shared.js';
 import { shareBoard, hasPermission, resolveBoardId, resolveWorkspaceId, resolveSessionId } from '../../kanban/index.js';
 import { isSilent } from '../../config/silent.js';
 
@@ -65,14 +65,7 @@ export const boardShareTool: UnifiedTool = {
   execute: async (args): Promise<string> => {
     const { shares, agentId } = args as BoardShareArgs;
 
-    if (!checkRateLimit('kanban-operations', { maxRequests: 100, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for kanban operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
-
+    return executeWithGuard('board-share', 'kanban-operations', async () => {
     // Resolve sessionId for name lookups
     const sessionId = resolveSessionId();
 
@@ -140,6 +133,7 @@ export const boardShareTool: UnifiedTool = {
       shared: successful.length,
       failed: failed.length,
       results,
+    });
     });
   },
 };

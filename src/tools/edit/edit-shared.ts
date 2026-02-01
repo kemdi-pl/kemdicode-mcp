@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 
 import { Logger } from '../../utils/logger.js';
 import { fromNodeError, formatErrorResponse } from '../../utils/errors.js';
-import { validatePath, ValidationError, checkRateLimit } from '../../utils/validation.js';
+import { validatePath, ValidationError, rateLimitGuard } from '../../utils/validation.js';
 
 /** Maximum content size (10MB) */
 export const MAX_CONTENT_SIZE = 10 * 1024 * 1024;
@@ -62,16 +62,9 @@ export async function validateEditRequest(
   const { contentLength, operation = 'write' } = options;
 
   // Rate limit check
-  if (!checkRateLimit('edit-operations', { maxRequests: 50, windowMs: 60000 })) {
-    return {
-      ok: false,
-      errorResponse: JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for edit operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-        path: inputPath,
-      }),
-    };
+  const blocked = rateLimitGuard('edit-operations', { maxRequests: 50, windowMs: 60000 });
+  if (blocked) {
+    return { ok: false, errorResponse: blocked };
   }
 
   // Content size check (for tools that accept content input)

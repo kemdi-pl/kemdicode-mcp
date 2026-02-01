@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -717,6 +717,23 @@ registerLazyTool({
   name: 'context-budget',
   description: 'Manage context window budget — decide what to keep vs evict',
   loader: () => import('./cognition/index.js').then((m) => m.contextBudgetTool),
+});
+
+// v1.24: Tool availability, agent ranking, session recovery
+registerLazyTool({
+  name: 'tool-health',
+  description: 'Check availability of all tools including AI provider status',
+  loader: () => import('./system/tool-health.tool.js').then((m) => m.toolHealthTool),
+});
+registerLazyTool({
+  name: 'agent-rank',
+  description: 'View and manage agent performance rankings (bronze-to-diamond)',
+  loader: () => import('./agents/agent-rank.tool.js').then((m) => m.agentRankTool),
+});
+registerLazyTool({
+  name: 'session-recover',
+  description: 'Comprehensive session recovery after compaction — restores all context in one call',
+  loader: () => import('./session/session-recover.tool.js').then((m) => m.sessionRecoverTool),
 });
 
 export * from './registry.js';

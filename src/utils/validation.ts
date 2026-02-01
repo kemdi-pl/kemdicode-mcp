@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -647,7 +647,7 @@ export function sanitizeEnvVars(
 /**
  * Rate limiter configuration and state
  */
-interface RateLimitConfig {
+export interface RateLimitConfig {
   maxRequests: number;
   windowMs: number;
 }
@@ -707,6 +707,36 @@ export function checkRateLimit(
  */
 export function resetRateLimits(): void {
   rateLimitStates.clear();
+}
+
+/**
+ * Rate limit guard for tool execution.
+ * Returns error JSON string if rate limited, null if allowed.
+ *
+ * Eliminates duplicated rate-limit boilerplate across 15+ tools.
+ *
+ * @param category - Rate limit category (e.g., 'kanban-operations', 'memory-operations')
+ * @param config - Rate limit configuration
+ * @returns null if allowed, JSON error string if rate limited
+ *
+ * @example
+ * ```typescript
+ * const blocked = rateLimitGuard('kanban-operations');
+ * if (blocked) return blocked;
+ * ```
+ */
+export function rateLimitGuard(
+  category: string,
+  config: RateLimitConfig = { maxRequests: 100, windowMs: 60000 }
+): string | null {
+  if (!checkRateLimit(category, config)) {
+    return JSON.stringify({
+      success: false,
+      error: `Rate limit exceeded for ${category}`,
+      code: 'RATE_LIMIT_EXCEEDED',
+    });
+  }
+  return null;
 }
 
 /**
@@ -774,4 +804,42 @@ export function quickPathCheck(inputPath: string): boolean {
   }
 
   return true;
+}
+
+/**
+ * Result type for validatePathSafe
+ */
+export type SafePathResult =
+  | { ok: true; path: string }
+  | { ok: false; error: string; code: string; inputPath: string };
+
+/**
+ * Non-throwing version of validatePath.
+ * Returns a discriminated union instead of throwing ValidationError.
+ *
+ * Replaces the common pattern:
+ *   try { path = await validatePath(input, opts); }
+ *   catch (e) { if (e instanceof ValidationError) { Logger.warn(...); return errorObj; } throw e; }
+ *
+ * @param inputPath - Path to validate
+ * @param options - Validation options (same as validatePath)
+ * @param toolName - Optional tool name for warn-level logging
+ */
+export async function validatePathSafe(
+  inputPath: string,
+  options: PathValidationOptions = {},
+  toolName?: string
+): Promise<SafePathResult> {
+  try {
+    const validatedPath = await validatePath(inputPath, options);
+    return { ok: true, path: validatedPath };
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      if (toolName) {
+        Logger.warn(`${toolName} security validation failed: ${error.message}`);
+      }
+      return { ok: false, error: error.message, code: error.code, inputPath };
+    }
+    throw error;
+  }
 }

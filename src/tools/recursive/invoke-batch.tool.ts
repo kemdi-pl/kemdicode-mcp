@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@ import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
-import { checkRateLimit } from '../../utils/validation.js';
+import { executeWithGuard } from '../tool-shared.js';
 import { invokeBatch, DEFAULT_POLICY } from '../../recursive/index.js';
 import { isSilent } from '../../config/silent.js';
 
@@ -63,15 +63,7 @@ export const invokeBatchTool: UnifiedTool = {
   execute: async (args): Promise<string> => {
     const input = schema.parse(args);
 
-    if (!checkRateLimit('recursive-operations', { maxRequests: 50, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for recursive operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
-
-    try {
+    return executeWithGuard('invoke-batch', 'recursive-operations', async () => {
       const requests = input.operations.map((op) => ({
         invocationId: uuidv4(),
         agentId: input.agentId,
@@ -113,15 +105,6 @@ export const invokeBatchTool: UnifiedTool = {
           depth: r.depth,
         })),
       });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`invoke-batch error: ${errorMessage}`);
-
-      return JSON.stringify({
-        success: false,
-        error: errorMessage,
-        code: 'BATCH_ERROR',
-      });
-    }
+    });
   },
 };

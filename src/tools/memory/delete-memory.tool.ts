@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { Logger } from '../../utils/logger.js';
-import { checkRateLimit } from '../../utils/validation.js';
+import { executeWithGuard } from '../tool-shared.js';
 import { MEMORY_PREFIX, MEMORY_INDEX_PREFIX, getRedis, getProjectId } from './shared.js';
 import { isSilent } from '../../config/silent.js';
 
@@ -54,18 +54,9 @@ export const deleteMemoryTool: UnifiedTool = {
   execute: async (args): Promise<string> => {
     const { names } = args as DeleteMemoryArgs;
 
-    if (!checkRateLimit('memory-operations', { maxRequests: 50, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for memory operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
-
+    return executeWithGuard('delete-memory', 'memory-operations', async () => {
     const projectId = getProjectId();
     const indexKey = `${MEMORY_INDEX_PREFIX}${projectId}`;
-
-    try {
       const client = await getRedis();
 
       // Pipeline: check existence
@@ -115,15 +106,6 @@ export const deleteMemoryTool: UnifiedTool = {
         notFound: failed.length,
         results,
       });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Logger.error(`delete-memory error: ${errorMessage}`);
-
-      return JSON.stringify({
-        success: false,
-        error: errorMessage,
-        code: 'STORAGE_ERROR',
-      });
-    }
+    });
   },
 };

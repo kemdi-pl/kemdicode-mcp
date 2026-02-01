@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
-import { execGit, validateGitRepo, formatGitError } from '../../utils/git-utils.js';
+import { execGit, executeGitTool } from '../../utils/git-utils.js';
 import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
@@ -60,35 +60,16 @@ export const gitStatusTool: UnifiedTool = {
   execute: async (args) => {
     const { cwd, short, branch, showStash, ignored, untracked, format } = args as z.infer<typeof schema>;
 
-    // Check if directory is a git repo
-    const repoError = validateGitRepo(cwd);
-    if (repoError) {
-      return repoError;
-    }
+    return executeGitTool('git-status', cwd, () => {
+      const statusArgs: string[] = ['status'];
+      if (short) statusArgs.push('--short');
+      if (branch) statusArgs.push('--branch');
+      if (showStash) statusArgs.push('--show-stash');
+      if (ignored) statusArgs.push('--ignored');
+      if (untracked) statusArgs.push(`--untracked-files=${untracked}`);
 
-    const statusArgs: string[] = ['status'];
-
-    // Add flags
-    if (short) {
-      statusArgs.push('--short');
-    }
-    if (branch) {
-      statusArgs.push('--branch');
-    }
-    if (showStash) {
-      statusArgs.push('--show-stash');
-    }
-    if (ignored) {
-      statusArgs.push('--ignored');
-    }
-    if (untracked) {
-      statusArgs.push(`--untracked-files=${untracked}`);
-    }
-
-    try {
       const output = execGit(statusArgs, { cwd });
 
-      // If output is empty, provide a helpful message
       if (!output.trim()) {
         const message = 'Working tree clean - no changes to commit.';
         if (format === 'json') {
@@ -99,13 +80,10 @@ export const gitStatusTool: UnifiedTool = {
 
       const result = output.trim();
       if (format === 'json' && !isSilent()) {
-        // Use template literal for static shape to avoid object allocation
         const escapedResult = result.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
         return `{"success":true,"output":"${escapedResult}","tool":"git-status"}`;
       }
       return result;
-    } catch (error) {
-      return formatGitError(error, 'Git status');
-    }
+    });
   },
 };

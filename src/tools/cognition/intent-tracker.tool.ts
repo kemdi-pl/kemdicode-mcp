@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@ import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { getIntentStore } from '../../cognition/intent-store.js';
 import { Logger } from '../../utils/logger.js';
-import { checkRateLimit } from '../../utils/validation.js';
+import { executeCognitionTool } from './cognition-shared.js';
 import { resolveSessionId } from '../../kanban/resolvers.js';
 import type { Intent } from '../../cognition/types.js';
 
@@ -217,17 +217,7 @@ export const intentTrackerTool: UnifiedTool<typeof schema> = {
   execute: async (args): Promise<string> => {
     const input = args as IntentTrackerArgs;
 
-    if (!checkRateLimit('intent-tracker', { maxRequests: 60, windowMs: 60000 })) {
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for intent-tracker operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
-    }
-
-    const store = getIntentStore();
-
-    try {
+    return executeCognitionTool('intent-tracker', getIntentStore, async (store) => {
       switch (input.action) {
         // ─────────────────────────── SET ───────────────────────────
         case 'set': {
@@ -533,13 +523,6 @@ export const intentTrackerTool: UnifiedTool<typeof schema> = {
             code: 'INVALID_ACTION',
           });
       }
-    } catch (error) {
-      Logger.error('intent-tracker execution error:', error);
-      return JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        code: 'EXECUTION_ERROR',
-      });
-    }
+    });
   },
 };

@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,6 +40,8 @@ export const analyzeDepsTool: UnifiedTool = {
     category: 'specialized',
     tags: ['dependencies', 'analysis', 'imports'],
     longRunning: true,
+    aiRequired: { fallbackTools: ['project-info', 'file-tree'] },
+    aiRouting: 'hybrid',
     examples: [
       { args: { files: '@src/services/UserService.ts' }, description: 'Analyze dependencies of a service file' },
       { args: { files: '@app/Http/Controllers/AuthController.php', depth: 'deep', direction: 'both' }, description: 'Deep dependency analysis in both directions' },

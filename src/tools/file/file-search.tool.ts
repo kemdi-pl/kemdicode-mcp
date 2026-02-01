@@ -1,6 +1,6 @@
 /**
  * KemdiCode MCP Server
- * Copyright (C) 2025-2026 Kemdi Sp. z o.o.
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@ import {
   validateRegexPattern,
   ValidationError,
   ValidationErrorCode,
-  checkRateLimit,
+  rateLimitGuard,
   quickPathCheck,
 } from '../../utils/validation.js';
 import { isSilent } from '../../config/silent.js';
@@ -274,14 +274,10 @@ export const fileSearchTool: UnifiedTool = {
     const startTime = Date.now();
     const result: SearchResult = { success: false };
 
-    // Rate limit check
-    if (!checkRateLimit('file-search', { maxRequests: 100, windowMs: 60000 })) {
+    const blocked = rateLimitGuard('file-search', { maxRequests: 100, windowMs: 60000 });
+    if (blocked) {
       logSecurityEvent('RATE_LIMIT_EXCEEDED', { pattern: searchArgs.pattern.substring(0, 50) });
-      return JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded for file-search operations',
-        code: 'RATE_LIMIT_EXCEEDED',
-      });
+      return blocked;
     }
 
     // Validate the search pattern (for regex safety)
