@@ -10,8 +10,6 @@ Alternatively, manually: `read-memory --names ["active-session"]` and update wit
 
 Model Context Protocol (MCP) server providing **127 specialized tools** for code analysis, generation, git operations, file management, line/symbol editing, project memory, cognition & self-improvement, multi-board kanban with workspaces, task comments, thinking chains, recursive tool invocation, pipelines, session monitoring, multi-agent coordination, tool availability checking, AI model cost optimization, ambient learning, and agent ranking.
 
-**Version:** 1.24.0
-
 ## Architecture
 
 ```

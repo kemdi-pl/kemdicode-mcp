@@ -11,8 +11,11 @@
 /**
  * Central version file for the entire project.
  * All version references should import from this file.
+ * Version is read from package.json — single source of truth.
  *
  * @module version
  */
 
-export const VERSION = '1.24.0';
+import pkg from '../package.json' with { type: 'json' };
+
+export const VERSION: string = pkg.version;
