@@ -43,6 +43,22 @@ import { getGlobalEventBus } from '../events/global-bus.js';
 import type { EventMetadata } from '../events/types.js';
 
 // ---------------------------------------------------------------------------
+// Env helpers (used by constants below)
+// ---------------------------------------------------------------------------
+
+/**
+ * Read an integer from environment variable with a fallback default.
+ */
+function envInt(key: string, fallback: number): number {
+  const val = process.env[key];
+  if (val !== undefined) {
+    const parsed = parseInt(val, 10);
+    if (!isNaN(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+// ---------------------------------------------------------------------------
 // Dependency Injection Interface
 // ---------------------------------------------------------------------------
 
@@ -84,6 +100,9 @@ export interface AgenticLoopConfig {
   /** Current depth for sub-agent tracking (default: 0) */
   currentDepth?: number;
 
+  /** History of sub-agent task descriptions to prevent infinite loops */
+  subAgentHistory?: string[];
+
   /** Tools allowed for this agent (empty = all) */
   allowedTools?: string[];
 
@@ -92,6 +111,9 @@ export interface AgenticLoopConfig {
 
   /** Enable cognitive tools (decision-journal, confidence-tracker, etc.) */
   enableCognition?: boolean;
+
+  /** Override the default cognitive tool set (used when enableCognition is true) */
+  cognitiveTools?: string[];
 
   /** Use native function calling (true, default) or text-based parsing (false) */
   useFunctionCalling?: boolean;
@@ -162,10 +184,18 @@ const TOOL_CALL_REGEX = /```tool-call\s*([\s\S]*?)\s*```/g;
 const RESULT_REGEX = /```result\s*([\s\S]*?)\s*```/g;
 const SUB_AGENT_REGEX = /```sub-agent\s*([\s\S]*?)\s*```/g;
 
+/** Maximum input length for regex parsing to prevent ReDoS (500KB) */
+const MAX_PARSE_LENGTH = envInt('MCP_MAX_PARSE_LENGTH', 512_000);
+
 /**
  * Parse ```tool-call JSON blocks from AI response.
  */
 export function parseToolCalls(response: string): ToolCall[] {
+  if (response.length > MAX_PARSE_LENGTH) {
+    Logger.warn(`agentic-loop: parseToolCalls input too large (${response.length} chars), truncating to ${MAX_PARSE_LENGTH}`);
+    response = response.slice(0, MAX_PARSE_LENGTH);
+  }
+
   const calls: ToolCall[] = [];
   let match: RegExpExecArray | null;
 
@@ -192,6 +222,9 @@ export function parseToolCalls(response: string): ToolCall[] {
  * Parse ```result block from AI response (final answer).
  */
 export function parseFinalResult(response: string): string | null {
+  if (response.length > MAX_PARSE_LENGTH) {
+    response = response.slice(0, MAX_PARSE_LENGTH);
+  }
   RESULT_REGEX.lastIndex = 0;
   const match = RESULT_REGEX.exec(response);
   return match ? match[1].trim() : null;
@@ -201,6 +234,10 @@ export function parseFinalResult(response: string): string | null {
  * Parse ```sub-agent blocks from AI response.
  */
 export function parseSubAgentRequests(response: string): Array<{ task: string; agent?: AgentType }> {
+  if (response.length > MAX_PARSE_LENGTH) {
+    response = response.slice(0, MAX_PARSE_LENGTH);
+  }
+
   const requests: Array<{ task: string; agent?: AgentType }> = [];
 
   SUB_AGENT_REGEX.lastIndex = 0;
@@ -448,18 +485,6 @@ const FILE_CONTENT_TOOLS = new Set([
 /** Truncation marker pattern — used to detect corrupted content */
 const TRUNCATION_MARKER_RE = /\.\.\. \(truncated, \d+ total chars\)/;
 
-/**
- * Read an integer from environment variable with a fallback default.
- */
-function envInt(key: string, fallback: number): number {
-  const val = process.env[key];
-  if (val !== undefined) {
-    const parsed = parseInt(val, 10);
-    if (!isNaN(parsed)) return parsed;
-  }
-  return fallback;
-}
-
 /** Default truncation limit for most tools (env: MCP_TOOL_RESULT_LIMIT, default: 16000) */
 const DEFAULT_TRUNCATION_LIMIT = envInt('MCP_TOOL_RESULT_LIMIT', 16000);
 
@@ -541,6 +566,25 @@ async function executeSingleToolCall(
 }
 
 // ---------------------------------------------------------------------------
+// Sub-agent loop detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalize task description for dedup comparison (lowercase, collapse whitespace).
+ */
+function normalizeTask(task: string): string {
+  return task.toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 200);
+}
+
+/**
+ * Check if a sub-agent task is a duplicate of a previous one.
+ */
+function isSubAgentLoop(task: string, history: string[]): boolean {
+  const normalized = normalizeTask(task);
+  return history.some((h) => h === normalized);
+}
+
+// ---------------------------------------------------------------------------
 // Main Loop — Native Function Calling Mode
 // ---------------------------------------------------------------------------
 
@@ -551,6 +595,7 @@ async function executeWithFunctionCalling(
   maxIterations: number,
   currentDepth: number,
   maxSubAgentDepth: number,
+  subAgentHistory: string[],
   progress: (msg: string) => void,
   emitLoop?: (type: string, extra: Record<string, unknown>, publishToRedis?: boolean) => void,
 ): Promise<AgenticLoopResult> {
@@ -590,9 +635,25 @@ async function executeWithFunctionCalling(
         maxTokens: config.maxTokens ?? getAgentMaxTokens(config.agent),
       });
     } catch (error) {
-      progress(`AI error: ${error instanceof Error ? error.message : String(error)}`);
-      stopReason = 'error';
-      break;
+      const errMsg = error instanceof Error ? error.message : String(error);
+      progress(`AI error (attempt 1): ${errMsg} — retrying...`);
+      // Retry once: client.ts will attempt fallback model internally
+      try {
+        await new Promise((r) => setTimeout(r, 1000));
+        response = await completeWithTools({
+          messages,
+          agent: config.agent,
+          model: config.model,
+          tools: functionTools.length > 0 ? functionTools : undefined,
+          toolChoice: functionTools.length > 0 ? 'auto' : undefined,
+          temperature: config.temperature ?? getAgentTemperature(config.agent),
+          maxTokens: config.maxTokens ?? getAgentMaxTokens(config.agent),
+        });
+      } catch (retryError) {
+        progress(`AI error (attempt 2): ${retryError instanceof Error ? retryError.message : String(retryError)}`);
+        stopReason = 'error';
+        break;
+      }
     }
 
     const aiContent = response.content || '';
@@ -654,12 +715,18 @@ async function executeWithFunctionCalling(
       // Handle sub-agent requests from text
       if (subAgentReqs.length > 0 && currentDepth < maxSubAgentDepth) {
         for (const req of subAgentReqs) {
+          if (isSubAgentLoop(req.task, subAgentHistory)) {
+            progress(`Skipping duplicate sub-agent task: ${req.task.slice(0, 60)}...`);
+            messages.push({ role: 'user', content: `Sub-agent skipped (loop detected): "${req.task.slice(0, 60)}"` });
+            continue;
+          }
           progress(`Spawning sub-agent: ${req.task.slice(0, 60)}...`);
           emitLoop?.('loop:sub-agent-spawned', {
             subTask: req.task.slice(0, 200),
             subAgent: req.agent || 'general',
             depth: currentDepth + 1,
           }, true);
+          const updatedHistory = [...subAgentHistory, normalizeTask(req.task)];
           try {
             const subResult = await executeAgenticLoop({
               ...config,
@@ -669,6 +736,7 @@ async function executeWithFunctionCalling(
               maxIterations: Math.min(maxIterations, SUB_AGENT_MAX_ITERATIONS),
               sessionId: `${config.sessionId}:sub:${uuidv4().slice(0, 8)}`,
               onProgress: (msg) => progress(`  [sub-agent] ${msg}`),
+              subAgentHistory: updatedHistory,
             });
 
             subAgentResults.push({
@@ -742,7 +810,13 @@ async function executeWithFunctionCalling(
 
     if (currentDepth < maxSubAgentDepth) {
       for (const req of subAgentReqs) {
+        if (isSubAgentLoop(req.task, subAgentHistory)) {
+          progress(`Skipping duplicate sub-agent task: ${req.task.slice(0, 60)}...`);
+          messages.push({ role: 'user', content: `Sub-agent skipped (loop detected): "${req.task.slice(0, 60)}"` });
+          continue;
+        }
         progress(`Spawning sub-agent: ${req.task.slice(0, 60)}...`);
+        const updatedHistory = [...subAgentHistory, normalizeTask(req.task)];
         try {
           const subResult = await executeAgenticLoop({
             ...config,
@@ -752,6 +826,7 @@ async function executeWithFunctionCalling(
             maxIterations: Math.min(maxIterations, SUB_AGENT_MAX_ITERATIONS),
             sessionId: `${config.sessionId}:sub:${uuidv4().slice(0, 8)}`,
             onProgress: (msg) => progress(`  [sub-agent] ${msg}`),
+            subAgentHistory: updatedHistory,
           });
 
           subAgentResults.push({
@@ -799,6 +874,7 @@ async function executeWithTextParsing(
   maxIterations: number,
   currentDepth: number,
   maxSubAgentDepth: number,
+  subAgentHistory: string[],
   progress: (msg: string) => void,
   emitLoop?: (type: string, extra: Record<string, unknown>, publishToRedis?: boolean) => void,
 ): Promise<AgenticLoopResult> {
@@ -825,21 +901,29 @@ async function executeWithTextParsing(
 
     // Call AI with orchestrator as system prompt (overrides agent default)
     let aiResponse: string;
+    const aiCallArgs = {
+      prompt: iterationPrompt,
+      agent: config.agent,
+      model: config.model,
+      systemPrompt: orchestratorPrompt,
+      sessionId: `${config.sessionId}:orchestrate:${currentDepth}`,
+      continueSession: iteration > 1,
+      temperature: config.temperature ?? getAgentTemperature(config.agent),
+      maxTokens: config.maxTokens ?? getAgentMaxTokens(config.agent),
+    };
     try {
-      aiResponse = await executeAI({
-        prompt: iterationPrompt,
-        agent: config.agent,
-        model: config.model,
-        systemPrompt: orchestratorPrompt,
-        sessionId: `${config.sessionId}:orchestrate:${currentDepth}`,
-        continueSession: iteration > 1,
-        temperature: config.temperature ?? getAgentTemperature(config.agent),
-        maxTokens: config.maxTokens ?? getAgentMaxTokens(config.agent),
-      });
+      aiResponse = await executeAI(aiCallArgs);
     } catch (error) {
-      progress(`AI error: ${error instanceof Error ? error.message : String(error)}`);
-      stopReason = 'error';
-      break;
+      const errMsg = error instanceof Error ? error.message : String(error);
+      progress(`AI error (attempt 1): ${errMsg} — retrying...`);
+      try {
+        await new Promise((r) => setTimeout(r, 1000));
+        aiResponse = await executeAI(aiCallArgs);
+      } catch (retryError) {
+        progress(`AI error (attempt 2): ${retryError instanceof Error ? retryError.message : String(retryError)}`);
+        stopReason = 'error';
+        break;
+      }
     }
 
     lastAnswer = aiResponse;
@@ -896,21 +980,28 @@ async function executeWithTextParsing(
     // Execute sub-agents (if allowed by depth)
     if (subAgentReqs.length > 0 && currentDepth < maxSubAgentDepth) {
       for (const req of subAgentReqs) {
+        if (isSubAgentLoop(req.task, subAgentHistory)) {
+          progress(`Skipping duplicate sub-agent task: ${req.task.slice(0, 60)}...`);
+          conversationContext += `\n[sub-agent] Skipped (loop detected): "${req.task.slice(0, 60)}"\n`;
+          continue;
+        }
         progress(`Spawning sub-agent: ${req.task.slice(0, 60)}...`);
         emitLoop?.('loop:sub-agent-spawned', {
           subTask: req.task.slice(0, 200),
           subAgent: req.agent || 'general',
           depth: currentDepth + 1,
         }, true);
+        const updatedHistory = [...subAgentHistory, normalizeTask(req.task)];
         try {
           const subResult = await executeAgenticLoop({
             ...config,
             task: req.task,
             agent: req.agent || 'general',
             currentDepth: currentDepth + 1,
-            maxIterations: Math.min(maxIterations, SUB_AGENT_MAX_ITERATIONS), // Sub-agents get fewer iterations
+            maxIterations: Math.min(maxIterations, SUB_AGENT_MAX_ITERATIONS),
             sessionId: `${config.sessionId}:sub:${uuidv4().slice(0, 8)}`,
             onProgress: (msg) => progress(`  [sub-agent] ${msg}`),
+            subAgentHistory: updatedHistory,
           });
 
           subAgentResults.push({
@@ -952,6 +1043,7 @@ export async function executeAgenticLoop(config: AgenticLoopConfig): Promise<Age
   const currentDepth = config.currentDepth ?? 0;
   const maxSubAgentDepth = config.maxSubAgentDepth ?? 2;
   const useFunctionCalling = config.useFunctionCalling ?? true;
+  const subAgentHistory = config.subAgentHistory ?? [];
   const executor = config.toolExecutor ?? await getDefaultExecutor();
 
   const progress = (msg: string) => {
@@ -979,7 +1071,8 @@ export async function executeAgenticLoop(config: AgenticLoopConfig): Promise<Age
 
   // Auto-add cognitive tools when enableCognition is set
   if (config.enableCognition && availableTools) {
-    for (const name of COGNITIVE_TOOL_NAMES) {
+    const cognitiveNames = config.cognitiveTools ?? COGNITIVE_TOOL_NAMES;
+    for (const name of cognitiveNames) {
       if (!availableTools.includes(name)) {
         availableTools.push(name);
       }
@@ -1007,14 +1100,14 @@ export async function executeAgenticLoop(config: AgenticLoopConfig): Promise<Age
   if (useFunctionCalling && executor.getDefinitions) {
     progress('Using native function calling mode');
     result = await executeWithFunctionCalling(
-      config, executor, availableTools, maxIterations, currentDepth, maxSubAgentDepth, progress,
-      emitLoop,
+      config, executor, availableTools, maxIterations, currentDepth, maxSubAgentDepth, subAgentHistory,
+      progress, emitLoop,
     );
   } else {
     progress('Using text-based parsing mode');
     result = await executeWithTextParsing(
-      config, executor, availableTools, maxIterations, currentDepth, maxSubAgentDepth, progress,
-      emitLoop,
+      config, executor, availableTools, maxIterations, currentDepth, maxSubAgentDepth, subAgentHistory,
+      progress, emitLoop,
     );
   }
 

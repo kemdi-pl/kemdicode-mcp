@@ -527,11 +527,10 @@ class ToolRegistryManager {
 const registryManager = new ToolRegistryManager();
 
 /**
- * @deprecated Use registryManager methods instead. Kept for backward compatibility.
- * @description Direct access to the tool registry array
+ * Get all registered tools.
+ * @returns Readonly array of all registered UnifiedTool instances
  */
-export function getToolRegistry(): readonly UnifiedTool[] {
-  // Dynamic getter avoids snapshotting the registry at module init time.
+export function getAllTools(): readonly UnifiedTool[] {
   return registryManager.getAll();
 }
 
@@ -612,15 +611,26 @@ export const registerLazyTool = (entry: Omit<LazyToolEntry, 'loaded' | 'tool'>):
  */
 export async function warmupLazySchemas(): Promise<void> {
   const names = registryManager.getLazyToolNames();
+  const toLoad = names.filter((name) => !schemaCache.has(name));
+
+  if (toLoad.length === 0) return;
+
+  // Parallel warmup with concurrency limit to avoid overwhelming I/O
+  const BATCH_SIZE = 20;
   let loaded = 0;
 
-  for (const name of names) {
-    if (schemaCache.has(name)) continue;
-    try {
-      await registryManager.loadLazy(name);
-      loaded++;
-    } catch {
-      // Individual tool load failure shouldn't break warmup
+  for (let i = 0; i < toLoad.length; i += BATCH_SIZE) {
+    const batch = toLoad.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map((name) => registryManager.loadLazy(name))
+    );
+    for (let j = 0; j < results.length; j++) {
+      const result = results[j];
+      if (result.status === 'fulfilled') {
+        loaded++;
+      } else {
+        Logger.warn(`Schema warmup failed for '${batch[j]}': ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+      }
     }
   }
 
@@ -779,7 +789,7 @@ export function getToolDefinitions(): Tool[] {
   const definitions: Tool[] = [];
 
   // Add eager tools with full schemas
-  for (const tool of getToolRegistry()) {
+  for (const tool of registryManager.getAll()) {
     // Check cache first to avoid recomputing JSON Schema
     let inputSchema = schemaCache.get(tool.name);
 
@@ -863,7 +873,7 @@ export function getToolDefinitions(): Tool[] {
  * ```
  */
 export function getPromptDefinitions(): Prompt[] {
-  return getToolRegistry()
+  return registryManager.getAll()
     .filter((t) => t.prompt)
     .map((t) => ({ name: t.name, description: t.prompt!.description }));
 }
@@ -998,32 +1008,37 @@ export async function executeTool(
     throw new ToolExecutionError(name, String(error));
   }
 
-  // Auto-share context (async, don't block response)
+  // Auto-share context (async, don't block response) with retry for transient errors
   // Silent mode only affects output formatting, not context sharing
   if (isContextEnabled() && !tool.skipContextShare && !SKIP_SHARE_TOOLS.has(name)) {
-    shareContext(name, args as Record<string, unknown>, result, {
-      errorState: isError,
-    }).catch((err: unknown) => {
-      // Log with full context for debugging
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      const errorStack = err instanceof Error ? err.stack : undefined;
-
-      // Use error level for connection issues, warn for others
-      const isConnectionError =
-        errorMessage.includes('ECONNREFUSED') || errorMessage.includes('ETIMEDOUT');
-
-      if (isConnectionError) {
-        Logger.error(
-          `Context sharing failed for ${name} (Redis connection issue): ${errorMessage}`
-        );
-      } else {
-        Logger.warn(`Context sharing failed for ${name}: ${errorMessage}`, {
-          tool: name,
-          error: errorMessage,
-          stack: maskStackTrace(errorStack),
+    const shareWithRetry = async (attempt = 1): Promise<void> => {
+      try {
+        await shareContext(name, args as Record<string, unknown>, result, {
+          errorState: isError,
         });
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        const isTransient =
+          errorMessage.includes('ECONNREFUSED') || errorMessage.includes('ETIMEDOUT') || errorMessage.includes('ECONNRESET');
+
+        if (isTransient && attempt < 3) {
+          await new Promise((r) => setTimeout(r, attempt * 500));
+          return shareWithRetry(attempt + 1);
+        }
+
+        const errorStack = err instanceof Error ? err.stack : undefined;
+        if (isTransient) {
+          Logger.error(`Context sharing failed for ${name} after ${attempt} attempts (Redis connection issue): ${errorMessage}`);
+        } else {
+          Logger.warn(`Context sharing failed for ${name}: ${errorMessage}`, {
+            tool: name,
+            error: errorMessage,
+            stack: maskStackTrace(errorStack),
+          });
+        }
       }
-    });
+    };
+    shareWithRetry().catch(() => {});
   }
 
   return result;
@@ -1045,7 +1060,7 @@ export async function executeTool(
  * ```
  */
 export function getPromptMessage(name: string, args: Record<string, unknown>): string {
-  const tool = getToolRegistry().find((t) => t.name === name);
+  const tool = registryManager.getAll().find((t) => t.name === name);
   if (!tool?.prompt) throw new Error(`No prompt for: ${name}`);
 
   const params = Object.entries(args)

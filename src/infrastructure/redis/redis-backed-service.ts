@@ -27,26 +27,47 @@ import { Logger } from '../../utils/logger.js';
 export abstract class RedisBackedService {
   protected redis: Redis | null = null;
   private _connected = false;
+  private _eventsBound = false;
 
   protected abstract get serviceName(): string;
 
   async connect(): Promise<void> {
-    if (this._connected) return;
+    if (this._connected && this.redis !== null) return;
 
     try {
       this.redis = await getSharedRedis();
       this._connected = true;
+      this.bindEvents();
     } catch (error) {
       Logger.error(`[${this.serviceName}] Failed to connect to Redis:`, error);
       this.redis = null;
+      this._connected = false;
       throw error;
     }
+  }
+
+  private bindEvents(): void {
+    if (this._eventsBound || !this.redis) return;
+    this._eventsBound = true;
+
+    this.redis.on('error', () => {
+      this._connected = false;
+    });
+
+    this.redis.on('close', () => {
+      this._connected = false;
+    });
+
+    this.redis.on('connect', () => {
+      this._connected = true;
+    });
   }
 
   async disconnect(): Promise<void> {
     // Don't quit shared Redis connection, just release reference
     this.redis = null;
     this._connected = false;
+    this._eventsBound = false;
   }
 
   isConnected(): boolean {

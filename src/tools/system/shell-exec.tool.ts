@@ -47,6 +47,13 @@ import {
 import { maskSensitiveData } from '../../utils/security.js';
 import { isSilent } from '../../config/silent.js';
 
+/** Maximum command length (env: KEMDICODE_SHELL_MAX_CMD_LEN, default: 100KB) */
+const MAX_COMMAND_LENGTH = (() => {
+  const val = process.env.KEMDICODE_SHELL_MAX_CMD_LEN;
+  if (val) { const n = parseInt(val, 10); if (!isNaN(n) && n > 0) return n; }
+  return 100_000;
+})();
+
 /**
  * List of dangerous commands that should be blocked
  */
@@ -81,6 +88,8 @@ const DANGEROUS_PATTERNS = [
   /perl\s+-e\s+['"]use\s+Socket/, // Perl reverse shell
   // eslint-disable-next-line no-control-regex
   /\x00/, // Null byte injection
+  /\$'\\x[0-9a-fA-F]{2}/, // Hex escape obfuscation ($'\x72\x6d')
+  /\\[0-7]{3}/, // Octal escape obfuscation
 ];
 
 /**
@@ -303,6 +312,16 @@ export const shellExecTool: UnifiedTool = {
     }
 
     const command = String(args.command);
+
+    if (command.length > MAX_COMMAND_LENGTH) {
+      logSecurityEvent('COMMAND_TOO_LONG', { length: command.length, max: MAX_COMMAND_LENGTH });
+      throw new DangerousOperationError(
+        command.slice(0, 100) + '…',
+        `Command exceeds maximum length (${command.length} > ${MAX_COMMAND_LENGTH})`,
+        {}
+      );
+    }
+
     const inputCwd = (args.cwd as string) || process.cwd();
     // Preserve explicit 0 (no timeout)
     const timeout = typeof args.timeout === 'number' ? (args.timeout as number) : 60000;

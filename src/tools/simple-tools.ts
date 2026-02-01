@@ -17,7 +17,7 @@
  */
 
 import { z } from 'zod';
-import { UnifiedTool, getToolRegistry } from './registry.js';
+import { UnifiedTool, getAllTools } from './registry.js';
 import { executeAI, parseFiles } from '../ai/index.js';
 import { ERROR_MESSAGES } from '../constants.js';
 
@@ -34,7 +34,7 @@ export const helpTool: UnifiedTool = {
   description: 'Show available tools and commands',
   zodSchema: z.object({}),
   execute: async () => {
-    const tools = getToolRegistry();
+    const tools = getAllTools();
     const categories = new Map<string, { name: string; description: string }[]>();
 
     for (const tool of tools) {

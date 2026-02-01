@@ -198,8 +198,13 @@ async function main(): Promise<void> {
   if (opts.context !== false) {
     const redisConfig = config.get('redis');
 
-    const contextEnabled = await initContext(redisConfig);
+    // Parallel init: context sharing + agent monitor are independent
+    const [contextEnabled, monitor] = await Promise.all([
+      initContext(redisConfig),
+      initAgentMonitor(redisConfig),
+    ]);
     Logger.debug(`Context sharing: ${contextEnabled ? 'enabled' : 'disabled'}`);
+    Logger.debug(`Agent monitor: ${monitor.isConnected() ? 'connected' : 'disconnected'}`);
 
     // Display Session ID for multi-agent coordination
     if (contextEnabled) {
@@ -207,10 +212,6 @@ async function main(): Promise<void> {
       Logger.info(`Session ID: ${sessionId}`);
       Logger.info(`Use this ID to share context between agents`);
     }
-
-    // Initialize agent monitor (for multi-agent supervision)
-    const monitor = await initAgentMonitor(redisConfig);
-    Logger.debug(`Agent monitor: ${monitor.isConnected() ? 'connected' : 'disconnected'}`);
   }
 
   // Initialize AI client for direct API calls (OpenAI SDK)

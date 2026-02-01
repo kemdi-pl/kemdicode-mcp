@@ -29,13 +29,27 @@ import type {
   RedisEventOptions,
 } from './types.js';
 
+/** Default max listeners (env: MCP_EVENT_MAX_LISTENERS, default: 100) */
+const DEFAULT_MAX_LISTENERS = (() => {
+  const val = process.env.MCP_EVENT_MAX_LISTENERS;
+  if (val) { const n = parseInt(val, 10); if (!isNaN(n) && n > 0) return n; }
+  return 100;
+})();
+
+/** Max retry attempts for Redis bridge (env: MCP_EVENT_REDIS_RETRIES, default: 2) */
+const REDIS_BRIDGE_RETRIES = (() => {
+  const val = process.env.MCP_EVENT_REDIS_RETRIES;
+  if (val) { const n = parseInt(val, 10); if (!isNaN(n) && n >= 0) return n; }
+  return 2;
+})();
+
 class GlobalEventBus {
   private emitter = new EventEmitter();
   private _initialized = false;
   private redisBridge: ((event: GlobalEvent, options?: RedisEventOptions) => Promise<void>) | null = null;
 
-  constructor() {
-    this.emitter.setMaxListeners(100);
+  constructor(maxListeners?: number) {
+    this.emitter.setMaxListeners(maxListeners ?? DEFAULT_MAX_LISTENERS);
   }
 
   /**
@@ -83,9 +97,32 @@ class GlobalEventBus {
     this.emitter.emit(eventType, event);
 
     if (options?.publishToRedis && this.redisBridge) {
-      this.redisBridge(event, options).catch((err) => {
+      this.publishWithRetry(event, eventType, options).catch((err) => {
         Logger.warn(`[GlobalEventBus] Redis bridge error for ${eventType}: ${err instanceof Error ? err.message : String(err)}`);
       });
+    }
+  }
+
+  /**
+   * Publish event to Redis with retry on transient failures.
+   */
+  private async publishWithRetry(
+    event: GlobalEvent,
+    eventType: string,
+    options: RedisEventOptions,
+  ): Promise<void> {
+    for (let attempt = 0; attempt <= REDIS_BRIDGE_RETRIES; attempt++) {
+      try {
+        await this.redisBridge!(event, options);
+        return;
+      } catch (err) {
+        if (attempt < REDIS_BRIDGE_RETRIES) {
+          Logger.debug(`[GlobalEventBus] Redis retry ${attempt + 1}/${REDIS_BRIDGE_RETRIES} for ${eventType}`);
+          await new Promise((r) => setTimeout(r, (attempt + 1) * 200));
+        } else {
+          throw err;
+        }
+      }
     }
   }
 
@@ -94,6 +131,28 @@ class GlobalEventBus {
    */
   setRedisBridge(bridge: (event: GlobalEvent, options?: RedisEventOptions) => Promise<void>): void {
     this.redisBridge = bridge;
+  }
+
+  /**
+   * Get listener count per event type (for diagnostics).
+   */
+  getListenerCounts(): Record<string, number> {
+    const counts: Record<string, number> = {};
+    for (const name of this.emitter.eventNames()) {
+      counts[String(name)] = this.emitter.listenerCount(name);
+    }
+    return counts;
+  }
+
+  /**
+   * Total number of listeners across all event types.
+   */
+  get totalListeners(): number {
+    let total = 0;
+    for (const name of this.emitter.eventNames()) {
+      total += this.emitter.listenerCount(name);
+    }
+    return total;
   }
 
   /**

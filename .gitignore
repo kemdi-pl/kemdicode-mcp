@@ -35,3 +35,6 @@ dist-bun/
 
 # Local scripts
 *.sh
+
+# Backup files
+*.bak
