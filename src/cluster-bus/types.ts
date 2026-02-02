@@ -194,6 +194,28 @@ export interface ClusterTopology {
 // Signal Payloads (Zod schemas)
 // ---------------------------------------------------------------------------
 
+export const PassConfigSchema = z.object({
+  maxPasses: z.number().min(1).max(20).default(5).describe('Hard limit on total LLM passes'),
+  qualityThreshold: z.number().min(0).max(1).default(0.8).describe('Quality score threshold for early stop (0-1)'),
+  strategy: z.enum(['min-passes', 'quality-target', 'fixed']).default('min-passes')
+    .describe('min-passes: LLM declares minimum then executes; quality-target: iterate until quality met; fixed: exactly maxPasses runs'),
+});
+
+export const PassRecordSchema = z.object({
+  pass: z.number().describe('Pass number (0=assessment)'),
+  quality: z.number().describe('Self-assessed quality 0-1'),
+  sufficient: z.boolean().describe('LLM considers result sufficient'),
+  tokensUsed: z.number().describe('Tokens consumed in this pass'),
+  latencyMs: z.number().describe('Latency of this pass in ms'),
+});
+
+export const PassReportSchema = z.object({
+  totalPasses: z.number().describe('Total passes executed (including assessment)'),
+  minPassesDeclared: z.number().describe('Passes declared by LLM in assessment'),
+  qualityAchieved: z.number().describe('Final quality score 0-1'),
+  passHistory: z.array(PassRecordSchema).describe('Per-pass execution records'),
+});
+
 export const LLMRequestPayload = z.object({
   prompt: z.string().describe('LLM prompt text'),
   model: z.string().optional().describe('Target model spec (provider:model:thinking or custom:name:model)'),
@@ -205,6 +227,7 @@ export const LLMRequestPayload = z.object({
     baseURL: z.string().describe('OpenAI-compatible base URL'),
     apiKey: z.string().optional().describe('API key (omit if not needed)'),
   }).optional().describe('Custom endpoint override for cross-cluster dispatch'),
+  passConfig: PassConfigSchema.optional().describe('Pass budget config — enables multi-pass self-regulating execution'),
 });
 
 export const LLMResultPayload = z.object({
@@ -216,6 +239,7 @@ export const LLMResultPayload = z.object({
   completionTokens: z.number().optional().describe('Output token count'),
   finishReason: z.string().optional().describe('Why the completion ended'),
   latencyMs: z.number().optional().describe('End-to-end latency in milliseconds'),
+  passReport: PassReportSchema.optional().describe('Pass budget execution report (present when passConfig was used)'),
 });
 
 export const HeartbeatPayload = z.object({

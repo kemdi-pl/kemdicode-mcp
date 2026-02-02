@@ -52,6 +52,22 @@ const schema = z.object({
     .string()
     .optional()
     .describe('Preferred model hint for target clusters'),
+  maxPasses: z
+    .number()
+    .min(1)
+    .max(20)
+    .optional()
+    .describe('Pass budget: max LLM passes per cluster (enables self-regulating multi-pass execution)'),
+  qualityThreshold: z
+    .number()
+    .min(0)
+    .max(1)
+    .default(0.8)
+    .describe('Quality threshold for early stop (0-1, default 0.8)'),
+  passStrategy: z
+    .enum(['min-passes', 'quality-target', 'fixed'])
+    .default('min-passes')
+    .describe('Pass budget strategy: min-passes (LLM decides), quality-target (iterate to quality), fixed (exact N passes)'),
 });
 
 export const clusterMagistraleTool: UnifiedTool<typeof schema> = {
@@ -100,6 +116,11 @@ export const clusterMagistraleTool: UnifiedTool<typeof schema> = {
       minResponses: args.minResponses,
       preferredProvider: args.preferredProvider,
       preferredModel: args.preferredModel,
+      passConfig: args.maxPasses ? {
+        maxPasses: args.maxPasses,
+        qualityThreshold: args.qualityThreshold,
+        strategy: args.passStrategy,
+      } : undefined,
     });
 
     const lines = [
@@ -116,6 +137,13 @@ export const clusterMagistraleTool: UnifiedTool<typeof schema> = {
       lines.push(`- **Consensus Score:** ${(response.consensusScore * 100).toFixed(1)}%`);
     }
 
+    if (response.totalPassesAllClusters !== undefined) {
+      lines.push(`- **Total Passes (all clusters):** ${response.totalPassesAllClusters}`);
+    }
+    if (response.avgQuality !== undefined) {
+      lines.push(`- **Avg Quality:** ${(response.avgQuality * 100).toFixed(1)}%`);
+    }
+
     lines.push('', '## Response', '', response.content || '*No response received*');
 
     if (response.results.length > 1) {
@@ -124,10 +152,30 @@ export const clusterMagistraleTool: UnifiedTool<typeof schema> = {
         if (result.error) {
           lines.push(`- **${result.clusterId}**: Error - ${result.error}`);
         } else {
+          const passInfo = result.passReport
+            ? ` | passes=${result.passReport.totalPasses} (declared=${result.passReport.minPassesDeclared}), quality=${(result.passReport.qualityAchieved * 100).toFixed(0)}%`
+            : '';
           lines.push(
-            `- **${result.clusterId}** (${result.provider}/${result.model}): ${result.latencyMs}ms, ${result.completionTokens ?? '?'} tokens`,
+            `- **${result.clusterId}** (${result.provider}/${result.model}): ${result.latencyMs}ms, ${result.completionTokens ?? '?'} tokens${passInfo}`,
           );
         }
+      }
+    }
+
+    // Pass budget detail for single-cluster results
+    if (response.results.length === 1 && response.results[0].passReport) {
+      const report = response.results[0].passReport;
+      lines.push('', '## Pass Budget Report', '');
+      lines.push(`- **Strategy:** ${args.passStrategy}`);
+      lines.push(`- **Min Passes Declared:** ${report.minPassesDeclared}`);
+      lines.push(`- **Total Passes:** ${report.totalPasses}`);
+      lines.push(`- **Quality Achieved:** ${(report.qualityAchieved * 100).toFixed(1)}%`);
+      lines.push('', '| Pass | Quality | Sufficient | Tokens | Latency |');
+      lines.push('|------|---------|------------|--------|---------|');
+      for (const p of report.passHistory) {
+        lines.push(
+          `| ${p.pass === 0 ? 'assess' : p.pass} | ${(p.quality * 100).toFixed(0)}% | ${p.sufficient ? 'yes' : 'no'} | ${p.tokensUsed} | ${p.latencyMs}ms |`,
+        );
       }
     }
 

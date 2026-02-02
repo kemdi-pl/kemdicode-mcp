@@ -36,7 +36,14 @@ export {
   LLMRequestPayload,
   LLMResultPayload,
   HeartbeatPayload,
+  PassConfigSchema,
+  PassReportSchema,
+  PassRecordSchema,
 } from './types.js';
+
+// Pass Controller
+export { PassController } from './pass-controller.js';
+export type { PassConfig, PassRecord, PassReport } from './pass-controller.js';
 
 // Cluster Registry
 export {

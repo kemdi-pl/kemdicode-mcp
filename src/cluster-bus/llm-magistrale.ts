@@ -23,7 +23,8 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../utils/logger.js';
-import type { ClusterSignal, SignalPayloadMap } from './types.js';
+import type { ClusterSignal, SignalPayloadMap, PassConfigSchema, PassReportSchema } from './types.js';
+import type { z } from 'zod';
 import type { ClusterBus } from './bus.js';
 import type { ClusterNode } from './types.js';
 import { listClusters, findByCapability } from './cluster-registry.js';
@@ -51,6 +52,8 @@ export interface MagistraleConfig {
   preferredProvider?: string;
   /** Preferred model (hint for target clusters) */
   preferredModel?: string;
+  /** Pass budget configuration — enables multi-pass self-regulating execution on each cluster */
+  passConfig?: z.infer<typeof PassConfigSchema>;
 }
 
 /** A single result from one cluster */
@@ -74,6 +77,8 @@ export interface MagistraleResult {
   finishReason?: string;
   /** Error if this cluster failed */
   error?: string;
+  /** Pass budget report (present when passConfig was used) */
+  passReport?: z.infer<typeof PassReportSchema>;
 }
 
 /** Aggregated response from the magistrale */
@@ -98,6 +103,10 @@ export interface MagistraleResponse {
   successCount: number;
   /** Consensus score (for consensus strategy, 0-1) */
   consensusScore?: number;
+  /** Total passes executed across all clusters (when passConfig used) */
+  totalPassesAllClusters?: number;
+  /** Average quality achieved across clusters (when passConfig used) */
+  avgQuality?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -197,6 +206,7 @@ export class LLMMagistrale {
     const payload: SignalPayloadMap['llm:request'] = {
       prompt,
       model: cfg.preferredModel,
+      passConfig: cfg.passConfig,
     };
 
     for (const target of targets) {
@@ -260,6 +270,7 @@ export class LLMMagistrale {
       promptTokens: payload.promptTokens,
       completionTokens: payload.completionTokens,
       finishReason: payload.finishReason,
+      passReport: payload.passReport,
     });
 
     this.checkCompletion(correlationId);
@@ -364,6 +375,15 @@ export class LLMMagistrale {
       }
     }
 
+    // Aggregate pass metrics across clusters
+    const passResults = successes.filter((r) => r.passReport);
+    const totalPassesAllClusters = passResults.reduce(
+      (sum, r) => sum + (r.passReport?.totalPasses ?? 0), 0,
+    ) || undefined;
+    const avgQuality = passResults.length > 0
+      ? passResults.reduce((sum, r) => sum + (r.passReport?.qualityAchieved ?? 0), 0) / passResults.length
+      : undefined;
+
     const response: MagistraleResponse = {
       id: dispatchId,
       prompt: pending.prompt,
@@ -375,6 +395,8 @@ export class LLMMagistrale {
       dispatchedTo: pending.targets.length,
       successCount: successes.length,
       consensusScore,
+      totalPassesAllClusters,
+      avgQuality,
     };
 
     pending.resolve(response);

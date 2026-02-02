@@ -35,6 +35,7 @@ import type { BridgeHandle } from './bridges.js';
 import { defaultLLMPolicy, defaultControlPolicy, defaultHeartbeatPolicy } from './signal-flow.js';
 import { routeToAnyLLM } from './meta-router.js';
 import { registerCustomEndpoint } from '../ai/providers/registry.js';
+import { PassController } from './pass-controller.js';
 
 // ---------------------------------------------------------------------------
 // State
@@ -110,14 +111,82 @@ export async function initClusterBusSystem(): Promise<boolean> {
     // 7. Connect bridges (L1 ↔ L2 ↔ L3)
     bridgeHandle = connectBridges(bus);
 
-    // 8. Register local llm:request handler (execute LLM and respond with llm:result)
+    // 8. Register local llm:request handler (single-shot or multi-pass via PassController)
     bus.onSignal<SignalPayloadMap['llm:request']>('llm:request', (signal: ClusterSignal<SignalPayloadMap['llm:request']>) => {
       const startTime = Date.now();
       const correlationId = signal.correlationId || signal.id;
       const payload = signal.payload;
-
       const replyTo = signal.sourceCluster;
 
+      const sendResult = (result: SignalPayloadMap['llm:result']) => {
+        bus.send(replyTo, 'llm:result', result, {
+          correlationId,
+          priority: 2,
+          direction: 'upstream',
+        }).catch((err) => {
+          Logger.warn(`[ClusterBus] Failed to send llm:result: ${err instanceof Error ? err.message : String(err)}`);
+        });
+      };
+
+      const sendError = (error: string) => {
+        bus.send(replyTo, 'llm:error', {
+          requestId: correlationId,
+          error,
+        } satisfies SignalPayloadMap['llm:error'], {
+          correlationId,
+          priority: 2,
+          direction: 'upstream',
+        }).catch(() => {});
+      };
+
+      // Multi-pass execution with PassController
+      if (payload.passConfig) {
+        const controller = new PassController(payload.passConfig, payload.model || undefined);
+
+        (async () => {
+          // Pass 0: Assessment (skipped for 'fixed' strategy)
+          const assessment = await controller.assess(payload.prompt);
+
+          if (assessment.minPasses > payload.passConfig!.maxPasses) {
+            sendError(
+              `Task requires ${assessment.minPasses} passes but budget is ${payload.passConfig!.maxPasses} (complexity: ${assessment.complexity})`,
+            );
+            return;
+          }
+
+          // Pass 1..N: Execute + Refine loop
+          let lastContent: string | undefined;
+          while (controller.shouldContinue()) {
+            const record = await controller.execute(payload.prompt, payload.systemPrompt, lastContent);
+            lastContent = record.content || lastContent;
+          }
+
+          const report = controller.getReport();
+          const finalContent = controller.getFinalContent();
+
+          sendResult({
+            requestId: correlationId,
+            content: finalContent,
+            model: payload.model || 'unknown',
+            provider: 'local',
+            promptTokens: controller.getTotalTokens(),
+            completionTokens: undefined,
+            finishReason: controller.isBudgetExceeded() ? 'budget-exceeded' : 'pass-complete',
+            latencyMs: Date.now() - startTime,
+            passReport: report,
+          });
+
+          Logger.info(
+            `[ClusterBus] Multi-pass complete: ${report.totalPasses} passes, quality=${report.qualityAchieved.toFixed(2)}, ${controller.getTotalTokens()} tokens`,
+          );
+        })().catch((err) => {
+          sendError(err instanceof Error ? err.message : String(err));
+        });
+
+        return;
+      }
+
+      // Legacy: single-shot execution (no passConfig)
       complete({
         model: payload.model || undefined,
         messages: [
@@ -128,7 +197,7 @@ export async function initClusterBusSystem(): Promise<boolean> {
         temperature: payload.temperature || undefined,
       })
         .then((response) => {
-          bus.send(replyTo, 'llm:result', {
+          sendResult({
             requestId: correlationId,
             content: response.content,
             model: response.model || payload.model || 'unknown',
@@ -137,23 +206,10 @@ export async function initClusterBusSystem(): Promise<boolean> {
             completionTokens: response.usage?.completionTokens,
             finishReason: response.finishReason,
             latencyMs: Date.now() - startTime,
-          } satisfies SignalPayloadMap['llm:result'], {
-            correlationId,
-            priority: 2,
-            direction: 'upstream',
-          }).catch((err) => {
-            Logger.warn(`[ClusterBus] Failed to send llm:result: ${err instanceof Error ? err.message : String(err)}`);
           });
         })
         .catch((err) => {
-          bus.send(replyTo, 'llm:error', {
-            requestId: correlationId,
-            error: err instanceof Error ? err.message : String(err),
-          } satisfies SignalPayloadMap['llm:error'], {
-            correlationId,
-            priority: 2,
-            direction: 'upstream',
-          }).catch(() => {});
+          sendError(err instanceof Error ? err.message : String(err));
         });
     });
 
