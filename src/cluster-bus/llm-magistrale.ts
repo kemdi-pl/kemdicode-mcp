@@ -142,6 +142,8 @@ export class LLMMagistrale {
   private pendingDispatches = new Map<string, PendingDispatch>();
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
   private subscriptions: Array<{ unsubscribe: () => void }> = [];
+  /** Cache of cluster ID → human-readable name, populated during dispatch */
+  private clusterNameCache = new Map<string, string>();
 
   constructor(bus: ClusterBus) {
     this.bus = bus;
@@ -303,6 +305,11 @@ export class LLMMagistrale {
 
     this.pendingDispatches.set(dispatchId, pending);
 
+    // Cache cluster ID→name mappings for result handling
+    for (const target of targets) {
+      this.clusterNameCache.set(target.id, target.name);
+    }
+
     // Dispatch to all targets
     // Build full model spec: combine preferredProvider + preferredModel when both present
     let modelSpec = cfg.preferredModel;
@@ -376,7 +383,7 @@ export class LLMMagistrale {
 
     pending.results.push({
       clusterId: signal.sourceCluster,
-      clusterName: signal.sourceCluster,
+      clusterName: this.clusterNameCache.get(signal.sourceCluster) || signal.sourceCluster,
       content: payload.content,
       model: payload.model,
       provider: payload.provider,
@@ -399,7 +406,7 @@ export class LLMMagistrale {
 
     pending.results.push({
       clusterId: signal.sourceCluster,
-      clusterName: signal.sourceCluster,
+      clusterName: this.clusterNameCache.get(signal.sourceCluster) || signal.sourceCluster,
       content: '',
       model: '',
       provider: '',
@@ -681,8 +688,13 @@ function computeConsensus(results: MagistraleResult[]): {
 
 /** Jaccard similarity between two strings (word-level). */
 function jaccardSimilarity(a: string, b: string): number {
-  const setA = new Set(a.split(/\s+/));
-  const setB = new Set(b.split(/\s+/));
+  const wordsA = a.split(/\s+/).filter(Boolean);
+  const wordsB = b.split(/\s+/).filter(Boolean);
+
+  if (wordsA.length === 0 && wordsB.length === 0) return 0;
+
+  const setA = new Set(wordsA);
+  const setB = new Set(wordsB);
 
   let intersection = 0;
   for (const word of setA) {

@@ -75,6 +75,10 @@ export async function registerCluster(input: RegisterClusterInput): Promise<Clus
     registeredAt: now.toString(),
     sessionId: node.sessionId || '',
     noExpiry: noExpiry ? '1' : '0',
+    // virtualLocal: only set by subscribeToCluster() for loopback routing.
+    // External clusters registered via API/tool never get virtualLocal=1,
+    // so they remain subject to heartbeat-based stale detection.
+    virtualLocal: '0',
   });
 
   const ttl = input.ttlSeconds ?? DEFAULT_NODE_TTL;
@@ -236,6 +240,19 @@ export async function updateHeartbeat(
 }
 
 /**
+ * Mark a cluster node as a local virtual cluster (loopback routing).
+ * Virtual local clusters are exempt from heartbeat-based stale detection
+ * because they don't send real heartbeats — they share the host process.
+ */
+export async function markVirtualLocal(clusterId: string, isVirtual: boolean): Promise<boolean> {
+  const client = await getRedis();
+  const exists = await client.exists(CLUSTER_KEYS.node(clusterId));
+  if (!exists) return false;
+  await client.hset(CLUSTER_KEYS.node(clusterId), 'virtualLocal', isVirtual ? '1' : '0');
+  return true;
+}
+
+/**
  * Detect stale cluster nodes (heartbeat older than threshold).
  */
 export async function detectStaleNodes(thresholdMs: number): Promise<ClusterNode[]> {
@@ -246,9 +263,11 @@ export async function detectStaleNodes(thresholdMs: number): Promise<ClusterNode
 
   for (const node of all) {
     if (node.lastHeartbeat >= cutoff) continue;
-    // Skip nodes marked as no-expiry (virtual clusters with TTL=0)
-    const noExpiry = await client.hget(CLUSTER_KEYS.node(node.id), 'noExpiry');
-    if (noExpiry === '1') continue;
+    // Only skip truly local virtual clusters (loopback routing on the same node).
+    // External clusters with noExpiry (TTL=0) are still subject to heartbeat-based
+    // stale detection — they must prove liveness via heartbeats regardless of TTL.
+    const virtualLocal = await client.hget(CLUSTER_KEYS.node(node.id), 'virtualLocal');
+    if (virtualLocal === '1') continue;
     stale.push(node);
   }
 

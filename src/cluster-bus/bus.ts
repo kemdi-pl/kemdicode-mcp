@@ -35,6 +35,7 @@ import type {
 import { CLUSTER_KEYS } from './types.js';
 import { MetaTagRouter } from './meta-router.js';
 import { SignalFlowController } from './signal-flow.js';
+import { markVirtualLocal } from './cluster-registry.js';
 
 /** Subscription record with TTL */
 interface Subscription {
@@ -329,6 +330,8 @@ export class ClusterBus {
 
     await this.subscriber.psubscribe(`mcp:cluster:*:${clusterId}`);
     this.localVirtualClusters.add(clusterId);
+    // Mark in registry so stale detection skips this node
+    markVirtualLocal(clusterId, true).catch(() => {});
     Logger.info(`[ClusterBus] Subscribed to virtual cluster channel: ${clusterId}`);
   }
 
@@ -341,6 +344,8 @@ export class ClusterBus {
 
     await this.subscriber.punsubscribe(`mcp:cluster:*:${clusterId}`);
     this.localVirtualClusters.delete(clusterId);
+    // Unmark in registry so stale detection can prune this node
+    markVirtualLocal(clusterId, false).catch(() => {});
     Logger.info(`[ClusterBus] Unsubscribed from virtual cluster channel: ${clusterId}`);
   }
 
@@ -624,7 +629,8 @@ export class ClusterBus {
   private async drainOutboundBuffer(): Promise<void> {
     const buffered = this.outboundBuffer.splice(0);
     let sent = 0;
-    for (const { channel, signal } of buffered) {
+    for (let i = 0; i < buffered.length; i++) {
+      const { channel, signal } = buffered[i];
       try {
         const serialized = JSON.stringify(signal);
         const wireMessage = this.signMessage(serialized);
@@ -632,8 +638,10 @@ export class ClusterBus {
         sent++;
       } catch (err) {
         Logger.warn(`[ClusterBus] Failed to drain buffered signal: ${err instanceof Error ? err.message : String(err)}`);
-        // Re-buffer remaining
-        this.outboundBuffer.push({ channel, signal });
+        // Re-buffer ALL remaining signals (current + rest) to prevent signal loss
+        for (let j = i; j < buffered.length; j++) {
+          this.outboundBuffer.push(buffered[j]);
+        }
         break;
       }
     }
