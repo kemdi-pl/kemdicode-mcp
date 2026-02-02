@@ -399,14 +399,10 @@ class ToolRegistryManager {
         try {
           const rawSchema = z.toJSONSchema(tool.zodSchema, { target: 'draft-07' });
           if (isJsonSchemaShape(rawSchema)) {
-            schemaCache.set(name, {
-              type: 'object' as const,
-              properties: rawSchema.properties || {},
-              required: rawSchema.required || [],
-            });
+            schemaCache.set(name, toMcpInputSchema(rawSchema));
           }
-        } catch {
-          // Schema generation failed, will use permissive schema
+        } catch (err) {
+          Logger.warn(`Schema generation failed for '${name}': ${err instanceof Error ? err.message : String(err)}`);
         }
       }
 
@@ -741,13 +737,24 @@ interface JsonSchemaShape {
   properties?: Record<string, object>;
   /** Array of required property names */
   required?: string[];
+  /** Union variants (from discriminatedUnion / z.union) */
+  oneOf?: object[];
+  /** Union variants (alternative) */
+  anyOf?: object[];
 }
+
+/** MCP input schema */
+type McpInputSchema = {
+  type: 'object';
+  properties: Record<string, object>;
+  required: string[];
+};
 
 /**
  * Cache for JSON Schema conversions (computed once per tool)
  * Key: tool name, Value: JSON Schema
  */
-const schemaCache = new Map<string, { type: 'object'; properties: Record<string, object>; required: string[] }>();
+const schemaCache = new Map<string, McpInputSchema>();
 
 /**
  * Cache for complete tool definitions array (invalidated on tool registration)
@@ -780,6 +787,67 @@ function isJsonSchemaShape(obj: unknown): obj is JsonSchemaShape {
     schema.required === undefined ||
     (Array.isArray(schema.required) && schema.required.every((r) => typeof r === 'string'));
   return hasValidProperties && hasValidRequired;
+}
+
+/**
+ * Convert raw JSON Schema to MCP inputSchema, handling union (oneOf/anyOf) schemas.
+ * Flattens discriminated unions into a single object with all properties merged
+ * (common fields required, variant-specific fields optional) for MCP client compatibility.
+ */
+function toMcpInputSchema(rawSchema: JsonSchemaShape): McpInputSchema {
+  const variants = rawSchema.oneOf || rawSchema.anyOf;
+  if (variants && variants.length > 0 && !rawSchema.properties) {
+    // Flatten oneOf/anyOf variants into a merged object schema
+    const allProperties: Record<string, object> = {};
+    const requiredSets: Set<string>[] = [];
+
+    // Collect discriminator values to build an enum for the discriminator field
+    const discriminatorValues: string[] = [];
+
+    for (const variant of variants) {
+      const v = variant as { properties?: Record<string, object>; required?: string[] };
+      if (v.properties) {
+        for (const [key, val] of Object.entries(v.properties)) {
+          const valObj = val as Record<string, unknown>;
+          // Track discriminator const values
+          if (valObj.const && typeof valObj.const === 'string') {
+            discriminatorValues.push(valObj.const);
+          }
+          if (!allProperties[key]) {
+            allProperties[key] = val;
+          }
+        }
+      }
+      requiredSets.push(new Set(v.required || []));
+    }
+
+    // Replace const with enum for discriminator fields (e.g. action: {const:"start"} → {enum:["start","list",...]})
+    if (discriminatorValues.length > 1) {
+      for (const [key, val] of Object.entries(allProperties)) {
+        const valObj = val as Record<string, unknown>;
+        if (valObj.const && typeof valObj.const === 'string' && discriminatorValues.includes(valObj.const as string)) {
+          allProperties[key] = { type: 'string', enum: discriminatorValues, description: valObj.description };
+          break; // Only one discriminator field
+        }
+      }
+    }
+
+    // Only fields required in ALL variants are truly required
+    const commonRequired = requiredSets.length > 0
+      ? [...requiredSets[0]].filter((field) => requiredSets.every((s) => s.has(field)))
+      : [];
+
+    return {
+      type: 'object' as const,
+      properties: allProperties,
+      required: commonRequired,
+    };
+  }
+  return {
+    type: 'object' as const,
+    properties: rawSchema.properties || {},
+    required: rawSchema.required || [],
+  };
 }
 
 /**
@@ -818,11 +886,7 @@ export function getToolDefinitions(): Tool[] {
         Logger.warn(`Invalid schema shape for tool '${tool.name}', using empty schema`);
         inputSchema = { type: 'object' as const, properties: {}, required: [] };
       } else {
-        inputSchema = {
-          type: 'object' as const,
-          properties: rawSchema.properties || {},
-          required: rawSchema.required || [],
-        };
+        inputSchema = toMcpInputSchema(rawSchema);
       }
 
       // Cache the result

@@ -304,21 +304,11 @@ async function main(): Promise<void> {
   // Enable runtime tool registration notifications
   initToolsBroadcast(() => broadcastNotification('notifications/tools/list_changed'));
 
-  // Background warmup: load all lazy tool schemas with retry (non-blocking)
-  const runWarmup = async (attempt = 1): Promise<void> => {
-    try {
-      await warmupLazySchemas();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (attempt < 3) {
-        Logger.warn(`Schema warmup failed (attempt ${attempt}/3): ${msg} — retrying...`);
-        await new Promise((r) => setTimeout(r, attempt * 1000));
-        return runWarmup(attempt + 1);
-      }
-      Logger.warn(`Schema warmup failed after 3 attempts: ${msg}. Tools will be loaded on first use.`);
-    }
-  };
-  void runWarmup().catch((err) => Logger.warn(`Warmup failed: ${err instanceof Error ? err.message : String(err)}`));
+  // Background warmup: load all lazy tool schemas (non-blocking).
+  // Sends tools/list_changed notification when complete so clients refresh schemas.
+  void warmupLazySchemas().catch((err) =>
+    Logger.warn(`Schema warmup failed: ${err instanceof Error ? err.message : String(err)}`),
+  );
 
   // Initialize global event system (cognition + kanban + loop handlers)
   initGlobalEventSystem();
