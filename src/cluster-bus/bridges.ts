@@ -88,7 +88,7 @@ export function connectBridges(
     clusterToEvents: 0,
   };
 
-  const MAX_BRIDGE_HOPS = 3;
+  const MAX_BRIDGE_HOPS = 5;
 
   // Guard: verify dependent buses are available before wiring
   let hasDataFlowBus = true;
@@ -172,11 +172,13 @@ export function connectBridges(
           return;
         }
 
+        const prevPath = ((event.payload as Record<string, unknown>)?._bridgePath as string[]) ?? [];
         bus.broadcast('data:broadcast', {
           bridgedFrom: 'global-event-bus',
           eventType: event.type,
           ...event.payload,
           _bridgeHops: hops + 1,
+          _bridgePath: [...prevPath, `L1→L3:${event.type}`],
         }, {
           sessionId: event.sessionId,
           agentId: event.agentId,
@@ -209,6 +211,7 @@ export function connectBridges(
 
         const eventBus = getGlobalEventBus();
 
+        const prevPath = (payloadObj._bridgePath as string[]) ?? [];
         eventBus.emit(
           `cluster:${signal.type}`,
           {
@@ -217,6 +220,7 @@ export function connectBridges(
             targetCluster: signal.targetCluster,
             ...payloadObj,
             _bridgeHops: hops + 1,
+            _bridgePath: [...prevPath, `L3→L1:${signal.type}`],
           },
           {
             sessionId: signal.sessionId || '',

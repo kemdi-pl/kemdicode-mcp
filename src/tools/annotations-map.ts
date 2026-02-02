@@ -210,9 +210,14 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
   'mpc-distribute':    { title: 'MPC Distribute',     destructiveHint: false },
   'mpc-reconstruct':   { title: 'MPC Reconstruct',    destructiveHint: false },
 
+  // Cluster Bus read-only (extended)
+  'cluster-bus-inspect':    { title: 'Cluster Bus Inspect',    readOnlyHint: true },
+
   // Cluster Bus mutation
   'cluster-bus-send':       { title: 'Cluster Bus Send',       destructiveHint: false, openWorldHint: true },
   'cluster-bus-magistrale': { title: 'Cluster Bus Magistrale', destructiveHint: false, openWorldHint: true },
+  'cluster-bus-flow':       { title: 'Cluster Bus Flow',       destructiveHint: false },
+  'cluster-bus-routing':    { title: 'Cluster Bus Routing',    destructiveHint: false },
 
   // ─── Destructive Tools ─────────────────────────────────────────────────────
   'file-delete':       { title: 'Delete File',        destructiveHint: true },

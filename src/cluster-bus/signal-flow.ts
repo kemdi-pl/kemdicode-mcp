@@ -63,6 +63,8 @@ interface ChannelState {
   circuitOpenedAt: number;
   /** Sliding window: timestamps of recent signals for burst detection */
   slidingWindow: number[];
+  /** Number of probe requests allowed through in half-open state */
+  halfOpenProbes: number;
 }
 
 /** Flow controller statistics */
@@ -109,6 +111,17 @@ export class SignalFlowController {
   private readonly circuitFailureThreshold = 10;
   /** Burst detection: sliding window size in ms */
   private readonly burstWindowMs = 500;
+  /** Max sliding window entries per channel (prevents unbounded growth) */
+  private readonly maxSlidingWindowSize = 500;
+  /** Periodic cleanup interval for sliding windows */
+  private slidingWindowCleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+  constructor() {
+    // Periodic cleanup of sliding window timestamps (every 5 seconds)
+    this.slidingWindowCleanupInterval = setInterval(() => {
+      this.cleanupSlidingWindows();
+    }, 5000);
+  }
 
   // -------------------------------------------------------------------------
   // Policy Management
@@ -166,9 +179,12 @@ export class SignalFlowController {
 
     if (matchingPolicies.length === 0) {
       this.recordProcessed(signal);
-      // Track in sliding window for burst detection
+      // Track in sliding window for burst detection (capped to prevent memory leak)
       const state = this.getOrCreateState(channelKey);
       state.slidingWindow.push(Date.now());
+      if (state.slidingWindow.length > this.maxSlidingWindowSize) {
+        state.slidingWindow = state.slidingWindow.slice(-this.maxSlidingWindowSize);
+      }
       return 'allow';
     }
 
@@ -343,6 +359,10 @@ export class SignalFlowController {
       totalDropped: 0,
       directionCounts: { upstream: 0, downstream: 0, duplex: 0 },
     };
+    if (this.slidingWindowCleanupInterval) {
+      clearInterval(this.slidingWindowCleanupInterval);
+      this.slidingWindowCleanupInterval = null;
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -371,6 +391,7 @@ export class SignalFlowController {
         consecutiveFailures: 0,
         circuitOpenedAt: 0,
         slidingWindow: [],
+        halfOpenProbes: 0,
       };
       this.channelStates.set(key, state);
     }
@@ -401,6 +422,7 @@ export class SignalFlowController {
     const state = this.channelStates.get(key);
     if (state) {
       state.consecutiveFailures = 0;
+      state.halfOpenProbes = 0;
       if (state.circuitState === 'half-open') {
         state.circuitState = 'closed';
         Logger.info(`[SignalFlow] Circuit breaker CLOSED for ${key}`);
@@ -411,6 +433,9 @@ export class SignalFlowController {
   /**
    * Check if a channel's circuit breaker allows traffic.
    */
+  /** Max probe requests in half-open state before re-opening if no success */
+  private readonly maxHalfOpenProbes = 2;
+
   isCircuitOpen(signalType: SignalType, sourceCluster: string, targetCluster = '*'): boolean {
     const key = `${signalType}:${sourceCluster}:${targetCluster}`;
     const state = this.channelStates.get(key);
@@ -420,13 +445,24 @@ export class SignalFlowController {
       // Check if enough time passed to try half-open
       if (Date.now() - state.circuitOpenedAt >= this.circuitOpenDurationMs) {
         state.circuitState = 'half-open';
+        state.halfOpenProbes = 0;
         Logger.info(`[SignalFlow] Circuit breaker HALF-OPEN for ${key}`);
-        return false; // Allow one probe request
+        return false; // Allow first probe request
       }
       return true; // Still open
     }
 
-    return false; // half-open allows traffic
+    // Half-open: allow limited probe requests
+    if (state.halfOpenProbes < this.maxHalfOpenProbes) {
+      state.halfOpenProbes++;
+      return false; // Allow probe
+    }
+
+    // Max probes reached without success — reopen circuit
+    state.circuitState = 'open';
+    state.circuitOpenedAt = Date.now();
+    Logger.warn(`[SignalFlow] Circuit breaker RE-OPENED for ${key} — ${this.maxHalfOpenProbes} probes failed`);
+    return true;
   }
 
   /**
@@ -442,6 +478,19 @@ export class SignalFlowController {
     // Clean up old entries in sliding window
     state.slidingWindow = state.slidingWindow.filter((t) => now - t < this.burstWindowMs);
     return (state.slidingWindow.length / this.burstWindowMs) * 1000; // signals/sec
+  }
+
+  /**
+   * Periodic cleanup: trim sliding window arrays across all channels.
+   * Prevents unbounded memory growth from burst detection timestamps.
+   */
+  private cleanupSlidingWindows(): void {
+    const now = Date.now();
+    for (const [, state] of this.channelStates) {
+      if (state.slidingWindow.length > 0) {
+        state.slidingWindow = state.slidingWindow.filter((t) => now - t < this.burstWindowMs);
+      }
+    }
   }
 
   private recordProcessed(signal: ClusterSignal): void {

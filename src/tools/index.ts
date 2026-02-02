@@ -778,5 +778,20 @@ registerLazyTool({
   description: 'Dispatch LLM prompt across multiple clusters in parallel with aggregation',
   loader: () => import('./cluster-bus/index.js').then((m) => m.clusterMagistraleTool),
 });
+registerLazyTool({
+  name: 'cluster-bus-flow',
+  description: 'Manage cluster bus flow control: policies, circuit breakers, backpressure queues, burst detection',
+  loader: () => import('./cluster-bus/index.js').then((m) => m.clusterFlowTool),
+});
+registerLazyTool({
+  name: 'cluster-bus-routing',
+  description: 'Manage meta-tag routing rules and provider pool: add/remove rules, test routing, discover providers',
+  loader: () => import('./cluster-bus/index.js').then((m) => m.clusterRoutingTool),
+});
+registerLazyTool({
+  name: 'cluster-bus-inspect',
+  description: 'Deep inspection: signal history, health events, bridge stats, subscription diagnostics, bloom filter',
+  loader: () => import('./cluster-bus/index.js').then((m) => m.clusterInspectTool),
+});
 
 export * from './registry.js';

@@ -85,7 +85,7 @@ class GlobalEventBus {
     // Use a named reference so we can track invocations
     let subscriptionRef: EventSubscription | null = null;
     const wrappedHandler = (event: GlobalEvent) => {
-      queueMicrotask(async () => {
+      const runHandler = async () => {
         // Track last invocation time for idle cleanup
         if (subscriptionRef) {
           const meta = bus.subscriptionMeta.get(subscriptionRef);
@@ -100,7 +100,18 @@ class GlobalEventBus {
         } finally {
           bus._emitDepth = prevDepth;
         }
-      });
+      };
+
+      // Priority-aware scheduling:
+      // - high: queueMicrotask (runs before any macrotasks)
+      // - normal (default): queueMicrotask
+      // - low: setTimeout(fn, 0) (yields to microtask queue first)
+      const priority = (event as GlobalEvent & { _priority?: string })._priority;
+      if (priority === 'low') {
+        setTimeout(runHandler, 0);
+      } else {
+        queueMicrotask(runHandler);
+      }
     };
 
     this.emitter.on(eventType, wrappedHandler);
@@ -138,7 +149,7 @@ class GlobalEventBus {
   emit(
     eventType: GlobalEventType | string,
     payload: Record<string, unknown>,
-    metadata: EventMetadata,
+    metadata: EventMetadata & { priority?: 'high' | 'normal' | 'low' },
     options?: RedisEventOptions,
   ): void {
     const chainDepth = this._emitDepth;
@@ -148,7 +159,7 @@ class GlobalEventBus {
       return;
     }
 
-    const event: GlobalEvent = {
+    const event: GlobalEvent & { _priority?: string } = {
       type: eventType,
       timestamp: Date.now(),
       sessionId: metadata.sessionId,
@@ -156,6 +167,7 @@ class GlobalEventBus {
       sourceModule: metadata.sourceModule,
       payload,
       _chainDepth: chainDepth,
+      _priority: metadata.priority,
     };
 
     Logger.debug(`[GlobalEventBus] ${eventType} from ${metadata.sourceModule} (depth=${chainDepth})`);

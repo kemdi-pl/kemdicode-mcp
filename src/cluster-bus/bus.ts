@@ -135,6 +135,13 @@ export class ClusterBus {
   /** Cleanup interval: every 5 minutes */
   private readonly subscriptionCleanupIntervalMs = 5 * 60 * 1000;
 
+  /** Outbound signal buffer — holds signals while publisher is disconnected */
+  private outboundBuffer: Array<{ channel: string; signal: ClusterSignal }> = [];
+  /** Max buffered signals during disconnection */
+  private readonly maxOutboundBuffer = 500;
+  /** Whether we're currently in a disconnected state */
+  private _publisherHealthy = true;
+
   /** MetaTag-based signal router */
   readonly router: MetaTagRouter;
   /** Signal flow controller (rate limiting, backpressure, direction filtering) */
@@ -150,9 +157,19 @@ export class ClusterBus {
     this.flowController = new SignalFlowController();
     // Signal authentication: shared secret for HMAC signing
     this.hmacSecret = process.env.MCP_CLUSTER_SECRET || null;
-    this.enforceAuth = process.env.MCP_CLUSTER_ENFORCE_AUTH === '1';
+    this.enforceAuth =
+      process.env.MCP_CLUSTER_ENFORCE_AUTH === '1' ||
+      process.env.MCP_CLUSTER_AUTH_REQUIRED === '1';
     if (this.hmacSecret) {
-      Logger.info('[ClusterBus] Signal authentication enabled (HMAC-SHA256)');
+      Logger.info(
+        `[ClusterBus] Signal authentication enabled (HMAC-SHA256)${this.enforceAuth ? ' [STRICT MODE — unsigned messages rejected]' : ''}`,
+      );
+    } else if (this.enforceAuth) {
+      Logger.warn(
+        '[ClusterBus] MCP_CLUSTER_AUTH_REQUIRED=1 but MCP_CLUSTER_SECRET not set — enforcement disabled',
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this as any).enforceAuth = false;
     }
   }
 
@@ -226,6 +243,14 @@ export class ClusterBus {
 
       this.subscriber.on('error', (err: Error) => {
         Logger.error(`[ClusterBus] Subscriber error: ${err.message}`);
+      });
+
+      this.subscriber.on('reconnecting', () => {
+        Logger.warn('[ClusterBus] Subscriber reconnecting to Redis...');
+      });
+
+      this.subscriber.on('ready', () => {
+        Logger.info('[ClusterBus] Subscriber Redis connection restored');
       });
 
       // Subscribe to broadcast channel
@@ -554,8 +579,24 @@ export class ClusterBus {
     const serialized = JSON.stringify(signal);
     const wireMessage = this.signMessage(serialized);
 
-    // Publish to Redis Pub/Sub
-    await this.publisher.publish(channel, wireMessage);
+    // Publish to Redis Pub/Sub (buffer on failure)
+    try {
+      await this.publisher.publish(channel, wireMessage);
+      if (!this._publisherHealthy) {
+        this._publisherHealthy = true;
+        Logger.info(`[ClusterBus] Publisher recovered — draining ${this.outboundBuffer.length} buffered signals`);
+        await this.drainOutboundBuffer();
+      }
+    } catch (pubErr) {
+      this._publisherHealthy = false;
+      if (this.outboundBuffer.length < this.maxOutboundBuffer) {
+        this.outboundBuffer.push({ channel, signal: signal as ClusterSignal });
+        Logger.warn(`[ClusterBus] Publisher failed, buffered signal (${this.outboundBuffer.length}/${this.maxOutboundBuffer}): ${pubErr instanceof Error ? pubErr.message : String(pubErr)}`);
+      } else {
+        Logger.warn(`[ClusterBus] Outbound buffer full (${this.maxOutboundBuffer}), dropping signal ${signal.id.slice(0, 8)}`);
+      }
+      return;
+    }
 
     // Persist to signal history in Redis
     try {
@@ -575,6 +616,30 @@ export class ClusterBus {
     }
 
     Logger.debug(`[ClusterBus] Sent ${signal.type} → ${signal.targetCluster || 'broadcast'} (${signal.id.slice(0, 8)})`);
+  }
+
+  /**
+   * Drain buffered outbound signals after publisher reconnects.
+   */
+  private async drainOutboundBuffer(): Promise<void> {
+    const buffered = this.outboundBuffer.splice(0);
+    let sent = 0;
+    for (const { channel, signal } of buffered) {
+      try {
+        const serialized = JSON.stringify(signal);
+        const wireMessage = this.signMessage(serialized);
+        await this.publisher!.publish(channel, wireMessage);
+        sent++;
+      } catch (err) {
+        Logger.warn(`[ClusterBus] Failed to drain buffered signal: ${err instanceof Error ? err.message : String(err)}`);
+        // Re-buffer remaining
+        this.outboundBuffer.push({ channel, signal });
+        break;
+      }
+    }
+    if (sent > 0) {
+      Logger.info(`[ClusterBus] Drained ${sent} buffered signals, ${this.outboundBuffer.length} remaining`);
+    }
   }
 
   /** Maximum incoming message size (1 MB) */
@@ -638,11 +703,19 @@ export class ClusterBus {
       try {
         const result = sub.handler(signal);
         if (result instanceof Promise) {
-          result.catch((err) => {
-            Logger.error(`[ClusterBus] Handler error for ${signal.type}: ${err instanceof Error ? err.message : String(err)}`);
-          });
+          result
+            .then(() => {
+              this.flowController.recordSuccess(signal.type, signal.sourceCluster, signal.targetCluster || '*');
+            })
+            .catch((err) => {
+              this.flowController.recordFailure(signal.type, signal.sourceCluster, signal.targetCluster || '*');
+              Logger.error(`[ClusterBus] Handler error for ${signal.type}: ${err instanceof Error ? err.message : String(err)}`);
+            });
+        } else {
+          this.flowController.recordSuccess(signal.type, signal.sourceCluster, signal.targetCluster || '*');
         }
       } catch (err) {
+        this.flowController.recordFailure(signal.type, signal.sourceCluster, signal.targetCluster || '*');
         Logger.error(`[ClusterBus] Sync handler error for ${signal.type}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }

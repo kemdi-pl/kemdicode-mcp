@@ -95,12 +95,28 @@ export async function registerCluster(input: RegisterClusterInput): Promise<Clus
 export async function deregisterCluster(clusterId: string): Promise<boolean> {
   const client = await getRedis();
 
+  // Find associated signal history keys (this cluster as src or tgt)
+  const signalKeysPattern = `mcp:cluster:signals:*${clusterId}*`;
+  let associatedKeys: string[] = [];
+  try {
+    associatedKeys = await client.keys(signalKeysPattern);
+  } catch {
+    // KEYS can be slow on large datasets — proceed with basic cleanup
+  }
+
   const tx = client.multi();
   tx.del(CLUSTER_KEYS.node(clusterId));
+  tx.del(CLUSTER_KEYS.metrics(clusterId));
   tx.zrem(CLUSTER_KEYS.active(), clusterId);
+  // Clean up signal history keys involving this cluster
+  for (const key of associatedKeys) {
+    tx.del(key);
+  }
   await tx.exec();
 
-  Logger.debug(`[ClusterRegistry] Deregistered cluster: ${clusterId}`);
+  Logger.debug(
+    `[ClusterRegistry] Deregistered cluster: ${clusterId} (cleaned ${associatedKeys.length + 1} associated keys)`,
+  );
   return true;
 }
 

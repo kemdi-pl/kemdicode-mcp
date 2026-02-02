@@ -16,13 +16,16 @@ import {
   listClusters,
   getTopology,
   topologyToMermaid,
+  getHealthMonitor,
+  getClusterBus,
 } from '../../cluster-bus/index.js';
+import { getGlobalEventBus } from '../../events/global-bus.js';
 
 const schema = z.object({
   view: z
-    .enum(['summary', 'topology', 'mermaid', 'nodes'])
+    .enum(['summary', 'topology', 'mermaid', 'nodes', 'health', 'subscriptions'])
     .default('summary')
-    .describe('View: summary, topology graph, mermaid diagram, or node list'),
+    .describe('View: summary, topology, mermaid, nodes, health events, or subscription diagnostics'),
 });
 
 export const clusterStatusTool: UnifiedTool<typeof schema> = {
@@ -37,6 +40,8 @@ export const clusterStatusTool: UnifiedTool<typeof schema> = {
       { args: { view: 'topology' }, description: 'Full topology graph' },
       { args: { view: 'mermaid' }, description: 'Mermaid diagram of cluster mesh' },
       { args: { view: 'nodes' }, description: 'List all registered cluster nodes' },
+      { args: { view: 'health' }, description: 'Health monitor events and stats' },
+      { args: { view: 'subscriptions' }, description: 'Subscription diagnostics across buses' },
     ],
     relatedTools: ['cluster-bus-send', 'cluster-bus-topology', 'cluster-bus-magistrale'],
   },
@@ -135,6 +140,66 @@ export const clusterStatusTool: UnifiedTool<typeof schema> = {
           lines.push(
             `| ${node.id} | ${node.name} | ${node.status} | ${node.connectedProviders.join(',')} | ${new Date(node.lastHeartbeat).toISOString()} |`,
           );
+        }
+
+        return lines.join('\n');
+      }
+
+      case 'health': {
+        const monitor = getHealthMonitor();
+        if (!monitor) return 'Health monitor not initialized.';
+
+        const stats = monitor.getStats();
+        const lines = [
+          '# Health Monitor',
+          '',
+          `- **Running:** ${stats.running ? 'Yes' : 'No'}`,
+          `- **Heartbeats Sent:** ${stats.heartbeatsSent}`,
+          `- **Last Heartbeat:** ${stats.lastHeartbeatAt ? new Date(stats.lastHeartbeatAt).toISOString() : 'never'}`,
+          `- **Online Clusters:** ${stats.onlineClusterCount}`,
+          `- **Stale Detected:** ${stats.staleNodesDetected}`,
+          `- **Pruned:** ${stats.staleNodesPruned}`,
+        ];
+
+        return lines.join('\n');
+      }
+
+      case 'subscriptions': {
+        const lines = ['# Subscription Diagnostics', ''];
+
+        // Cluster Bus subscriptions
+        const bus = getClusterBus();
+        if (bus) {
+          const busStats = bus.getStats();
+          lines.push(
+            '## Cluster Bus',
+            `- Active Subscriptions: ${busStats.subscriptionCount}`,
+            `- Bloom Memory: ${busStats.bloomMemoryBytes < 1024 ? busStats.bloomMemoryBytes + 'B' : (busStats.bloomMemoryBytes / 1024).toFixed(1) + 'KB'}`,
+            `- Bloom Generation: ${busStats.bloomGeneration}`,
+            `- Recent Set: ${busStats.recentSetSize}`,
+            '',
+          );
+        }
+
+        // Global Event Bus
+        try {
+          const eventBus = getGlobalEventBus();
+          const diag = eventBus.getSubscriptionDiagnostics();
+
+          lines.push(
+            '## Global Event Bus',
+            `- Active Subscriptions: ${diag.total}`,
+            `- Oldest Idle: ${diag.oldestIdleMs > 0 ? `${Math.round(diag.oldestIdleMs / 60000)}min` : 'N/A'}`,
+            '',
+            '### By Event Type',
+          );
+
+          const sorted = Object.entries(diag.byEventType).sort((a, b) => b[1] - a[1]);
+          for (const [type, count] of sorted) {
+            lines.push(`- **${type}**: ${count}`);
+          }
+        } catch {
+          lines.push('## Global Event Bus', 'Not available.');
         }
 
         return lines.join('\n');

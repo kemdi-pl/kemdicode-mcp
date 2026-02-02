@@ -12,3 +12,6 @@ export { clusterStatusTool } from './cluster-status.tool.js';
 export { clusterSendTool } from './cluster-send.tool.js';
 export { clusterTopologyTool } from './cluster-topology.tool.js';
 export { clusterMagistraleTool } from './cluster-magistrale.tool.js';
+export { clusterFlowTool } from './cluster-flow.tool.js';
+export { clusterRoutingTool } from './cluster-routing.tool.js';
+export { clusterInspectTool } from './cluster-inspect.tool.js';

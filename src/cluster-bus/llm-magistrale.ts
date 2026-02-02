@@ -249,6 +249,17 @@ export class LLMMagistrale {
     }
     if (totalPending >= MAX_TOTAL_PENDING_RESULTS) {
       Logger.warn(`[Magistrale] Resource quota: ${totalPending} pending results (max ${MAX_TOTAL_PENDING_RESULTS})`);
+      return {
+        id: dispatchId,
+        prompt,
+        strategy: cfg.strategy,
+        content: `[Magistrale] Resource quota exceeded: ${totalPending} pending results (max ${MAX_TOTAL_PENDING_RESULTS}). Try again later.`,
+        chosenCluster: '',
+        results: [],
+        totalLatencyMs: Date.now() - startTime,
+        dispatchedTo: 0,
+        successCount: 0,
+      };
     }
 
     // Find target clusters with LLM capability
@@ -306,13 +317,19 @@ export class LLMMagistrale {
       passConfig: cfg.passConfig,
     };
 
+    const sendTimeoutMs = Math.min(cfg.timeoutMs, 10000); // max 10s per send
     for (const target of targets) {
       try {
-        await this.bus.send(target.id, 'llm:request', payload, {
-          correlationId: dispatchId,
-          priority: 2,
-          direction: 'downstream',
-        });
+        await Promise.race([
+          this.bus.send(target.id, 'llm:request', payload, {
+            correlationId: dispatchId,
+            priority: 2,
+            direction: 'downstream',
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`bus.send timeout after ${sendTimeoutMs}ms`)), sendTimeoutMs),
+          ),
+        ]);
       } catch (err) {
         Logger.warn(
           `[Magistrale] Failed to dispatch to ${target.id}: ${err instanceof Error ? err.message : String(err)}`,
@@ -433,7 +450,9 @@ export class LLMMagistrale {
 
     switch (cfg.strategy) {
       case 'first-wins': {
-        const first = successes[0];
+        // Sort by latency — pick the fastest response, not arbitrary first
+        const sorted = [...successes].sort((a, b) => a.latencyMs - b.latencyMs);
+        const first = sorted[0];
         if (first) {
           content = first.content;
           chosenCluster = first.clusterId;
@@ -636,10 +655,14 @@ function computeConsensus(results: MagistraleResult[]): {
   });
 
   // Pick the response with the highest weighted agreement score
+  // Tiebreaker: prefer lower latency when scores are equal
   let bestIdx = 0;
   let bestScore = weightedScores[0];
   for (let i = 1; i < weightedScores.length; i++) {
-    if (weightedScores[i] > bestScore) {
+    if (
+      weightedScores[i] > bestScore ||
+      (weightedScores[i] === bestScore && results[i].latencyMs < results[bestIdx].latencyMs)
+    ) {
       bestScore = weightedScores[i];
       bestIdx = i;
     }

@@ -18,12 +18,14 @@ import {
   getTopology,
   topologyToMermaid,
   getClusterBus,
+  detectStaleNodes,
+  pruneStaleNodes,
 } from '../../cluster-bus/index.js';
 
 const schema = z.object({
   action: z
-    .enum(['list', 'register', 'deregister', 'mermaid', 'providers', 'history'])
-    .describe('Action: list nodes, register/deregister, get mermaid diagram, list providers, or view signal history'),
+    .enum(['list', 'register', 'deregister', 'mermaid', 'providers', 'history', 'stale', 'prune'])
+    .describe('Action: list, register/deregister, mermaid, providers, history, detect stale nodes, or prune stale'),
   clusterId: z
     .string()
     .optional()
@@ -50,6 +52,12 @@ const schema = z.object({
     .max(86400)
     .optional()
     .describe('TTL in seconds for registered cluster (0 = no expiry, default 300)'),
+  staleThresholdMs: z
+    .number()
+    .min(5000)
+    .max(3600000)
+    .optional()
+    .describe('Stale threshold in ms (for stale/prune, default 60000)'),
   limit: z
     .number()
     .min(1)
@@ -80,6 +88,8 @@ export const clusterTopologyTool: UnifiedTool<typeof schema> = {
       { args: { action: 'mermaid' }, description: 'Get topology as Mermaid diagram' },
       { args: { action: 'providers' }, description: 'List all available providers across clusters' },
       { args: { action: 'history', limit: 20 }, description: 'View recent signal history' },
+      { args: { action: 'stale', staleThresholdMs: 60000 }, description: 'Detect stale nodes (>60s without heartbeat)' },
+      { args: { action: 'prune', staleThresholdMs: 60000 }, description: 'Remove stale nodes from registry' },
     ],
     relatedTools: ['cluster-bus-status', 'cluster-bus-send'],
   },
@@ -188,6 +198,51 @@ export const clusterTopologyTool: UnifiedTool<typeof schema> = {
           );
         }
         return lines.join('\n');
+      }
+
+      case 'stale': {
+        const threshold = args.staleThresholdMs ?? 60000;
+        const stale = await detectStaleNodes(threshold);
+
+        if (stale.length === 0) {
+          return `No stale nodes detected (threshold: ${threshold}ms).`;
+        }
+
+        const lines = [
+          `# Stale Nodes (threshold: ${threshold}ms)`,
+          '',
+          `Found ${stale.length} stale node(s):`,
+          '',
+        ];
+
+        for (const node of stale) {
+          const idleMs = Date.now() - node.lastHeartbeat;
+          lines.push(
+            `- **${node.name}** (\`${node.id}\`) — idle ${Math.round(idleMs / 1000)}s, last heartbeat: ${new Date(node.lastHeartbeat).toISOString()}`,
+          );
+        }
+
+        lines.push('', 'Use `action: prune` to remove these nodes from the registry.');
+        return lines.join('\n');
+      }
+
+      case 'prune': {
+        const threshold = args.staleThresholdMs ?? 60000;
+        const pruned = await pruneStaleNodes(threshold);
+
+        if (pruned.length === 0) {
+          return `No stale nodes to prune (threshold: ${threshold}ms).`;
+        }
+
+        // Unsubscribe local bus from pruned virtual clusters
+        const busRef = getClusterBus();
+        if (busRef && busRef.isConnected) {
+          for (const prunedId of pruned) {
+            await busRef.unsubscribeFromCluster(prunedId).catch(() => {});
+          }
+        }
+
+        return `Pruned ${pruned.length} stale node(s): ${pruned.join(', ')}`;
       }
     }
   },
