@@ -142,8 +142,9 @@ export class LLMMagistrale {
   private pendingDispatches = new Map<string, PendingDispatch>();
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
   private subscriptions: Array<{ unsubscribe: () => void }> = [];
-  /** Cache of cluster ID → human-readable name, populated during dispatch */
+  /** Cache of cluster ID → human-readable name, populated during dispatch (bounded) */
   private clusterNameCache = new Map<string, string>();
+  private readonly maxNameCacheSize = 500;
 
   constructor(bus: ClusterBus) {
     this.bus = bus;
@@ -305,9 +306,17 @@ export class LLMMagistrale {
 
     this.pendingDispatches.set(dispatchId, pending);
 
-    // Cache cluster ID→name mappings for result handling
+    // Cache cluster ID→name mappings for result handling (bounded)
     for (const target of targets) {
       this.clusterNameCache.set(target.id, target.name);
+    }
+    if (this.clusterNameCache.size > this.maxNameCacheSize) {
+      const excess = this.clusterNameCache.size - this.maxNameCacheSize;
+      const it = this.clusterNameCache.keys();
+      for (let i = 0; i < excess; i++) {
+        const key = it.next().value;
+        if (key) this.clusterNameCache.delete(key);
+      }
     }
 
     // Dispatch to all targets
@@ -327,16 +336,19 @@ export class LLMMagistrale {
     const sendTimeoutMs = Math.min(cfg.timeoutMs, 10000); // max 10s per send
     for (const target of targets) {
       try {
+        let sendTimer: ReturnType<typeof setTimeout> | null = null;
         await Promise.race([
           this.bus.send(target.id, 'llm:request', payload, {
             correlationId: dispatchId,
             priority: 2,
             direction: 'downstream',
           }),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error(`bus.send timeout after ${sendTimeoutMs}ms`)), sendTimeoutMs),
-          ),
-        ]);
+          new Promise<never>((_, reject) => {
+            sendTimer = setTimeout(() => reject(new Error(`bus.send timeout after ${sendTimeoutMs}ms`)), sendTimeoutMs);
+          }),
+        ]).finally(() => {
+          if (sendTimer) clearTimeout(sendTimer);
+        });
       } catch (err) {
         Logger.warn(
           `[Magistrale] Failed to dispatch to ${target.id}: ${err instanceof Error ? err.message : String(err)}`,

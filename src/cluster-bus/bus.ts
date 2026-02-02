@@ -117,7 +117,7 @@ export class ClusterBus {
   private config: ClusterBusConfig;
   private publisher: Redis | null = null;
   private subscriber: Redis | null = null;
-  private subscriptions: Subscription[] = [];
+  private subscriptions = new Map<string, Subscription>();
   /** Bloom filter for fast signal dedup (probabilistic, ~0.1% false positive at 20K items) */
   private bloomFilter = new BloomFilter(20000, 0.001);
   /** Small exact-match set for recent signals (prevents bloom filter false positives) */
@@ -289,11 +289,13 @@ export class ClusterBus {
     }
     // Don't disconnect publisher — it's the shared Redis connection
     this.publisher = null;
-    this.subscriptions = [];
+    this.subscriptions.clear();
     this.bloomFilter.clear();
     this.recentSignals.clear();
     this.bloomGeneration = 0;
     this.signalHistory = [];
+    this.historyWriteIndex = 0;
+    this.historyFull = false;
     this.localVirtualClusters.clear();
     this.flowController.reset();
     if (this.subscriptionCleanupInterval) {
@@ -467,13 +469,12 @@ export class ClusterBus {
       ttlMs: options?.ttlMs ?? this.defaultSubscriptionTtlMs,
     };
 
-    this.subscriptions.push(sub);
+    this.subscriptions.set(sub.id, sub);
 
     return {
       id: sub.id,
       unsubscribe: () => {
-        const idx = this.subscriptions.findIndex((s) => s.id === sub.id);
-        if (idx !== -1) this.subscriptions.splice(idx, 1);
+        this.subscriptions.delete(sub.id);
       },
     };
   }
@@ -486,7 +487,17 @@ export class ClusterBus {
    * Get recent signal history.
    */
   getHistory(limit = 50): ClusterSignal[] {
-    return this.signalHistory.slice(-limit);
+    const len = this.signalHistory.length;
+    if (!this.historyFull || len < this.config.historyCap) {
+      return this.signalHistory.slice(-limit);
+    }
+    // Circular buffer: read from writeIndex (oldest) to writeIndex-1 (newest)
+    const result: ClusterSignal[] = [];
+    const start = Math.max(0, len - limit);
+    for (let i = start; i < len; i++) {
+      result.push(this.signalHistory[(this.historyWriteIndex + i) % len]);
+    }
+    return result;
   }
 
   /**
@@ -519,7 +530,7 @@ export class ClusterBus {
     return {
       connected: this._connected,
       clusterId: this.config.clusterId,
-      subscriptionCount: this.subscriptions.length,
+      subscriptionCount: this.subscriptions.size,
       historySize: this.signalHistory.length,
       seenSetSize: this.bloomFilter.count,
       bloomMemoryBytes: this.bloomFilter.memoryBytes,
@@ -698,7 +709,7 @@ export class ClusterBus {
 
   private deliverToSubscriptions(signal: ClusterSignal): void {
     const now = Date.now();
-    for (const sub of this.subscriptions) {
+    for (const sub of this.subscriptions.values()) {
       if (sub.signalType !== '*' && sub.signalType !== signal.type) continue;
       if (sub.sourceFilter?.length && !sub.sourceFilter.includes(signal.sourceCluster)) continue;
 
@@ -762,27 +773,34 @@ export class ClusterBus {
    */
   private cleanupIdleSubscriptions(): void {
     const now = Date.now();
-    const before = this.subscriptions.length;
-    this.subscriptions = this.subscriptions.filter((sub) => {
-      if (sub.ttlMs === 0) return true; // No TTL = permanent
+    const before = this.subscriptions.size;
+    for (const [id, sub] of this.subscriptions) {
+      if (sub.ttlMs === 0) continue; // No TTL = permanent
       const idleMs = now - sub.lastInvokedAt;
       if (idleMs > sub.ttlMs) {
-        Logger.info(`[ClusterBus] Cleaned up idle subscription ${sub.id} (type=${sub.signalType}, idle=${Math.round(idleMs / 1000)}s)`);
-        return false;
+        Logger.info(`[ClusterBus] Cleaned up idle subscription ${id} (type=${sub.signalType}, idle=${Math.round(idleMs / 1000)}s)`);
+        this.subscriptions.delete(id);
       }
-      return true;
-    });
-    const cleaned = before - this.subscriptions.length;
+    }
+    const cleaned = before - this.subscriptions.size;
     if (cleaned > 0) {
-      Logger.info(`[ClusterBus] Subscription cleanup: removed ${cleaned} idle subscriptions, ${this.subscriptions.length} active`);
+      Logger.info(`[ClusterBus] Subscription cleanup: removed ${cleaned} idle subscriptions, ${this.subscriptions.size} active`);
     }
   }
 
+  /** Circular index for signal history (avoids O(n) shift) */
+  private historyWriteIndex = 0;
+  private historyFull = false;
+
   private addToHistory(signal: ClusterSignal): void {
-    this.signalHistory.push(signal);
-    if (this.signalHistory.length > this.config.historyCap) {
-      this.signalHistory.shift();
+    const cap = this.config.historyCap;
+    if (this.signalHistory.length < cap) {
+      this.signalHistory.push(signal);
+    } else {
+      this.signalHistory[this.historyWriteIndex] = signal;
+      this.historyFull = true;
     }
+    this.historyWriteIndex = (this.historyWriteIndex + 1) % cap;
   }
 }
 

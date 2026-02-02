@@ -113,6 +113,8 @@ export class SignalFlowController {
   private readonly burstWindowMs = 500;
   /** Max sliding window entries per channel (prevents unbounded growth) */
   private readonly maxSlidingWindowSize = 500;
+  /** Max channel states to track (LRU eviction beyond this) */
+  private readonly maxChannelStates = 5000;
   /** Periodic cleanup interval for sliding windows */
   private slidingWindowCleanupInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -382,6 +384,10 @@ export class SignalFlowController {
   private getOrCreateState(key: string): ChannelState {
     let state = this.channelStates.get(key);
     if (!state) {
+      // Evict oldest idle channels when at capacity (LRU-style)
+      if (this.channelStates.size >= this.maxChannelStates) {
+        this.evictIdleChannels();
+      }
       state = {
         windowCount: 0,
         windowStart: Date.now(),
@@ -396,6 +402,27 @@ export class SignalFlowController {
       this.channelStates.set(key, state);
     }
     return state;
+  }
+
+  /** Evict idle channels (no queue, closed circuit, empty sliding window) */
+  private evictIdleChannels(): void {
+    const toEvict: string[] = [];
+    for (const [key, state] of this.channelStates) {
+      if (
+        state.queue.length === 0 &&
+        state.circuitState === 'closed' &&
+        state.slidingWindow.length === 0
+      ) {
+        toEvict.push(key);
+      }
+      if (toEvict.length >= Math.floor(this.maxChannelStates * 0.1)) break;
+    }
+    for (const key of toEvict) {
+      this.channelStates.delete(key);
+    }
+    if (toEvict.length > 0) {
+      Logger.debug(`[SignalFlow] Evicted ${toEvict.length} idle channel states`);
+    }
   }
 
   /**
