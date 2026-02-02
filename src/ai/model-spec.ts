@@ -89,6 +89,9 @@ export function hasProviderPrefix(input: string): boolean {
  * @param input - Model string (e.g., "openai:gpt-4o", "a:claude-sonnet-4-20250514:4k", "gpt-4o")
  * @param defaultProvider - Provider to use when no prefix is present (defaults to 'openai')
  */
+/** Maximum length for a model spec string to prevent DoS */
+const MAX_MODEL_SPEC_LENGTH = 512;
+
 export function parseModelSpec(
   input: string,
   defaultProvider: ProviderId = 'openai'
@@ -98,6 +101,10 @@ export function parseModelSpec(
   }
 
   const trimmed = input.trim();
+
+  if (trimmed.length > MAX_MODEL_SPEC_LENGTH) {
+    throw new Error(`Model spec too long (${trimmed.length} > ${MAX_MODEL_SPEC_LENGTH})`);
+  }
   const parts = trimmed.split(':');
 
   // Single segment → no provider prefix, use default

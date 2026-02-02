@@ -165,16 +165,17 @@ export async function executeAI(options: ExecuteAIOptions): Promise<string> {
       currentHistory.splice(0, currentHistory.length - 20);
     }
 
-    // LRU eviction: delete oldest entry when map exceeds limit
-    if (sessionHistory.size >= SESSION_HISTORY_MAX && !sessionHistory.has(historyKey)) {
+    // Re-insert to move to end of Map iteration order (LRU)
+    sessionHistory.delete(historyKey);
+
+    // LRU eviction: remove oldest entry when map is at capacity (before insertion)
+    if (sessionHistory.size >= SESSION_HISTORY_MAX) {
       const oldestKey = sessionHistory.keys().next().value;
       if (oldestKey !== undefined) {
         sessionHistory.delete(oldestKey);
       }
     }
 
-    // Re-insert to move to end of Map iteration order (LRU)
-    sessionHistory.delete(historyKey);
     sessionHistory.set(historyKey, currentHistory);
   }
 

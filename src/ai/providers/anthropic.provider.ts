@@ -53,11 +53,18 @@ export class AnthropicProvider implements LLMProvider {
           contentBlocks.push({ type: 'text', text: msg.content });
         }
         for (const tc of msg.toolCalls) {
+          let parsedInput: unknown;
+          try {
+            parsedInput = JSON.parse(tc.function.arguments);
+          } catch {
+            parsedInput = {};
+            Logger.warn(`Anthropic: malformed tool call arguments for ${tc.function.name}, using empty input`);
+          }
           contentBlocks.push({
             type: 'tool_use',
             id: tc.id,
             name: tc.function.name,
-            input: JSON.parse(tc.function.arguments),
+            input: parsedInput,
           });
         }
         messages.push({ role: 'assistant', content: contentBlocks } as unknown as MessageParam);
