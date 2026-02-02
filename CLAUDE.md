@@ -1,4 +1,4 @@
-# KemdiCode MCP Server v1.25.0
+# KemdiCode MCP Server v1.25.1
 
 ## Session Recovery
 
@@ -181,7 +181,7 @@ mcp:events:*      — Event history
 - PassController (`cluster-bus/pass-controller.ts`): 3 strategies — `min-passes` (LLM self-assesses), `quality-target` (iterate to threshold), `fixed` (exact N)
 - Budget capping: PassController caps `minPasses` to `maxPasses` instead of rejecting
 
-### Security Hardening (v1.25.0)
+### Security Hardening (v1.25.1)
 - Prototype pollution protection in Redis JSON parsing (`events/redis-bridge.ts`)
 - HMAC authentication for ClusterBus signals
 - Bloom filter deduplication for signal dedup
