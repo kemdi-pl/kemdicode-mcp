@@ -219,7 +219,7 @@ export class PassController {
       // Parse assessment JSON from response
       const assessment = this.parseAssessment(response.content);
 
-      this.minPassesDeclared = Math.max(1, Math.min(assessment.minPasses, 20));
+      this.minPassesDeclared = Math.max(1, Math.min(assessment.minPasses, this.config.maxPasses));
 
       this.history.push({
         pass: 0,

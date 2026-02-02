@@ -157,10 +157,9 @@ export async function initClusterBusSystem(): Promise<boolean> {
           const assessment = await controller.assess(payload.prompt);
 
           if (assessment.minPasses > payload.passConfig!.maxPasses) {
-            sendError(
-              `Task requires ${assessment.minPasses} passes but budget is ${payload.passConfig!.maxPasses} (complexity: ${assessment.complexity})`,
+            Logger.info(
+              `[ClusterBus] Task assessed at ${assessment.minPasses} passes but budget is ${payload.passConfig!.maxPasses} — capping to budget (complexity: ${assessment.complexity})`,
             );
-            return;
           }
 
           // Pass 1..N: Execute + Refine loop
