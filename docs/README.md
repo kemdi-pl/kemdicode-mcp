@@ -1,5 +1,9 @@
 # Documentation
 
+## Technical Whitepaper
+
+- [KemdiCode MCP: A Multi-Layer Protocol Server for AI-Assisted Software Engineering (PDF)](whitepaper-kemdicode-mcp-v1.25.pdf) — IEEE journal-style paper with formal specifications, 9 pages, 15 equations, 17 references
+
 ## Architecture
 
 - [Architecture Overview](architecture-overview.md) — system layers, tool registry, providers, infrastructure

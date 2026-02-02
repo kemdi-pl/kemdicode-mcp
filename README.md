@@ -765,6 +765,17 @@ bun dist/index.js [options]
 
 ---
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Technical Whitepaper (PDF)](docs/whitepaper-kemdicode-mcp-v1.25.pdf) | IEEE journal-style paper describing the full architecture, protocol layers, cognition system, and LLM Magistrale with formal specifications |
+| [Architecture Overview](docs/architecture-overview.md) | High-level system layers diagram |
+| [3-Layer Bus Architecture](docs/architecture-3-layer-bus.md) | Detailed L3/L2/L1 bus design with bridges |
+| [Examples](examples/) | 12 practical guides covering all major features |
+
+---
+
 ## Authors
 
 **Dawid Irzyk** &mdash; [dawid@kemdi.pl](mailto:dawid@kemdi.pl)

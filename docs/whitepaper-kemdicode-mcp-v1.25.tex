@@ -118,7 +118,7 @@ For distributed messaging, Redis Pub/Sub~\cite{redis} provides the foundation fo
 \section{System Architecture}
 \label{sec:arch}
 
-Fig.~\ref{fig:arch} shows the high-level system architecture. The server is organized into six layers: transport, session management, tool registry, bus architecture, shared infrastructure, and cognition.
+Fig.~\ref{fig:arch} shows the high-level system architecture. The server is organized into five principal layers: transport, session management, tool registry, bus architecture, and shared infrastructure (including Redis, LLM providers, and Tree-sitter).
 
 \begin{figure}[!t]
 \centering
@@ -146,13 +146,13 @@ Fig.~\ref{fig:arch} shows the high-level system architecture. The server is orga
   \draw[arr] (bus) -- (llm);
   \draw[arr] (bus) -- (ts);
 \end{tikzpicture}}%
-\caption{High-level system architecture showing the six-layer stack from client to infrastructure.}
+\caption{High-level system architecture showing the five-layer stack from client to infrastructure.}
 \label{fig:arch}
 \end{figure}
 
 \subsection{Transport Layer}
 
-The server implements the MCP Streamable~HTTP transport, exposing the endpoints listed in Table~\ref{tab:endpoints}. Communication follows JSON-RPC~2.0 with the MCP method extensions (\code{tools/list}, \code{tools/call}, \code{initialize}, \code{notifications/initialized}, etc.). Server-Sent Events~(SSE) provide the server-to-client notification channel with configurable keep-alive intervals.
+The server implements the MCP Streamable~HTTP transport, exposing the endpoints listed in Table~\ref{tab:endpoints}. Communication follows JSON-RPC~2.0 with the MCP method extensions (\code{tools/list}, \code{tools/call}, \code{initialize}, \code{notifications/initialized}, etc.). Server-Sent Events~(SSE)~\cite{sse2015} provide the server-to-client notification channel with configurable keep-alive intervals.
 
 \begin{table}[!t]
 \centering
@@ -236,20 +236,20 @@ The ClusterBus enables inter-cluster communication over Redis Pub/Sub~\cite{redi
 
 \subsubsection{Signal Structure}
 
-Every message on the ClusterBus is a \code{ClusterSignal} with the following structure:
+Every message on the ClusterBus is a \code{ClusterSignal}. The principal fields are shown below (auxiliary fields such as \code{correlationId}, \code{metaTags}, and \code{schemaVersion} are omitted for brevity):
 
 \begin{lstlisting}[language={}]
 ClusterSignal {
-  id:        string    // UUID v4
-  type:      SignalType // 12 enum values
-  source:    string    // originating node ID
-  target?:   string    // unicast target
-  payload:   unknown   // type-dependent data
-  timestamp: number    // Unix ms
-  ttl:       number    // max hops
-  priority:  0|1|2|3   // 0=lowest, 3=critical
-  metadata:  Record<string, unknown>
-  hmac?:     string    // HMAC-SHA256 signature
+  id:            string    // UUID v4
+  type:          SignalType // 12 enum values
+  sourceCluster: string    // originating node ID
+  targetCluster: string    // unicast target
+  payload:       unknown   // type-dependent data
+  timestamp:     number    // Unix ms
+  ttl:           number    // max hops
+  priority:      0|1|2|3   // 0=lowest, 3=critical
+  metadata:      Record<string, unknown>
+  hmac?:         string    // HMAC-SHA256 signature
 }
 \end{lstlisting}
 
@@ -295,7 +295,7 @@ m = -\frac{n \ln p}{(\ln 2)^2}, \quad k = \frac{m}{n} \ln 2
 \label{eq:bloom}
 \end{equation}
 
-\noindent where $n$ is the expected item count, $p$ is the target false-positive rate, $m$ is the bit array size, and $k$ is the number of hash functions. At the configured parameters ($n=20{,}000$, $p=0.001$), this yields $m \approx 287{,}552$ bits and $k \approx 10$ hash functions. The actual false-positive probability after inserting $n'$ items is:
+\noindent where $n$ is the expected item count, $p$ is the target false-positive rate, $m$ is the bit array size, and $k$ is the number of hash functions. At the configured parameters ($n=20{,}000$, $p=0.001$), this yields $m \approx 287{,}552$ bits and $k_{\text{opt}} \approx 10$. The implementation clamps $k$ to the range $[2, 8]$, so $k = 8$ is used. The actual false-positive probability after inserting $n'$ items is:
 
 \begin{equation}
 P(\text{FP}) = \left(1 - e^{-kn'/m}\right)^k
@@ -313,18 +313,18 @@ P(\text{FP}) & \text{if } s \notin R_{\text{recent}} \wedge s \notin B_{\text{ac
 \label{eq:dualdedup}
 \end{equation}
 
-\noindent where $R_{\text{recent}}$ is the exact recent set and $B_{\text{actual}}$ is the set of IDs truly present in the bloom filter. This achieves zero false positives for the 2{,}000 most recent signals.
+\noindent where $R_{\text{recent}}$ is the exact recent set and $B_{\text{actual}}$ is the set of IDs truly present in the bloom filter. This achieves zero false positives for the 2{,}000 most recent signals. To prevent saturation, the bloom filter is periodically reset after processing 15{,}000 signals; upon reset, only the current recent-set entries are re-inserted.
 
 \subsubsection{HMAC Authentication}
 
-Signals are authenticated using HMAC-SHA256. The signing process computes:
+Signals are authenticated using HMAC-SHA256. The signing process computes a signature over the complete JSON-serialized signal:
 
 \begin{equation}
-\text{HMAC} = H_K\bigl(\text{id} \| \text{type} \| \text{source} \| \text{timestamp}\bigr)
+\text{HMAC} = H_K\bigl(\text{JSON.stringify}(s)\bigr)
 \label{eq:hmac}
 \end{equation}
 
-\noindent where $H_K$ denotes HMAC-SHA256 with shared key $K$, and $\|$ denotes string concatenation. Verification uses constant-time comparison via the runtime's \code{timingSafeEqual()} function to prevent timing side-channel attacks. Signals failing HMAC verification are silently dropped and logged.
+\noindent where $H_K$ denotes HMAC-SHA256 with shared key $K$ and $s$ is the full signal object. Signing the entire payload rather than selected fields ensures that any tampering---including metadata modification---is detected. Verification uses a constant-time byte-by-byte XOR comparison loop to prevent timing side-channel attacks. Signals failing HMAC verification are silently dropped and logged.
 
 \subsubsection{SignalFlowController}
 
@@ -338,7 +338,7 @@ The SignalFlowController governs the throughput and reliability of signal proces
 \end{equation}
 Excess signals are either buffered or dropped based on the configured backpressure policy.
 
-\item[Circuit Breaker.] Implements the three-state pattern modeled as a finite automaton $\mathcal{A} = (S, \Sigma, \delta, s_0)$ where $S = \{\text{closed}, \text{open}, \text{half-open}\}$, $s_0 = \text{closed}$, and the transition function $\delta$ is defined by:
+\item[Circuit Breaker.] Implements the three-state pattern~\cite{nygard2007} modeled as a finite automaton $\mathcal{A} = (S, \Sigma, \delta, s_0)$ where $S = \{\text{closed}, \text{open}, \text{half-open}\}$, $s_0 = \text{closed}$, and the transition function $\delta$ is defined by:
 \begin{equation}
 \delta(s, \sigma) = \begin{cases}
 \text{open}      & s = \text{closed} \wedge f \geq F_{\max} \\
@@ -378,7 +378,7 @@ Each node emits periodic heartbeat signals (type \code{cluster:heartbeat}). The 
 \begin{itemize}[nosep]
 \item Last heartbeat timestamp per node.
 \item Latency statistics (moving average).
-\item Stale detection: nodes exceeding the heartbeat timeout (default 30\,s) are marked stale and excluded from routing decisions.
+\item Stale detection: nodes exceeding the heartbeat timeout (default 15\,s) are marked stale and excluded from routing decisions.
 \item Automatic pruning of stale entries with O(1) unsubscribe via \code{Map}-based tracking.
 \end{itemize}
 
@@ -389,7 +389,7 @@ The DataFlowBus provides typed, schema-validated messaging between server module
 
 \subsubsection{Channel Architecture}
 
-The bus defines 12~typed channels organized into four domains, as shown in Table~\ref{tab:channels}.
+The bus defines 12~typed channels organized into five domains, as shown in Table~\ref{tab:channels}.
 
 \begin{table}[!t]
 \centering
@@ -418,7 +418,7 @@ DataFlowEnvelope<T> {
   channel:      Channel // one of 12 channels
   payload:      T       // Zod-validated data
   correlationId: string // request chain ID
-  schemaVersion: string // semver
+  schemaVersion: number // version counter
   priority:     0|1|2|3
   ttl:          number  // milliseconds
   source:       string  // originating module
@@ -984,7 +984,7 @@ The three-layer bus design (\layerthree~ClusterBus, \layertwo~DataFlowBus, \laye
 The architecture draws on established distributed systems techniques~\cite{lamport1978,bloom1970} and recent advances in LLM-based multi-agent coordination~\cite{li2024multiagent,guo2024ijcai}. Future work includes expanding the knowledge graph with cross-project learning, adding WebSocket transport support, and deepening the reinforcement learning subsystem for autonomous tool selection optimization.
 
 % ══════════════════════════════════════════════════════════════════
-\begin{thebibliography}{15}
+\begin{thebibliography}{17}
 
 \bibitem{mcp2024}
 Anthropic, ``Introducing the Model Context Protocol,'' Anthropic Blog, Nov.\ 2024. [Online]. Available: \url{https://www.anthropic.com/news/model-context-protocol}
@@ -1011,7 +1011,7 @@ T.~A.~Wagner and S.~L.~Graham, ``Efficient and flexible incremental parsing,'' \
 M.~Brunsfeld \emph{et al.}, ``Tree-sitter: An incremental parsing system for programming tools,'' 2018--2026. [Online]. Available: \url{https://tree-sitter.github.io/}
 
 \bibitem{zod}
-C.~Hacks, ``Zod: TypeScript-first schema validation with static type inference,'' 2020--2026. [Online]. Available: \url{https://zod.dev/}
+C.~McDonnell, ``Zod: TypeScript-first schema validation with static type inference,'' 2020--2026. [Online]. Available: \url{https://zod.dev/}
 
 \bibitem{li2024multiagent}
 J.~Li, Q.~Wang \emph{et al.}, ``A survey on LLM-based multi-agent systems: Workflow, infrastructure, and challenges,'' \emph{Vicinagearth}, Oct.\ 2024. \doi{10.1007/s44336-024-00009-2}
@@ -1020,7 +1020,7 @@ J.~Li, Q.~Wang \emph{et al.}, ``A survey on LLM-based multi-agent systems: Workf
 T.~Guo, X.~Chen \emph{et al.}, ``Large language model based multi-agents: A survey of progress and challenges,'' in \emph{Proc.\ 33rd Int.\ Joint Conf.\ Artif.\ Intell.\ (IJCAI)}, 2024.
 
 \bibitem{wu2023autogen}
-Q.~Wu, G.~Banber \emph{et al.}, ``AutoGen: Enabling next-gen LLM applications via multi-agent conversation,'' \emph{arXiv:2308.08155}, 2023.
+Q.~Wu, G.~Bansal \emph{et al.}, ``AutoGen: Enabling next-gen LLM applications via multi-agent conversation,'' \emph{arXiv:2308.08155}, 2023.
 
 \bibitem{hong2023metagpt}
 S.~Hong, X.~Zhuge \emph{et al.}, ``MetaGPT: Meta programming for multi-agent collaborative framework,'' \emph{arXiv:2308.00352}, 2023.
@@ -1030,6 +1030,12 @@ B.~H.~Bloom, ``Space/time trade-offs in hash coding with allowable errors,'' \em
 
 \bibitem{lamport1978}
 L.~Lamport, ``Time, clocks, and the ordering of events in a distributed system,'' \emph{Commun. ACM}, vol.~21, no.~7, pp.~558--565, Jul.\ 1978. \doi{10.1145/359545.359563}
+
+\bibitem{nygard2007}
+M.~T.~Nygard, \emph{Release It! Design and Deploy Production-Ready Software}.\hskip 1em plus 0.5em minus 0.4em Raleigh, NC, USA: Pragmatic Bookshelf, 2007.
+
+\bibitem{sse2015}
+I.~Hickson, ``Server-Sent Events,'' W3C Recommendation, Feb.\ 2015. [Online]. Available: \url{https://www.w3.org/TR/eventsource/}
 
 \end{thebibliography}
 

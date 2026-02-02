@@ -38,3 +38,10 @@ dist-bun/
 
 # Backup files
 *.bak
+
+# LaTeX build artifacts
+*.aux
+*.out
+*.toc
+*.bbl
+*.blg
