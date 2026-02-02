@@ -99,7 +99,19 @@ function safeParseInt(value: string | undefined, fallback?: number): number {
  * });
  * ```
  */
+/** Maximum allowed lengths for task fields */
+const MAX_TITLE_LENGTH = 500;
+const MAX_DESCRIPTION_LENGTH = 10000;
+
 export async function createTask(input: CreateTaskInput): Promise<KanbanTask> {
+  // Validate input lengths
+  if (input.title.length > MAX_TITLE_LENGTH) {
+    throw new Error(`Task title exceeds maximum length (${MAX_TITLE_LENGTH} chars)`);
+  }
+  if (input.description && input.description.length > MAX_DESCRIPTION_LENGTH) {
+    throw new Error(`Task description exceeds maximum length (${MAX_DESCRIPTION_LENGTH} chars)`);
+  }
+
   const client = await getRedis();
 
   const taskId = uuidv4();

@@ -378,12 +378,25 @@ export async function updateWorkspace(
 
   // Apply updates
   if (updates.name !== undefined) {
+    if (updates.name.length > 200) {
+      Logger.warn(`workspace-store: name too long for workspace ${workspaceId}`);
+      return null;
+    }
     workspace.name = updates.name;
   }
   if (updates.description !== undefined) {
+    if (updates.description.length > 2000) {
+      Logger.warn(`workspace-store: description too long for workspace ${workspaceId}`);
+      return null;
+    }
     workspace.description = updates.description;
   }
   if (updates.metadata !== undefined) {
+    const metadataSize = JSON.stringify(updates.metadata).length;
+    if (metadataSize > 10240) {
+      Logger.warn(`workspace-store: metadata too large (${metadataSize} > 10240) for workspace ${workspaceId}`);
+      return null;
+    }
     workspace.metadata = { ...workspace.metadata, ...updates.metadata };
   }
   workspace.updatedAt = Date.now();
