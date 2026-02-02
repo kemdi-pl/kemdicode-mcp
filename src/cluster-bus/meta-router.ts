@@ -79,9 +79,14 @@ export interface RouteResult {
  *   const result = await router.route(signal);
  *   // result.targets => cluster IDs to deliver to
  */
+/** Maximum allowed regex pattern length to prevent ReDoS */
+const MAX_REGEX_LENGTH = 200;
+
 export class MetaTagRouter {
   private rules: RouteRule[] = [];
   private rulesSorted = false;
+  /** Cache of compiled regex patterns to avoid recompilation per signal */
+  private regexCache = new Map<string, RegExp | null>();
 
   // -------------------------------------------------------------------------
   // Rule Management
@@ -111,6 +116,7 @@ export class MetaTagRouter {
   clearRules(): void {
     this.rules = [];
     this.rulesSorted = true;
+    this.regexCache.clear();
   }
 
   // -------------------------------------------------------------------------
@@ -239,13 +245,21 @@ export class MetaTagRouter {
         return actual.startsWith(predicate.value);
 
       case 'regex': {
-        try {
-          const re = new RegExp(predicate.value);
-          return re.test(actual);
-        } catch {
-          Logger.warn(`[MetaRouter] Invalid regex in predicate: ${predicate.value}`);
+        if (predicate.value.length > MAX_REGEX_LENGTH) {
+          Logger.warn(`[MetaRouter] Regex too long (${predicate.value.length} > ${MAX_REGEX_LENGTH}), rejecting`);
           return false;
         }
+        let re = this.regexCache.get(predicate.value);
+        if (re === undefined) {
+          try {
+            re = new RegExp(predicate.value);
+          } catch {
+            Logger.warn(`[MetaRouter] Invalid regex in predicate: ${predicate.value}`);
+            re = null;
+          }
+          this.regexCache.set(predicate.value, re);
+        }
+        return re !== null && re.test(actual);
       }
 
       default:

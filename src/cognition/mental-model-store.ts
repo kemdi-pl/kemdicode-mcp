@@ -75,27 +75,27 @@ export class MentalModelStore extends RedisBackedService {
       const sessionKey = COGNITION_KEYS.modelsBySession(fullModel.sessionId);
       const nameKey = COGNITION_KEYS.modelByName(fullModel.name);
 
-      const pipeline = this.redis.pipeline();
+      const tx = this.redis.multi();
 
       // Store the model as a JSON string
-      pipeline.set(key, JSON.stringify(fullModel));
+      tx.set(key, JSON.stringify(fullModel));
       if (COGNITION_TTL.model > 0) {
-        pipeline.expire(key, COGNITION_TTL.model);
+        tx.expire(key, COGNITION_TTL.model);
       }
 
       // Add to session sorted set (score = creation timestamp for ordering)
-      pipeline.zadd(sessionKey, now, fullModel.id);
+      tx.zadd(sessionKey, now, fullModel.id);
       if (COGNITION_TTL.model > 0) {
-        pipeline.expire(sessionKey, COGNITION_TTL.model);
+        tx.expire(sessionKey, COGNITION_TTL.model);
       }
 
       // Store name lookup (normalized name -> model id)
-      pipeline.set(nameKey, fullModel.id);
+      tx.set(nameKey, fullModel.id);
       if (COGNITION_TTL.model > 0) {
-        pipeline.expire(nameKey, COGNITION_TTL.model);
+        tx.expire(nameKey, COGNITION_TTL.model);
       }
 
-      await pipeline.exec();
+      await tx.exec();
 
       Logger.debug(`MentalModelStore: created model ${fullModel.id} "${fullModel.name}"`);
       // Emit event for cross-tool reactions
@@ -219,10 +219,12 @@ export class MentalModelStore extends RedisBackedService {
       model.updatedAt = Date.now();
 
       const key = COGNITION_KEYS.model(modelId);
-      await this.redis.set(key, JSON.stringify(model));
+      const tx = this.redis.multi();
+      tx.set(key, JSON.stringify(model));
       if (COGNITION_TTL.model > 0) {
-        await this.redis.expire(key, COGNITION_TTL.model);
+        tx.expire(key, COGNITION_TTL.model);
       }
+      await tx.exec();
 
       Logger.debug(`MentalModelStore: added component "${component.name}" to model ${modelId}`);
       getCognitionEventBus().emit({
@@ -275,10 +277,12 @@ export class MentalModelStore extends RedisBackedService {
       model.updatedAt = Date.now();
 
       const key = COGNITION_KEYS.model(modelId);
-      await this.redis.set(key, JSON.stringify(model));
+      const tx = this.redis.multi();
+      tx.set(key, JSON.stringify(model));
       if (COGNITION_TTL.model > 0) {
-        await this.redis.expire(key, COGNITION_TTL.model);
+        tx.expire(key, COGNITION_TTL.model);
       }
+      await tx.exec();
 
       Logger.debug(
         `MentalModelStore: added relationship ${relationship.from} --[${relationship.type}]--> ${relationship.to} to model ${modelId}`
@@ -347,10 +351,12 @@ export class MentalModelStore extends RedisBackedService {
       model.updatedAt = Date.now();
 
       const key = COGNITION_KEYS.model(modelId);
-      await this.redis.set(key, JSON.stringify(model));
+      const tx = this.redis.multi();
+      tx.set(key, JSON.stringify(model));
       if (COGNITION_TTL.model > 0) {
-        await this.redis.expire(key, COGNITION_TTL.model);
+        tx.expire(key, COGNITION_TTL.model);
       }
+      await tx.exec();
 
       Logger.debug(`MentalModelStore: removed component "${componentName}" from model ${modelId}`);
       getCognitionEventBus().emit({
@@ -389,10 +395,12 @@ export class MentalModelStore extends RedisBackedService {
       model.updatedAt = Date.now();
 
       const key = COGNITION_KEYS.model(modelId);
-      await this.redis.set(key, JSON.stringify(model));
+      const tx = this.redis.multi();
+      tx.set(key, JSON.stringify(model));
       if (COGNITION_TTL.model > 0) {
-        await this.redis.expire(key, COGNITION_TTL.model);
+        tx.expire(key, COGNITION_TTL.model);
       }
+      await tx.exec();
 
       Logger.debug(`MentalModelStore: marked model ${modelId} as stale`);
       getCognitionEventBus().emit({
@@ -431,10 +439,12 @@ export class MentalModelStore extends RedisBackedService {
       model.updatedAt = Date.now();
 
       const key = COGNITION_KEYS.model(modelId);
-      await this.redis.set(key, JSON.stringify(model));
+      const tx = this.redis.multi();
+      tx.set(key, JSON.stringify(model));
       if (COGNITION_TTL.model > 0) {
-        await this.redis.expire(key, COGNITION_TTL.model);
+        tx.expire(key, COGNITION_TTL.model);
       }
+      await tx.exec();
 
       Logger.debug(`MentalModelStore: refreshed model ${modelId}`);
       return true;

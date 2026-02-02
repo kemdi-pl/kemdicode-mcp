@@ -96,7 +96,7 @@ export function execSync(
       env: options?.env,
       maxBuffer: options?.maxBuffer || 10 * 1024 * 1024,
       timeout: options?.timeout,
-      shell: options?.shell,
+      shell: false,
       encoding: 'utf-8',
     });
 
@@ -222,7 +222,7 @@ export function spawn(
     const proc = nodeSpawn(command, args, {
       cwd: options?.cwd,
       env: options?.env,
-      shell: options?.shell,
+      shell: false,
     });
 
     let stdout = '';

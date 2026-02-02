@@ -169,9 +169,11 @@ export class SelfCritiqueStore extends RedisBackedService {
 
       if (ids.length === 0) return [];
 
+      const keys = ids.map((id) => COGNITION_KEYS.critique(id));
+      const results = await this.redis!.mget(...keys);
+
       const critiques: SelfCritique[] = [];
-      for (const id of ids) {
-        const data = await this.redis!.get(COGNITION_KEYS.critique(id));
+      for (const data of results) {
         if (data) {
           try {
             critiques.push(JSON.parse(data) as SelfCritique);

@@ -44,6 +44,7 @@ interface Subscription {
 class DataFlowBus {
   private subscriptions = new Map<DataFlowChannel, Subscription[]>();
   private messageHistory: DataFlowEnvelope[] = [];
+  private messageIds = new Set<string>();
   private readonly maxHistory = 200;
   private redisPublisher: ((channel: string, message: string) => Promise<void>) | null = null;
 
@@ -79,10 +80,7 @@ class DataFlowBus {
     };
 
     // Store in history
-    this.messageHistory.push(envelope);
-    if (this.messageHistory.length > this.maxHistory) {
-      this.messageHistory.shift();
-    }
+    this.addToHistory(envelope);
 
     // Deliver to local subscribers (skip expired messages)
     if (envelope.ttl && envelope.ttl > 0 && Date.now() - envelope.timestamp > envelope.ttl) {
@@ -210,8 +208,8 @@ class DataFlowBus {
     try {
       const envelope = JSON.parse(message) as DataFlowEnvelope;
 
-      // Avoid re-publishing locally-originated messages
-      if (this.messageHistory.some((m) => m.id === envelope.id)) return;
+      // Avoid re-publishing locally-originated messages (O(1) Set lookup)
+      if (this.messageIds.has(envelope.id)) return;
 
       // Verify envelope channel matches actual Redis channel to prevent spoofing
       const resolvedChannel = channel.replace('mcp:dataflow:', '') as DataFlowChannel;
@@ -227,10 +225,7 @@ class DataFlowBus {
       }
 
       // Store and deliver
-      this.messageHistory.push(envelope);
-      if (this.messageHistory.length > this.maxHistory) {
-        this.messageHistory.shift();
-      }
+      this.addToHistory(envelope);
 
       const subs = this.subscriptions.get(resolvedChannel) || [];
 
@@ -254,7 +249,17 @@ class DataFlowBus {
   reset(): void {
     this.subscriptions.clear();
     this.messageHistory = [];
+    this.messageIds.clear();
     this.redisPublisher = null;
+  }
+
+  private addToHistory(envelope: DataFlowEnvelope): void {
+    if (this.messageHistory.length >= this.maxHistory) {
+      const evicted = this.messageHistory.shift();
+      if (evicted) this.messageIds.delete(evicted.id);
+    }
+    this.messageHistory.push(envelope);
+    this.messageIds.add(envelope.id);
   }
 
   private matchesSubscription(sub: Subscription, envelope: DataFlowEnvelope): boolean {

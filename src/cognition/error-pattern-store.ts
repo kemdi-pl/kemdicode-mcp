@@ -358,19 +358,23 @@ export class ErrorPatternStore extends RedisBackedService {
       const errorWords = new Set(tokenize(errorMessage));
       if (errorWords.size === 0) return [];
 
-      // Load all patterns
+      // Load patterns (bounded to prevent excessive memory use)
+      const MAX_MATCH_CANDIDATES = 200;
       const allIds = await this.redis!.zrevrange(
         COGNITION_KEYS.errorPatternsAll(),
         0,
-        -1
+        MAX_MATCH_CANDIDATES - 1
       );
 
       if (allIds.length === 0) return [];
 
       const scored: Array<{ pattern: ErrorPattern; score: number }> = [];
 
-      for (const id of allIds) {
-        const data = await this.redis!.get(COGNITION_KEYS.errorPattern(id));
+      // Batch-fetch all patterns at once
+      const keys = allIds.map((id) => COGNITION_KEYS.errorPattern(id));
+      const allData = await this.redis!.mget(...keys);
+
+      for (const data of allData) {
         if (!data) continue;
 
         let pattern: ErrorPattern;

@@ -157,9 +157,11 @@ export class DecisionStore extends RedisBackedService {
 
       if (ids.length === 0) return [];
 
+      const keys = ids.map((id) => COGNITION_KEYS.decision(id));
+      const results = await this.redis!.mget(...keys);
+
       const decisions: Decision[] = [];
-      for (const id of ids) {
-        const data = await this.redis!.get(COGNITION_KEYS.decision(id));
+      for (const data of results) {
         if (data) {
           try {
             decisions.push(JSON.parse(data) as Decision);

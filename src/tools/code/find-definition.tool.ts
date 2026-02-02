@@ -216,6 +216,11 @@ export const findDefinitionTool: UnifiedTool = {
     }
 
     const symbolName = String(symbol).trim();
+
+    // Validate symbol as a safe identifier to prevent regex injection
+    if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(symbolName)) {
+      return JSON.stringify({ success: false, error: `Invalid symbol name: ${symbolName}`, code: 'INVALID_SYMBOL' });
+    }
     const searchPath = String(path);
     if (!quickPathCheck(searchPath)) {
       return JSON.stringify({ success: false, error: 'Invalid or blocked path', code: 'PATH_VALIDATION_ERROR' });

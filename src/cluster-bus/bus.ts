@@ -426,7 +426,14 @@ export class ClusterBus {
     Logger.debug(`[ClusterBus] Sent ${signal.type} → ${signal.targetCluster || 'broadcast'} (${signal.id.slice(0, 8)})`);
   }
 
+  /** Maximum incoming message size (1 MB) */
+  private readonly maxMessageSize = 1024 * 1024;
+
   private handleIncoming(message: string): void {
+    if (message.length > this.maxMessageSize) {
+      Logger.warn(`[ClusterBus] Dropping oversized message (${message.length} bytes > ${this.maxMessageSize})`);
+      return;
+    }
     try {
       const signal = JSON.parse(message) as ClusterSignal;
 
