@@ -24,4 +24,4 @@ All examples are in the [examples/](../examples/) directory:
 | 11 | [Session Recovery, MPC & RL](../examples/11-session-recovery-mpc-rl.md) | Recovery, secrets, learning |
 | 12 | [Knowledge Graph & Loci](../examples/12-knowledge-graph-loci.md) | Error-to-solution paths |
 
-See also: [Usage Patterns](../examples/patterns.md) — 16 reusable integration patterns.
+See also: [Usage Patterns](../examples/patterns.md) — 18 reusable integration patterns.

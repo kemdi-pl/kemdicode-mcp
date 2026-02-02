@@ -411,3 +411,49 @@ session-recover
 Restores: active session memory · latest handoff · knowledge graph (loci) · tool availability · agent rankings · ambient learning insights.
 
 **See:** [11-session-recovery-mpc-rl.md](11-session-recovery-mpc-rl.md)
+
+---
+
+## Pattern 17: Cluster Bus Deep Diagnostics
+
+**Problem:** Need to understand cluster bus health, signal flow, and diagnose routing issues.
+
+**Solution:** Use the 3 inspection tools for flow control, routing, and deep inspection.
+
+```
+# Check flow control and circuit breakers
+cluster-bus-flow --action "circuit-status"
+cluster-bus-flow --action "queue-depth"
+
+# Test routing before sending signals
+cluster-bus-routing --action "test-route" --tags '["role:worker"]'
+
+# Inspect signal history and bridge stats
+cluster-bus-inspect --action "signal-history" --limit 50
+cluster-bus-inspect --action "bridge-stats"
+cluster-bus-inspect --action "bloom-stats"
+```
+
+**When to use:**
+- Debugging why signals aren't reaching target clusters
+- Monitoring backpressure and circuit breaker state
+- Verifying bloom filter utilization and false positive rates
+
+**See:** [08-cluster-bus-magistrale.md](08-cluster-bus-magistrale.md)
+
+---
+
+## Pattern 18: Prompt Enhancement
+
+**Problem:** Vague or poorly structured prompts lead to low-quality AI responses.
+
+**Solution:** Use `enhance-prompt` to analyze and rewrite prompts before dispatching to LLM.
+
+```
+enhance-prompt --prompt "make the code better" --context "TypeScript REST API with Express"
+```
+
+**When to use:**
+- Before magistrale dispatch to improve quality across clusters
+- When user prompts are ambiguous or underspecified
+- Iterative prompt refinement with "first step" mechanism

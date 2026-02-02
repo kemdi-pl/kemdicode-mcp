@@ -8,7 +8,7 @@ Alternatively: `read-memory --names ["active-session"]` and update with `write-m
 
 ## Overview
 
-Model Context Protocol (MCP) server providing **138 specialized tools** across 23 categories: code analysis, generation, git operations, file management, line/symbol editing, project memory, cognition & self-improvement, multi-board kanban with workspaces, task clustering & complexity, thinking chains, recursive tool invocation, pipelines, session monitoring, multi-agent coordination, structured output, data flow bus, cluster bus with LLM magistrale, tool annotations, ambient learning, agent ranking, and MCP client capabilities.
+Model Context Protocol (MCP) server providing **142 specialized tools** across 23 categories: code analysis, generation, git operations, file management, line/symbol editing, project memory, cognition & self-improvement, multi-board kanban with workspaces, task clustering & complexity, thinking chains, recursive tool invocation, pipelines, session monitoring, multi-agent coordination, structured output, data flow bus, cluster bus with LLM magistrale, tool annotations, ambient learning, agent ranking, and MCP client capabilities.
 
 **8 LLM providers**: OpenAI, Anthropic, Gemini, Groq, DeepSeek, Ollama, OpenRouter, Perplexity. Provider syntax: `provider:model:thinking` (e.g., `a:claude-sonnet-4-5:4k`, `p:sonar-pro`).
 
@@ -79,7 +79,7 @@ src/
 │   ├── availability-checker.ts # Tool health + fallback suggestions
 │   ├── tool-shared.ts       # executeWithGuard, handleToolError helpers
 │   ├── agents/              # Agent monitoring (10 tools)
-│   ├── cluster-bus/         # Cluster bus tools (4 tools)
+│   ├── cluster-bus/         # Cluster bus tools (7 tools)
 │   ├── code/                # Code navigation + symbol editing (9 tools)
 │   ├── client/              # MCP client capabilities (3 tools)
 │   ├── cognition/           # AI self-improvement (8 tools)
@@ -91,7 +91,7 @@ src/
 │   ├── loci/                # Knowledge graph + resurrection (4 tools)
 │   ├── memory/              # Project memory (8 tools)
 │   ├── mpc/                 # Multi-party computation (4 tools)
-│   ├── multi-llm/           # Multi-provider LLM tools (2 tools)
+│   ├── multi-llm/           # Multi-provider LLM tools (3 tools)
 │   ├── project/             # Project management (5 tools)
 │   ├── recursive/           # Recursive invocation + orchestrate (4 tools)
 │   ├── rl/                  # Reinforcement learning (2 tools)
@@ -103,14 +103,14 @@ src/
 └── utils/                   # Helpers (command executor, file, git, validation, logger)
 ```
 
-## Tool Categories (138 tools)
+## Tool Categories (142 tools)
 
 | Category | # | Key tools |
 |----------|:-:|-----------|
-| Cluster Bus | 4 | `cluster-bus-status` `cluster-bus-topology` `cluster-bus-send` `cluster-bus-magistrale` |
+| Cluster Bus | 7 | `cluster-bus-status` `cluster-bus-topology` `cluster-bus-send` `cluster-bus-magistrale` `cluster-bus-flow` `cluster-bus-routing` `cluster-bus-inspect` |
 | Cognition | 8 | `decision-journal` `confidence-tracker` `mental-model` `intent-tracker` `error-pattern` `self-critique` `smart-handoff` `context-budget` |
 | AI Agents | 4 | `plan` `build` `brainstorm` `ask-ai` |
-| Multi-LLM | 2 | `multi-prompt` `consensus-prompt` |
+| Multi-LLM | 3 | `multi-prompt` `consensus-prompt` `enhance-prompt` |
 | Code Analysis | 8 | `code-review` `explain-code` `find-definition` `find-references` `find-symbols` `semantic-search` `code-outline` `analyze-deps` |
 | Line Editing | 4 | `insert-at-line` `delete-lines` `replace-lines` `replace-content` |
 | Symbol Editing | 3 | `insert-before-symbol` `insert-after-symbol` `rename-symbol` |

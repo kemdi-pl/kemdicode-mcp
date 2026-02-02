@@ -31,7 +31,7 @@
    v
 +------------------------------------------------------------------+
 |                                                                  |
-|  Tool Registry  (138 tools, 23 categories)                       |
+|  Tool Registry  (142 tools, 23 categories)                       |
 |  Zod schema validation | auto JSON Schema generation             |
 |  tool annotations (readOnly/destructive/openWorld hints)         |
 |  lazy loading | tools/list_changed broadcast                     |
@@ -43,7 +43,7 @@
 +------------------------------------------------------------------+
 |  Tool Categories:                                                |
 |                                                                  |
-|  cluster-bus (4) | cognition (8)  | ai-agents (4) | multi-llm(2)|
+|  cluster-bus (7) | cognition (8)  | ai-agents (4) | multi-llm(3)|
 |  code (8)        | edit (7)       | code-mod (5)  | memory (8)  |
 |  git (8)         | file (9)       | project (5)   | kanban (23) |
 |  recursive (4)   | multi-agent(14)| pipeline (1)  | session (6) |

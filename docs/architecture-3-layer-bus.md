@@ -46,14 +46,17 @@ The kemdiCode MCP server uses a 3-layer bus architecture for inter-module, inter
 |  ||  | - rate limiting  | | - wildcard    | | - stale detection |      ||
 |  ||  | - priority filter| | - regex       | | - auto pruning    |      ||
 |  ||  | - queue depth    | | - prefix      | | - online count    |      ||
-|  ||  | - buffer/drop    | | - AND/OR      | |                   |      ||
+|  ||  | - buffer/drop    | | - AND/OR      | | - Map handlers    |      ||
+|  ||  | - circuit breaker| |               | |   (O(1) unsub)   |      ||
+|  ||  | - bloom filter   | |               | |                   |      ||
+|  ||  | - HMAC auth      | |               | |                   |      ||
 |  ||  +------------------+ +---------------+ +-------------------+      ||
 |  ||                                                                    ||
 |  ||  +-------------------------+ +---------------------------+         ||
 |  ||  | EventBridge             | | DataFlowBridge            |         ||
 |  ||  | L3 <-> L1               | | L3 <-> L2                 |         ||
 |  ||  |                         | |                           |         ||
-|  ||  | hop limit = 3           | | hop limit = 3             |         ||
+|  ||  | hop limit = 5           | | hop limit = 5             |         ||
 |  ||  | anti-echo: source guard | | anti-echo: prefix guard   |         ||
 |  ||  |                         | |                           |         ||
 |  ||  | L3->L1:                 | | L3->L2:                   |         ||
@@ -94,7 +97,9 @@ The kemdiCode MCP server uses a 3-layer bus architecture for inter-module, inter
 |  ||                                                                    ||
 |  ||  Features: correlation chains | priority 0-3 | TTL enforcement     ||
 |  ||            source filter | target filter | history (max 200)       ||
-|  ||            dedup via messageIds Set                                 ||
+|  ||            dedup via messageIds Set | circular buffer history      ||
+|  ||            Map-based subscriptions (O(1) unsub)                    ||
+|  ||            idle subscription cleanup (60min TTL)                   ||
 |  +======================================================================+
 |                |                                |                      |
 |  +======================================================================+
@@ -170,7 +175,7 @@ Signals crossing between layers can create feedback loops. Three mechanisms prev
 
 | Guard | Location | Mechanism |
 |:------|:---------|:----------|
-| **Hop limit** | bridges.ts | `MAX_BRIDGE_HOPS = 3` — signals carry `_bridgeHops` counter, dropped when exceeded |
+| **Hop limit** | bridges.ts | `MAX_BRIDGE_HOPS = 5` — signals carry `_bridgeHops` counter, dropped when exceeded |
 | **Source prefix** | bridges.ts | DataFlowBridge skips messages with `source.startsWith("cluster:")` to prevent echo |
 | **Dedup** | bus.ts, dataflow/bus.ts | ClusterBus uses `seenSet` (5000+), DataFlowBus uses `messageIds` Set |
 | **Chain depth** | global-bus.ts | `MAX_EVENT_CHAIN_DEPTH = 8` — events emitted from handlers increment depth |
@@ -222,7 +227,7 @@ Defined in `src/cluster-bus/init.ts`:
 
 | Strategy | Behavior |
 |:---------|:---------|
-| `min-passes` | LLM self-assesses complexity, declares minimum passes, early-stops on quality |
+| `min-passes` | LLM self-assesses complexity, declares minimum passes (capped to `maxPasses` budget), early-stops on quality |
 | `quality-target` | Iterates until quality >= threshold or budget exhausted |
 | `fixed` | Skips assessment, executes exactly N passes |
 

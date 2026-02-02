@@ -147,7 +147,7 @@ The Pass Controller supports 3 strategies:
 
 | Strategy | Behavior |
 |----------|----------|
-| `min-passes` | LLM self-assesses complexity, declares minimum passes, early-stops on quality |
+| `min-passes` | LLM self-assesses complexity, declares minimum passes (capped to `maxPasses`), early-stops on quality |
 | `quality-target` | Iterates until quality >= threshold or budget exhausted |
 | `fixed` | Executes exactly N passes, no assessment |
 
@@ -171,7 +171,58 @@ The Signal Flow Controller provides:
 - **Priority filtering** — drops low-priority signals under pressure
 - **Directional control** — upstream (leaf→hub), downstream (hub→leaf), duplex
 
-## 8. Generate Mermaid topology diagram
+## 8. Flow control management
+
+```
+# View all flow policies
+cluster-bus-flow --action "list-policies"
+
+# Check circuit breaker status
+cluster-bus-flow --action "circuit-status"
+
+# View backpressure queue depth
+cluster-bus-flow --action "queue-depth"
+
+# Detect burst patterns
+cluster-bus-flow --action "burst-detect"
+```
+
+## 9. Routing rules and provider pool
+
+```
+# List meta-tag routing rules
+cluster-bus-routing --action "list-rules"
+
+# Test which clusters match a set of tags
+cluster-bus-routing --action "test-route" --tags '["role:worker", "lang:typescript"]'
+
+# Discover providers across clusters
+cluster-bus-routing --action "discover-providers"
+
+# Add a routing rule
+cluster-bus-routing --action "add-rule" --rule '{"matchMode":"exact","tags":["role:worker"],"priority":1}'
+```
+
+## 10. Deep inspection and diagnostics
+
+```
+# View signal history with filters
+cluster-bus-inspect --action "signal-history" --limit 50
+
+# Health monitor event log
+cluster-bus-inspect --action "health-events"
+
+# Bridge statistics (L3↔L1 and L3↔L2)
+cluster-bus-inspect --action "bridge-stats"
+
+# Subscription diagnostics
+cluster-bus-inspect --action "subscriptions"
+
+# Bloom filter utilization
+cluster-bus-inspect --action "bloom-stats"
+```
+
+## 11. Generate Mermaid topology diagram
 
 ```
 cluster-bus-topology --action "mermaid" --limit 50

@@ -5,7 +5,7 @@
 <h3 align="center">Model Context Protocol Server for AI-Powered Development</h3>
 
 <p align="center">
-  138 tools &bull; 8 LLM providers &bull; cluster bus &bull; cognition layer &bull; multi-agent orchestration &bull; kanban &bull; project memory
+  142 tools &bull; 8 LLM providers &bull; cluster bus &bull; cognition layer &bull; multi-agent orchestration &bull; kanban &bull; project memory
 </p>
 
 <p align="center">
@@ -23,7 +23,7 @@
 
 ---
 
-**kemdiCode MCP** is a [Model Context Protocol](https://modelcontextprotocol.io/) server that gives AI agents and IDE assistants access to **138 specialized tools** for code analysis, generation, git operations, file management, AST-aware editing, project memory, cognition & self-improvement, multi-board kanban, multi-agent coordination, cluster bus with distributed LLM magistrale, typed data flow bus, structured output, and LLM-driven task management.
+**kemdiCode MCP** is a [Model Context Protocol](https://modelcontextprotocol.io/) server that gives AI agents and IDE assistants access to **142 specialized tools** for code analysis, generation, git operations, file management, AST-aware editing, project memory, cognition & self-improvement, multi-board kanban, multi-agent coordination, cluster bus with distributed LLM magistrale, typed data flow bus, structured output, and LLM-driven task management.
 
 <details>
 <summary><strong>Table of Contents</strong></summary>
@@ -61,7 +61,8 @@
 - 3 send modes: **unicast** (direct), **broadcast** (all), **routed** (meta-tag filtered)
 - Signal Flow Controller with backpressure, rate limiting, priority filtering, and directional control (upstream/downstream/duplex)
 - Health Monitor with heartbeat tracking, stale detection, and automatic pruning
-- 4 new tools: `cluster-bus-status`, `cluster-bus-topology`, `cluster-bus-send`, `cluster-bus-magistrale`
+- 7 tools: `cluster-bus-status`, `cluster-bus-topology`, `cluster-bus-send`, `cluster-bus-magistrale`, `cluster-bus-flow`, `cluster-bus-routing`, `cluster-bus-inspect`
+- Hardening: bloom filter dedup, circuit breaker wiring, HMAC auth, subscription lifecycle management
 
 ### LLM Magistrale &mdash; Multi-Cluster AI Dispatch
 
@@ -69,7 +70,25 @@
 - 4 aggregation strategies: `first-wins` (fastest), `best-of-n` (quality), `consensus` (agreement), `fallback-chain` (resilience)
 - Self-regulating Pass Controller with 3 strategies: `min-passes` (LLM declares minimum), `quality-target` (iterate to threshold), `fixed` (exact N)
 - Quality self-assessment with early-stop when threshold reached
+- Budget capping: PassController caps `minPasses` to `maxPasses` instead of rejecting tasks that exceed budget
 - Provider and model hints for target cluster selection
+
+### Prompt Enhancement
+
+- `enhance-prompt` tool: analyze and rewrite vague prompts into clear, actionable instructions
+- "First step" mechanism for iterative prompt refinement
+
+### Performance Optimizations
+
+- Circular buffer for bounded message history in ClusterBus and DataFlowBus (O(1) vs O(n) `Array.shift()`)
+- Map-based subscriptions in ClusterBus, DataFlowBus, and HealthMonitor (O(1) unsubscribe vs O(n) `findIndex`+`splice`)
+- LRU eviction for ClusterBus seen-set cache (bounded memory)
+- Exported `stopRateLimitCleanup()` in ToolInvoker to prevent timer leaks in tests
+
+### Testing
+
+- 559 unit tests across 6 test files covering cluster bus, data flow, cognition, recursive invocation, and system tools
+- Chaos, concurrency, fuzzing, property-based, and benchmark test suites
 
 ### Data Flow Bus &mdash; Typed Inter-Module Communication
 
@@ -86,7 +105,7 @@
 - [10 &mdash; Cognition Deep Dive](examples/10-cognition-deep-dive.md)
 - [11 &mdash; Session Recovery, MPC & RL](examples/11-session-recovery-mpc-rl.md)
 - [12 &mdash; Knowledge Graph & Loci](examples/12-knowledge-graph-loci.md)
-- Updated [patterns.md](examples/patterns.md) with 6 new patterns (11&ndash;16)
+- Updated [patterns.md](examples/patterns.md) with 8 new patterns (11&ndash;18)
 
 ### Previous Releases
 
@@ -286,7 +305,7 @@ The agent doesn't just write code &mdash; it builds a persistent understanding o
 
 | Capability | Description |
 |:-----------|:------------|
-| **138 MCP Tools** | Code review, refactoring, testing, git, file management, AST editing, memory, checkpoints, kanban, cognition, cluster bus, data flow, pipelines, structured output, task clustering |
+| **142 MCP Tools** | Code review, refactoring, testing, git, file management, AST editing, memory, checkpoints, kanban, cognition, cluster bus, data flow, pipelines, structured output, task clustering |
 | **Cluster Bus** | Distributed LLM orchestration: 12 signal types, 3 send modes, magistrale with 4 aggregation strategies, multi-pass quality control |
 | **Data Flow Bus** | 12 typed channels (`ai:*`, `kanban:*`, `cognition:*`, `agent:*`, `system:*`) with Zod schemas, correlation tracking, Redis bridge |
 | **Cognition Layer** | 8 self-improvement tools: decision journal, confidence tracking, mental models, intent hierarchy, error patterns, self-critique, smart handoff, context budget |
@@ -475,14 +494,14 @@ Append a third segment to enable extended thinking:
 
 ## Tool Reference
 
-> **138 tools** across 23 categories.
+> **142 tools** across 23 categories.
 
 | Category | # | Tools |
 |:---------|:-:|:------|
-| **Cluster Bus** | 4 | `cluster-bus-status` `cluster-bus-topology` `cluster-bus-send` `cluster-bus-magistrale` |
+| **Cluster Bus** | 7 | `cluster-bus-status` `cluster-bus-topology` `cluster-bus-send` `cluster-bus-magistrale` `cluster-bus-flow` `cluster-bus-routing` `cluster-bus-inspect` |
 | **Cognition** | 8 | `decision-journal` `confidence-tracker` `mental-model` `intent-tracker` `error-pattern` `self-critique` `smart-handoff` `context-budget` |
 | **AI Agents** | 4 | `plan` `build` `brainstorm` `ask-ai` |
-| **Multi-LLM** | 2 | `multi-prompt` `consensus-prompt` |
+| **Multi-LLM** | 3 | `multi-prompt` `consensus-prompt` `enhance-prompt` |
 | **Code Analysis** | 8 | `code-review` `explain-code` `find-definition` `find-references` `find-symbols` `semantic-search` `code-outline` `analyze-deps` |
 | **Line Editing** | 4 | `insert-at-line` `delete-lines` `replace-lines` `replace-content` |
 | **Symbol Editing** | 3 | `insert-before-symbol` `insert-after-symbol` `rename-symbol` |
@@ -517,7 +536,7 @@ Append a third segment to enable extended thinking:
 | **Clients** | Claude Code, Cursor, KiroCode, RooCode | Connect via SSE + JSON-RPC (MCP Protocol) |
 | **HTTP Server** | `:3100` (Bun or Node.js) | Routes: `/sse`, `/message`, `/resume`, `/stream` |
 | **Session Manager** | Per-client isolation | CWD injection, activity tracking, SSE keep-alive |
-| **Tool Registry** | 138 tools, 23 categories | Zod schema validation, tool annotations, lazy loading |
+| **Tool Registry** | 142 tools, 23 categories | Zod schema validation, tool annotations, lazy loading |
 | **Cluster Bus** | Distributed signal bus | Full-duplex inter-cluster signals via Redis Pub/Sub |
 | **Data Flow Bus** | 12 typed channels | Zod schemas, correlation tracking, priority routing |
 | **Cognition Layer** | Global event bus + cross-linker | 9 reactive handlers, bidirectional Redis links |
@@ -544,7 +563,7 @@ The server uses a 3-layer bus with 3 independent Redis paths and anti-amplificat
 ||                                                                  ||
 ||  +---------------------+  +------------------------+             ||
 ||  | EventBridge  L3<>L1 |  | DataFlowBridge  L3<>L2 |             ||
-||  | hop limit = 3       |  | hop limit = 3          |             ||
+||  | hop limit = 5       |  | hop limit = 5          |             ||
 ||  +---------------------+  +------------------------+             ||
 +====================================================================+
 ||  L2: DataFlowBus  (in-process + Redis mcp:dataflow:{channel})    ||
@@ -742,7 +761,6 @@ bun dist/index.js [options]
 | `DEEPSEEK_API_KEY` | DeepSeek API key |
 | `OPENROUTER_API_KEY` | OpenRouter API key |
 | `PERPLEXITY_API_KEY` | Perplexity API key (research tier) |
-| `KEMDICODE_SHELL_EXEC_ENABLED` | Enable `shell-exec` tool (default: false) |
 | `MPC_MASTER_SECRET` | Master secret for MPC security tools |
 
 ---
