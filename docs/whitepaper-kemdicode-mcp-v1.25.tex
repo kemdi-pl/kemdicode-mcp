@@ -34,6 +34,8 @@
 \usepackage{listings}
 \usepackage{microtype}
 \usepackage{amsmath}
+\usepackage{cite}
+\newcommand{\doi}[1]{\href{https://doi.org/#1}{\texttt{doi:#1}}}
 
 % ── Colors ────────────────────────────────────────────────────────
 \definecolor{kemdiblue}{HTML}{1E3A5F}
@@ -116,7 +118,7 @@ KemdiCode MCP Server is an open-source implementation of the Model Context Proto
 
 \subsection{Motivation}
 
-Modern AI-assisted development tools require deep integration between Large Language Models and the developer's working environment. The Model Context Protocol~(MCP), introduced by Anthropic, standardizes the interface between AI clients and tool servers. However, reference implementations typically provide a narrow set of tools with limited state management.
+Modern AI-assisted development tools require deep integration between Large Language Models and the developer's working environment. The Model Context Protocol~(MCP)~\cite{mcp2024}, introduced by Anthropic, standardizes the interface between AI clients and tool servers. However, reference implementations typically provide a narrow set of tools with limited state management.
 
 KemdiCode MCP Server extends the MCP paradigm with:
 
@@ -196,7 +198,7 @@ Figure~\ref{fig:arch-overview} shows the high-level architecture from client to 
 
 \subsection{Transport Layer}
 
-The server exposes an HTTP interface with the following endpoints:
+The server communicates via JSON-RPC~2.0~\cite{jsonrpc2} over HTTP, following the MCP specification~\cite{mcpspec2025}. The server exposes the following endpoints:
 
 \begin{table}[htbp]
 \centering
@@ -222,7 +224,7 @@ Each connected client receives its own session with isolated working directory, 
 The tool registry manages 142 tools through a unified \texttt{UnifiedTool} interface:
 
 \begin{itemize}[nosep]
-  \item \textbf{Zod schemas} --- Every tool defines its input schema using Zod. Schemas are converted to JSON Schema for the MCP protocol, with special handling for \texttt{discriminatedUnion} types (flattened into merged object schemas).
+  \item \textbf{Zod schemas} --- Every tool defines its input schema using Zod~\cite{zod}. Schemas are converted to JSON Schema for the MCP protocol, with special handling for \texttt{discriminatedUnion} types (flattened into merged object schemas).
   \item \textbf{Annotations} --- MCP-level hints (\texttt{readOnlyHint}, \texttt{destructiveHint}, \texttt{openWorldHint}) inform clients about tool behavior.
   \item \textbf{Lazy loading} --- Tool implementations load on first invocation. A background warmup phase pre-loads all schemas after server start and emits \texttt{tools/list\_changed} notifications.
   \item \textbf{Availability checking} --- Tools report their health status with soft/force modes and suggest fallback alternatives.
@@ -233,7 +235,7 @@ The tool registry manages 142 tools through a unified \texttt{UnifiedTool} inter
 
 Table~\ref{tab:tools} enumerates all 23 categories with their tool counts and representative tools.
 
-\begin{longtable}{lcp{7.5cm}}
+\begin{longtable}{lcp{9cm}}
 \toprule
 \textbf{Category} & \textbf{\#} & \textbf{Key Tools} \\
 \midrule
@@ -324,7 +326,7 @@ The bus architecture provides communication at three distinct scopes, connected 
 
 \subsection{L3: ClusterBus}
 
-The ClusterBus enables inter-cluster communication over Redis Pub/Sub. It supports 12 signal types grouped into four namespaces:
+The ClusterBus enables inter-cluster communication over Redis Pub/Sub~\cite{redis}. It supports 12 signal types grouped into four namespaces:
 
 \begin{table}[htbp]
 \centering
@@ -359,7 +361,7 @@ Each message is wrapped in a \texttt{DataFlowEnvelope} carrying metadata: correl
 
 \subsection{L1: GlobalEventBus}
 
-The GlobalEventBus is an in-process singleton with namespaced events (pattern: \texttt{module:category:action}). Handlers execute asynchronously via \texttt{queueMicrotask} with configurable priority. A maximum chain depth of~8 prevents cascading event storms. The Redis bridge propagates events across sessions with 2-retry backoff and capped history.
+The GlobalEventBus is an in-process singleton with namespaced events following the pattern \texttt{module:category:action}. Handlers execute asynchronously via \texttt{queueMicrotask} with configurable priority. A maximum chain depth of~8 prevents cascading event storms. The Redis bridge propagates events across sessions with two-retry backoff and capped history.
 
 \subsection{Anti-Amplification Guards}
 
@@ -460,7 +462,7 @@ The cognition layer provides persistent AI self-awareness across sessions via 8 
 \centering
 \begin{tikzpicture}[
   node distance=0.6cm and 0.8cm,
-  store/.style={draw, rounded corners=3pt, minimum width=2.6cm, minimum height=1cm, font=\sffamily\scriptsize, align=center, fill=#1},
+  store/.style={draw, rounded corners=3pt, minimum width=2.4cm, minimum height=1cm, font=\sffamily\scriptsize, align=center, fill=#1},
   link/.style={<->, thin, dashed, color=kemdiblue!40},
 ]
   % Top row
@@ -477,12 +479,12 @@ The cognition layer provides persistent AI self-awareness across sessions via 8 
   \node[store=yellow!12, below right=1.2cm and 0.8cm of xlink] (model) {Mental\\Model};
 
   % Side stores
-  \node[store=teal!8, left=0.5cm of err] (hand) {Handoff\\Store};
-  \node[store=cyan!8, right=0.5cm of model] (budget) {Context\\Budget};
+  \node[store=teal!8, left=0.3cm of err] (hand) {Handoff\\Store};
+  \node[store=cyan!8, right=0.3cm of model] (budget) {Context\\Budget};
 
   % Ambient + Rank (outside main ring)
-  \node[store=lime!10, above left=0.3cm and 1.5cm of dec] (ambient) {Ambient\\Learner};
-  \node[store=pink!10, above right=0.3cm and 1.5cm of intent] (rank) {Agent\\Rank};
+  \node[store=lime!10, above left=0.3cm and 1.2cm of dec] (ambient) {Ambient\\Learner};
+  \node[store=pink!10, above right=0.3cm and 1.2cm of intent] (rank) {Agent\\Rank};
 
   % Links through cross-linker
   \draw[link] (dec) -- (xlink);
@@ -563,7 +565,7 @@ KemdiCode supports multi-agent workflows where multiple AI sessions collaborate 
   \item \textbf{Agent Registry} --- agents register with role, capabilities, and status. Discovery via \texttt{agent-list}.
   \item \textbf{Message Passing} --- \texttt{agent-inject} sends context to specific agents; \texttt{agent-alert} broadcasts to all.
   \item \textbf{Shared Thoughts} --- collective knowledge accessible by all agents via \texttt{shared-thoughts}.
-  \item \textbf{Kanban Boards} --- workspaces with role-based membership (owner/admin/member/viewer), boards, and tasks with claiming, assignment, comments, and LLM-driven clustering.
+  \item \textbf{Kanban Boards} --- workspaces with role-based membership (owner, admin, member, viewer), boards, and tasks with claiming, assignment, comments, and LLM-driven clustering.
   \item \textbf{Task Complexity} --- AI-powered estimation of task difficulty with priority scoring.
 \end{itemize}
 
@@ -613,7 +615,7 @@ The \texttt{generateObject()} function produces typed responses using Zod schema
 
 \subsection{Multi-Party Computation}
 
-KemdiCode includes a Shamir's Secret Sharing implementation for distributed secret management:
+KemdiCode includes a Shamir's Secret Sharing~\cite{shamir1979} implementation for distributed secret management:
 
 \begin{enumerate}[nosep]
   \item \texttt{mpc-split} --- Split a secret into $n$ shares with threshold $t$.
@@ -627,7 +629,7 @@ KemdiCode includes a Shamir's Secret Sharing implementation for distributed secr
 \begin{itemize}[nosep]
   \item All tool inputs validated via Zod schemas before execution.
   \item File paths undergo traversal protection (\texttt{validatePathSafe()}).
-  \item Redis JSON parsing uses prototype pollution protection (blocked keys: \texttt{\_\_proto\_\_}, \texttt{constructor}, \texttt{prototype}).
+  \item Redis JSON parsing employs prototype pollution protection, blocking dangerous keys such as \texttt{\_\_proto\_\_} and \texttt{constructor}.
   \item ClusterBus signals authenticated via HMAC.
   \item MetaRouter regex patterns capped at 200 characters to prevent ReDoS.
 \end{itemize}
@@ -707,7 +709,7 @@ The server runs on both Bun and Node.js runtimes. A runtime abstraction layer (\
 
 \subsection{Code Analysis Engine}
 
-Tree-sitter WASM parsers provide AST-based code analysis for 19 programming languages, enabling symbol navigation, definition finding, reference searching, and safe rename operations across polyglot codebases.
+Tree-sitter~\cite{treesitter} WASM parsers, based on incremental LR parsing~\cite{wagner1998}, provide AST-based code analysis for 19 programming languages, enabling symbol navigation, definition finding, reference searching, and safe rename operations across polyglot codebases.
 
 % ══════════════════════════════════════════════════════════════════
 \section{Performance Considerations}
@@ -748,6 +750,8 @@ KemdiCode MCP Server v1.25.0 demonstrates that the Model Context Protocol can se
 
 The architecture prioritizes safety through anti-amplification guards, input validation, HMAC authentication, and prototype pollution protection. Lazy initialization and runtime reconfiguration ensure the server remains responsive under varying workloads and configurations.
 
+The system draws on recent advances in LLM-based multi-agent systems~\cite{li2024multiagent,guo2024ijcai} for its coordination architecture.
+
 Future work includes expanding the knowledge graph with cross-project learning, adding WebSocket transport support, and deepening the reinforcement learning subsystem for autonomous tool selection optimization.
 
 \vspace{1cm}
@@ -757,5 +761,93 @@ Future work includes expanding the knowledge graph with cross-project learning, 
 \noindent{\small\textbf{KemdiCode MCP Server} is open-source software licensed under the GNU General Public License v3.0.\\
 Source code: \href{https://git.kemdi.pl}{git.kemdi.pl}\\
 Author: Dawid Irzyk --- \href{mailto:dawid@kemdi.pl}{dawid@kemdi.pl} --- Kemdi Sp.\ z~o.o.}
+
+% ══════════════════════════════════════════════════════════════════
+\newpage
+\begin{thebibliography}{99}
+
+\bibitem{mcp2024}
+Anthropic.
+\newblock Introducing the Model Context Protocol.
+\newblock Anthropic Blog, November 2024.
+\newblock \url{https://www.anthropic.com/news/model-context-protocol}.
+
+\bibitem{mcpspec2025}
+Model Context Protocol Authors.
+\newblock Model Context Protocol Specification, version 2025-11-25.
+\newblock \url{https://modelcontextprotocol.io/specification/2025-11-25}.
+
+\bibitem{jsonrpc2}
+JSON-RPC Working Group.
+\newblock JSON-RPC 2.0 Specification.
+\newblock \url{https://www.jsonrpc.org/specification}, 2010.
+
+\bibitem{lsp2016}
+Microsoft, Red Hat, and Codenvy.
+\newblock Language Server Protocol Specification.
+\newblock \url{https://microsoft.github.io/language-server-protocol/}, 2016.
+
+\bibitem{redis}
+S.~Sanfilippo.
+\newblock Redis: An in-memory data structure store.
+\newblock \url{https://redis.io/}, 2009--2026.
+
+\bibitem{shamir1979}
+A.~Shamir.
+\newblock How to share a secret.
+\newblock {\em Communications of the ACM}, 22(11):612--613, November 1979.
+\newblock \doi{10.1145/359168.359176}.
+
+\bibitem{wagner1998}
+T.~A.~Wagner and S.~L.~Graham.
+\newblock Efficient and flexible incremental parsing.
+\newblock {\em ACM Transactions on Programming Languages and Systems (TOPLAS)},
+  20(5):980--1013, September 1998.
+\newblock \doi{10.1145/293677.293678}.
+
+\bibitem{treesitter}
+M.~Brunsfeld et~al.
+\newblock Tree-sitter: An incremental parsing system for programming tools.
+\newblock \url{https://tree-sitter.github.io/}, 2018--2026.
+
+\bibitem{zod}
+C.~Hacks.
+\newblock Zod: TypeScript-first schema validation with static type inference.
+\newblock \url{https://zod.dev/}, 2020--2026.
+
+\bibitem{li2024multiagent}
+J.~Li, Q.~Wang, et~al.
+\newblock A survey on {LLM}-based multi-agent systems: Workflow, infrastructure, and challenges.
+\newblock {\em Vicinagearth}, October 2024.
+\newblock \doi{10.1007/s44336-024-00009-2}.
+
+\bibitem{guo2024ijcai}
+T.~Guo, X.~Chen, et~al.
+\newblock Large language model based multi-agents: A survey of progress and challenges.
+\newblock In {\em Proceedings of the 33rd International Joint Conference on Artificial Intelligence (IJCAI)}, 2024.
+
+\bibitem{wu2023autogen}
+Q.~Wu, G.~Banber, et~al.
+\newblock {AutoGen}: Enabling next-gen {LLM} applications via multi-agent conversation.
+\newblock {\em arXiv preprint arXiv:2308.08155}, 2023.
+
+\bibitem{hong2023metagpt}
+S.~Hong, X.~Zhuge, et~al.
+\newblock {MetaGPT}: Meta programming for multi-agent collaborative framework.
+\newblock {\em arXiv preprint arXiv:2308.00352}, 2023.
+
+\bibitem{bloom1970}
+B.~H.~Bloom.
+\newblock Space/time trade-offs in hash coding with allowable errors.
+\newblock {\em Communications of the ACM}, 13(7):422--426, July 1970.
+\newblock \doi{10.1145/362686.362692}.
+
+\bibitem{lamport1978}
+L.~Lamport.
+\newblock Time, clocks, and the ordering of events in a distributed system.
+\newblock {\em Communications of the ACM}, 21(7):558--565, July 1978.
+\newblock \doi{10.1145/359545.359563}.
+
+\end{thebibliography}
 
 \end{document}
