@@ -65,8 +65,16 @@ export function disposeCognitionEventHandlers(): void {
 export function initCognitionEventHandlers(): void {
   if (cognitionHandlersRegistered) return;
 
-  const bus = getGlobalEventBus();
-  const linker = getCrossLinker();
+  let bus: ReturnType<typeof getGlobalEventBus>;
+  let linker: ReturnType<typeof getCrossLinker>;
+
+  try {
+    bus = getGlobalEventBus();
+    linker = getCrossLinker();
+  } catch (err) {
+    Logger.warn(`[CognitionEventHandlers] Failed to initialize dependencies: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
 
   /** Helper to track subscription for disposal */
   const track = (sub: { unsubscribe: () => void }) => subscriptionCleanups.push(() => sub.unsubscribe());
@@ -285,11 +293,23 @@ export function initCognitionEventHandlers(): void {
   }));
 
   // ── cognition:confidence:outcome-updated → propagate to linked decisions
+  // Track processed confidence IDs to prevent circular re-processing
+  const processedOutcomes = new Set<string>();
+
   track(bus.on('cognition:confidence:outcome-updated', async (event) => {
     const { outcome, confidenceId } = event.payload as {
       outcome: string;
       confidenceId: string;
     };
+
+    // Prevent re-entrant processing of the same confidence record
+    if (processedOutcomes.has(confidenceId)) return;
+    processedOutcomes.add(confidenceId);
+    // Evict old entries to prevent unbounded growth
+    if (processedOutcomes.size > 500) {
+      const first = processedOutcomes.values().next().value;
+      if (first) processedOutcomes.delete(first);
+    }
 
     const links = await linker.getBacklinks('confidence', confidenceId);
     const decisionStore = getDecisionStore();

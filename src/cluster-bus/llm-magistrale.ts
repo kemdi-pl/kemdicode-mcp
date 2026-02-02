@@ -134,6 +134,7 @@ const DEFAULT_CONFIG: MagistraleConfig = {
 export class LLMMagistrale {
   private bus: ClusterBus;
   private pendingDispatches = new Map<string, PendingDispatch>();
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(bus: ClusterBus) {
     this.bus = bus;
@@ -146,6 +147,47 @@ export class LLMMagistrale {
     this.bus.onSignal<SignalPayloadMap['llm:error']>('llm:error', (signal) => {
       this.handleError(signal);
     });
+
+    // Periodic cleanup of stale PendingDispatch entries (every 60s)
+    this.cleanupInterval = setInterval(() => {
+      this.sweepStaleDispatches();
+    }, 60_000);
+  }
+
+  /** Stop the periodic cleanup (for graceful shutdown). */
+  stopCleanup(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+  }
+
+  private sweepStaleDispatches(): void {
+    const now = Date.now();
+    for (const [id, pending] of this.pendingDispatches) {
+      // Stale = 2x the configured timeout and still not resolved
+      const maxAge = pending.config.timeoutMs * 2;
+      if (now - pending.startTime > maxAge && !pending.resolved) {
+        Logger.warn(`[Magistrale] Sweeping stale dispatch ${id} (age=${now - pending.startTime}ms)`);
+        pending.resolved = true;
+        if (pending.timeoutHandle) {
+          clearTimeout(pending.timeoutHandle);
+          pending.timeoutHandle = null;
+        }
+        pending.resolve({
+          id,
+          prompt: pending.prompt,
+          strategy: pending.config.strategy,
+          content: `[Magistrale] Dispatch swept as stale after ${now - pending.startTime}ms`,
+          chosenCluster: '',
+          results: pending.results,
+          totalLatencyMs: now - pending.startTime,
+          dispatchedTo: pending.targets.length,
+          successCount: pending.results.filter((r) => !r.error).length,
+        });
+        this.pendingDispatches.delete(id);
+      }
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -193,6 +235,8 @@ export class LLMMagistrale {
       startTime,
       targets: targets.map((t) => t.id),
       results: [],
+      resolved: false,
+      timeoutHandle: null,
       resolve: null as unknown as (response: MagistraleResponse) => void,
     };
 
@@ -203,9 +247,16 @@ export class LLMMagistrale {
     this.pendingDispatches.set(dispatchId, pending);
 
     // Dispatch to all targets
+    // Build full model spec: combine preferredProvider + preferredModel when both present
+    let modelSpec = cfg.preferredModel;
+    if (modelSpec && cfg.preferredProvider && !modelSpec.includes(':')) {
+      // Model doesn't have a provider prefix — prepend the preferred provider
+      modelSpec = `${cfg.preferredProvider}:${modelSpec}`;
+    }
+
     const payload: SignalPayloadMap['llm:request'] = {
       prompt,
-      model: cfg.preferredModel,
+      model: modelSpec,
       passConfig: cfg.passConfig,
     };
 
@@ -228,13 +279,13 @@ export class LLMMagistrale {
     );
 
     // Set timeout
-    const timeoutHandle = setTimeout(() => {
+    pending.timeoutHandle = setTimeout(() => {
       this.resolveDispatch(dispatchId);
     }, cfg.timeoutMs);
 
     const response = await promise;
 
-    clearTimeout(timeoutHandle);
+    if (pending.timeoutHandle) clearTimeout(pending.timeoutHandle);
     this.pendingDispatches.delete(dispatchId);
 
     return response;
@@ -317,7 +368,14 @@ export class LLMMagistrale {
 
   private resolveDispatch(dispatchId: string): void {
     const pending = this.pendingDispatches.get(dispatchId);
-    if (!pending) return;
+    if (!pending || pending.resolved) return;
+    pending.resolved = true;
+
+    // Clear timeout if resolving before it fires (e.g. from checkCompletion)
+    if (pending.timeoutHandle) {
+      clearTimeout(pending.timeoutHandle);
+      pending.timeoutHandle = null;
+    }
 
     const successes = pending.results.filter((r) => !r.error);
     const cfg = pending.config;
@@ -375,6 +433,15 @@ export class LLMMagistrale {
       }
     }
 
+    if (successes.length === 0) {
+      const errors = pending.results.filter((r) => r.error).map((r) => r.error);
+      const timedOut = pending.results.length < pending.targets.length;
+      content = timedOut
+        ? `[Magistrale] Timeout: ${pending.results.length}/${pending.targets.length} clusters responded, 0 successes. Errors: ${errors.join('; ') || 'none'}`
+        : `[Magistrale] All ${pending.targets.length} clusters failed. Errors: ${errors.join('; ')}`;
+      Logger.warn(`[Magistrale] Dispatch ${dispatchId} resolved with 0 successes: ${content}`);
+    }
+
     // Aggregate pass metrics across clusters
     const passResults = successes.filter((r) => r.passReport);
     const totalPassesAllClusters = passResults.reduce(
@@ -417,6 +484,14 @@ export class LLMMagistrale {
           n.status === 'online' &&
           n.connectedProviders.includes(cfg.preferredProvider!),
       );
+
+      // Fallback: if no clusters match the preferred provider, use local cluster
+      // (the local node can route to any registered provider)
+      if (candidates.length === 0) {
+        candidates = all.filter(
+          (n) => n.status === 'online' && n.capabilities.includes('llm'),
+        );
+      }
     } else {
       // Find clusters with generic LLM capability (including self for single-node)
       candidates = (await findByCapability('llm')).filter(
@@ -439,6 +514,8 @@ interface PendingDispatch {
   startTime: number;
   targets: string[];
   results: MagistraleResult[];
+  resolved: boolean;
+  timeoutHandle: ReturnType<typeof setTimeout> | null;
   resolve: (response: MagistraleResponse) => void;
 }
 
@@ -470,8 +547,8 @@ function computeConsensus(results: MagistraleResult[]): {
     return { content: results[0].content, chosenCluster: results[0].clusterId, score: 1 };
   }
 
-  // Normalize responses for comparison (first 200 chars, lowercased, trimmed)
-  const normalized = results.map((r) => r.content.slice(0, 200).toLowerCase().trim());
+  // Normalize responses for comparison (first 1000 chars, lowercased, trimmed)
+  const normalized = results.map((r) => r.content.slice(0, 1000).toLowerCase().trim());
 
   // Score each response by how many others are similar
   const scores = normalized.map((norm, i) => {

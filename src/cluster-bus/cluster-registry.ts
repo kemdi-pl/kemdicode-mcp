@@ -33,7 +33,7 @@ import { CLUSTER_KEYS, serializeMetaTag, parseMetaTag } from './types.js';
 
 const getRedis = getSharedRedis;
 
-const NODE_TTL = 60; // seconds — auto-expire if no heartbeat refresh
+const DEFAULT_NODE_TTL = 300; // seconds — default 5 min, overridable per-node
 
 // ---------------------------------------------------------------------------
 // CRUD
@@ -59,9 +59,11 @@ export async function registerCluster(input: RegisterClusterInput): Promise<Clus
     sessionId: input.sessionId,
   };
 
-  const pipeline = client.pipeline();
+  const tx = client.multi();
 
-  pipeline.hset(CLUSTER_KEYS.node(node.id), {
+  const noExpiry = (input.ttlSeconds ?? DEFAULT_NODE_TTL) === 0;
+
+  tx.hset(CLUSTER_KEYS.node(node.id), {
     id: node.id,
     name: node.name,
     metaTags: JSON.stringify(node.metaTags.map(serializeMetaTag)),
@@ -72,12 +74,16 @@ export async function registerCluster(input: RegisterClusterInput): Promise<Clus
     lastHeartbeat: now.toString(),
     registeredAt: now.toString(),
     sessionId: node.sessionId || '',
+    noExpiry: noExpiry ? '1' : '0',
   });
 
-  pipeline.expire(CLUSTER_KEYS.node(node.id), NODE_TTL);
-  pipeline.zadd(CLUSTER_KEYS.active(), now.toString(), node.id);
+  const ttl = input.ttlSeconds ?? DEFAULT_NODE_TTL;
+  if (ttl > 0) {
+    tx.expire(CLUSTER_KEYS.node(node.id), ttl);
+  }
+  tx.zadd(CLUSTER_KEYS.active(), now.toString(), node.id);
 
-  await pipeline.exec();
+  await tx.exec();
 
   Logger.debug(`[ClusterRegistry] Registered cluster: ${node.id} (${node.name})`);
   return node;
@@ -89,10 +95,10 @@ export async function registerCluster(input: RegisterClusterInput): Promise<Clus
 export async function deregisterCluster(clusterId: string): Promise<boolean> {
   const client = await getRedis();
 
-  const pipeline = client.pipeline();
-  pipeline.del(CLUSTER_KEYS.node(clusterId));
-  pipeline.zrem(CLUSTER_KEYS.active(), clusterId);
-  await pipeline.exec();
+  const tx = client.multi();
+  tx.del(CLUSTER_KEYS.node(clusterId));
+  tx.zrem(CLUSTER_KEYS.active(), clusterId);
+  await tx.exec();
 
   Logger.debug(`[ClusterRegistry] Deregistered cluster: ${clusterId}`);
   return true;
@@ -126,11 +132,30 @@ export async function listClusters(): Promise<ClusterNode[]> {
   if (!results) return [];
 
   const nodes: ClusterNode[] = [];
-  for (const [err, data] of results as [Error | null, Record<string, string> | null][]) {
-    if (!err && data && typeof data === 'object' && 'id' in data) {
-      nodes.push(deserializeNode(data as Record<string, string>));
-    }
+  const orphanedIds: string[] = [];
+
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    if (!result) { orphanedIds.push(ids[i]); continue; }
+    const [err, data] = result as [Error | null, unknown];
+    if (err || !data || typeof data !== 'object') { orphanedIds.push(ids[i]); continue; }
+    const record = data as Record<string, string>;
+    if (!record.id) { orphanedIds.push(ids[i]); continue; }
+    nodes.push(deserializeNode(record));
   }
+
+  // Clean up orphaned sorted set entries (hash expired but zadd entry remains)
+  if (orphanedIds.length > 0) {
+    const cleanPipeline = client.pipeline();
+    for (const id of orphanedIds) {
+      cleanPipeline.zrem(CLUSTER_KEYS.active(), id);
+    }
+    cleanPipeline.exec().catch((err) => {
+      Logger.warn(`[ClusterRegistry] Failed to clean orphaned entries: ${err instanceof Error ? err.message : String(err)}`);
+    });
+    Logger.debug(`[ClusterRegistry] Cleaned ${orphanedIds.length} orphaned sorted set entries`);
+  }
+
   return nodes;
 }
 
@@ -173,7 +198,7 @@ export async function updateHeartbeat(
   const exists = await client.exists(CLUSTER_KEYS.node(clusterId));
   if (!exists) return false;
 
-  const pipeline = client.pipeline();
+  const tx = client.multi();
 
   const updates: Record<string, string> = {
     lastHeartbeat: now.toString(),
@@ -186,11 +211,11 @@ export async function updateHeartbeat(
     updates.load = load.toString();
   }
 
-  pipeline.hset(CLUSTER_KEYS.node(clusterId), updates);
-  pipeline.expire(CLUSTER_KEYS.node(clusterId), NODE_TTL);
-  pipeline.zadd(CLUSTER_KEYS.active(), now.toString(), clusterId);
+  tx.hset(CLUSTER_KEYS.node(clusterId), updates);
+  tx.expire(CLUSTER_KEYS.node(clusterId), DEFAULT_NODE_TTL);
+  tx.zadd(CLUSTER_KEYS.active(), now.toString(), clusterId);
 
-  await pipeline.exec();
+  await tx.exec();
   return true;
 }
 
@@ -198,9 +223,20 @@ export async function updateHeartbeat(
  * Detect stale cluster nodes (heartbeat older than threshold).
  */
 export async function detectStaleNodes(thresholdMs: number): Promise<ClusterNode[]> {
+  const client = await getRedis();
   const all = await listClusters();
   const cutoff = Date.now() - thresholdMs;
-  return all.filter((node) => node.lastHeartbeat < cutoff);
+  const stale: ClusterNode[] = [];
+
+  for (const node of all) {
+    if (node.lastHeartbeat >= cutoff) continue;
+    // Skip nodes marked as no-expiry (virtual clusters with TTL=0)
+    const noExpiry = await client.hget(CLUSTER_KEYS.node(node.id), 'noExpiry');
+    if (noExpiry === '1') continue;
+    stale.push(node);
+  }
+
+  return stale;
 }
 
 /**

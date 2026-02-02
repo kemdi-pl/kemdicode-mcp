@@ -29,6 +29,9 @@ import type {
   RedisEventOptions,
 } from './types.js';
 
+/** Max event chain depth before dropping to prevent cascading storms */
+const MAX_EVENT_CHAIN_DEPTH = 8;
+
 /** Default max listeners (env: MCP_EVENT_MAX_LISTENERS, default: 100) */
 const DEFAULT_MAX_LISTENERS = (() => {
   const val = process.env.MCP_EVENT_MAX_LISTENERS;
@@ -43,36 +46,63 @@ const REDIS_BRIDGE_RETRIES = (() => {
   return 2;
 })();
 
+/** Threshold (% of maxListeners) at which a leak warning is emitted */
+const LEAK_WARN_THRESHOLD = 0.8;
+
 class GlobalEventBus {
   private emitter = new EventEmitter();
   private _initialized = false;
   private redisBridge: ((event: GlobalEvent, options?: RedisEventOptions) => Promise<void>) | null = null;
+  private activeSubscriptions = new Set<EventSubscription>();
+  private maxListeners: number;
+  /** Current chain depth — set by handler wrapper, read by emit() for propagation */
+  _emitDepth = 0;
 
   constructor(maxListeners?: number) {
-    this.emitter.setMaxListeners(maxListeners ?? DEFAULT_MAX_LISTENERS);
+    this.maxListeners = maxListeners ?? DEFAULT_MAX_LISTENERS;
+    this.emitter.setMaxListeners(this.maxListeners);
   }
 
   /**
    * Subscribe to an event type. Handlers run asynchronously via queueMicrotask.
+   * Returns a subscription that auto-removes from tracking on unsubscribe.
    */
   on<T = unknown>(eventType: GlobalEventType | string, handler: EventHandler<T>): EventSubscription {
+    const bus = this;
     const wrappedHandler = (event: GlobalEvent) => {
       queueMicrotask(async () => {
+        const prevDepth = bus._emitDepth;
+        bus._emitDepth = (event._chainDepth ?? 0) + 1;
         try {
           await (handler as EventHandler)(event);
         } catch (err) {
           Logger.error(`[GlobalEventBus] Handler error for ${eventType}:`, err);
+        } finally {
+          bus._emitDepth = prevDepth;
         }
       });
     };
 
     this.emitter.on(eventType, wrappedHandler);
 
-    return {
+    const subscription: EventSubscription = {
       unsubscribe: () => {
         this.emitter.removeListener(eventType, wrappedHandler);
+        this.activeSubscriptions.delete(subscription);
       },
     };
+
+    this.activeSubscriptions.add(subscription);
+
+    // Warn if approaching maxListeners
+    if (this.totalListeners >= this.maxListeners * LEAK_WARN_THRESHOLD) {
+      Logger.warn(
+        `[GlobalEventBus] Listener count ${this.totalListeners}/${this.maxListeners} approaching limit. ` +
+        `Active subscriptions: ${this.activeSubscriptions.size}. Top events: ${JSON.stringify(this.getListenerCounts())}`,
+      );
+    }
+
+    return subscription;
   }
 
   /**
@@ -84,6 +114,13 @@ class GlobalEventBus {
     metadata: EventMetadata,
     options?: RedisEventOptions,
   ): void {
+    const chainDepth = this._emitDepth;
+
+    if (chainDepth >= MAX_EVENT_CHAIN_DEPTH) {
+      Logger.warn(`[GlobalEventBus] Event chain depth limit (${MAX_EVENT_CHAIN_DEPTH}) reached for ${eventType} from ${metadata.sourceModule} — dropping event`);
+      return;
+    }
+
     const event: GlobalEvent = {
       type: eventType,
       timestamp: Date.now(),
@@ -91,9 +128,10 @@ class GlobalEventBus {
       agentId: metadata.agentId,
       sourceModule: metadata.sourceModule,
       payload,
+      _chainDepth: chainDepth,
     };
 
-    Logger.debug(`[GlobalEventBus] ${eventType} from ${metadata.sourceModule}`);
+    Logger.debug(`[GlobalEventBus] ${eventType} from ${metadata.sourceModule} (depth=${chainDepth})`);
     this.emitter.emit(eventType, event);
 
     if (options?.publishToRedis && this.redisBridge) {
@@ -160,8 +198,16 @@ class GlobalEventBus {
    */
   reset(): void {
     this.emitter.removeAllListeners();
+    this.activeSubscriptions.clear();
     this._initialized = false;
     this.redisBridge = null;
+  }
+
+  /**
+   * Number of tracked active subscriptions.
+   */
+  get activeSubscriptionCount(): number {
+    return this.activeSubscriptions.size;
   }
 
   get isInitialized(): boolean {

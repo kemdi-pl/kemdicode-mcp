@@ -134,6 +134,7 @@ export class ClusterBus {
     this.subscriptions = [];
     this.seenSignals.clear();
     this.signalHistory = [];
+    this.localVirtualClusters.clear();
     this.flowController.reset();
     this._connected = false;
     Logger.info(`[ClusterBus] Disconnected`);
@@ -145,6 +146,45 @@ export class ClusterBus {
 
   get clusterId(): string {
     return this.config.clusterId;
+  }
+
+  /** Set of virtual cluster IDs hosted on this node (for loopback routing). */
+  private localVirtualClusters = new Set<string>();
+
+  /**
+   * Subscribe to unicast channel for an additional cluster ID.
+   * Used when virtual clusters are registered on this node so
+   * that their llm:request signals are delivered locally.
+   */
+  async subscribeToCluster(clusterId: string): Promise<void> {
+    if (!this.subscriber || !this._connected) {
+      throw new Error('[ClusterBus] Not connected — call connect() first');
+    }
+    if (clusterId === this.config.clusterId) return; // already subscribed
+    if (this.localVirtualClusters.has(clusterId)) return; // already added
+
+    await this.subscriber.psubscribe(`mcp:cluster:*:${clusterId}`);
+    this.localVirtualClusters.add(clusterId);
+    Logger.info(`[ClusterBus] Subscribed to virtual cluster channel: ${clusterId}`);
+  }
+
+  /**
+   * Unsubscribe from a virtual cluster channel.
+   */
+  async unsubscribeFromCluster(clusterId: string): Promise<void> {
+    if (!this.subscriber || !this._connected) return;
+    if (!this.localVirtualClusters.has(clusterId)) return;
+
+    await this.subscriber.punsubscribe(`mcp:cluster:*:${clusterId}`);
+    this.localVirtualClusters.delete(clusterId);
+    Logger.info(`[ClusterBus] Unsubscribed from virtual cluster channel: ${clusterId}`);
+  }
+
+  /**
+   * Check if a cluster ID is a local virtual cluster.
+   */
+  isLocalVirtualCluster(clusterId: string): boolean {
+    return this.localVirtualClusters.has(clusterId);
   }
 
   // -------------------------------------------------------------------------
@@ -169,12 +209,12 @@ export class ClusterBus {
   ): Promise<string> {
     const signal = this.buildSignal(targetCluster, signalType, payload, options);
 
-    // Loopback: deliver locally when target is self (avoids Redis self-skip)
-    if (targetCluster === this.config.clusterId) {
+    // Loopback: deliver locally when target is self or a local virtual cluster
+    if (targetCluster === this.config.clusterId || this.localVirtualClusters.has(targetCluster)) {
       this.markSeen(signal.id);
       this.addToHistory(signal);
       this.deliverToSubscriptions(signal as ClusterSignal);
-      Logger.debug(`[ClusterBus] Loopback ${signal.type} (${signal.id.slice(0, 8)})`);
+      Logger.debug(`[ClusterBus] Loopback ${signal.type} → ${targetCluster} (${signal.id.slice(0, 8)})`);
       return signal.id;
     }
 

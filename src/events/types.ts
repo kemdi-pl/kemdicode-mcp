@@ -28,6 +28,8 @@ export interface GlobalEvent {
   agentId?: string;
   sourceModule: string;
   payload: Record<string, unknown>;
+  /** Chain depth counter — incremented each time a handler emits a new event. */
+  _chainDepth?: number;
 }
 
 // ---------------------------------------------------------------------------

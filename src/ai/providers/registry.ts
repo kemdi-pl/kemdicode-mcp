@@ -12,6 +12,9 @@ import { AnthropicProvider } from './anthropic.provider.js';
 import { GeminiProvider } from './gemini.provider.js';
 import { createOpenAICompatProvider } from './openai-compat.provider.js';
 import { Logger } from '../../utils/logger.js';
+import { getSharedRedis } from '../../infrastructure/redis/connection.js';
+
+const REDIS_CUSTOM_ENDPOINTS_KEY = 'mcp:config:custom-endpoints';
 
 /** Registry of all providers (built-in + custom) */
 const providers = new Map<ProviderId, LLMProvider>();
@@ -90,6 +93,9 @@ export function registerCustomEndpoint(endpoint: CustomEndpointConfig): Provider
   });
   providers.set(providerId, provider);
 
+  // Persist to Redis (fire-and-forget)
+  persistCustomEndpointsToRedis().catch(() => {});
+
   Logger.info(
     `Custom endpoint registered: ${providerId} → ${endpoint.baseURL}` +
       (endpoint.defaultModel ? ` (default: ${endpoint.defaultModel})` : ''),
@@ -108,6 +114,8 @@ export function deregisterCustomEndpoint(name: string): boolean {
   providerConfigs.delete(providerId);
 
   if (removed) {
+    // Persist removal to Redis (fire-and-forget)
+    persistCustomEndpointsToRedis().catch(() => {});
     Logger.info(`Custom endpoint deregistered: ${providerId}`);
   }
   return removed;
@@ -289,4 +297,63 @@ export function listProviders(): Array<{
       ...(ep && { baseURL: ep.baseURL }),
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Redis Persistence for Custom Endpoints
+// ---------------------------------------------------------------------------
+
+/**
+ * Save all custom endpoints to Redis.
+ */
+async function persistCustomEndpointsToRedis(): Promise<void> {
+  try {
+    const client = await getSharedRedis();
+    const entries = Array.from(customEndpoints.values());
+    await client.set(REDIS_CUSTOM_ENDPOINTS_KEY, JSON.stringify(entries));
+    Logger.debug(`[Registry] Persisted ${entries.length} custom endpoints to Redis`);
+  } catch (err) {
+    Logger.warn(`[Registry] Failed to persist custom endpoints: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/**
+ * Load custom endpoints from Redis and register them.
+ * Called at server startup to restore previously configured endpoints.
+ */
+export async function loadCustomEndpointsFromRedis(): Promise<number> {
+  try {
+    const client = await getSharedRedis();
+    const raw = await client.get(REDIS_CUSTOM_ENDPOINTS_KEY);
+    if (!raw) return 0;
+
+    const entries = JSON.parse(raw) as CustomEndpointConfig[];
+    if (!Array.isArray(entries) || entries.length === 0) return 0;
+
+    let loaded = 0;
+    for (const ep of entries) {
+      if (!ep.name || !ep.baseURL) continue;
+      try {
+        // Register in memory without re-persisting (avoid loop)
+        const providerId: ProviderId = `custom:${ep.name}`;
+        customEndpoints.set(ep.name, ep);
+        const provider = createOpenAICompatProvider(providerId);
+        provider.init({
+          id: providerId,
+          apiKey: ep.apiKey || 'not-needed',
+          baseURL: ep.baseURL,
+        });
+        providers.set(providerId, provider);
+        loaded++;
+        Logger.info(`[Registry] Restored custom endpoint: custom:${ep.name} → ${ep.baseURL}`);
+      } catch (err) {
+        Logger.warn(`[Registry] Failed to restore custom:${ep.name}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    return loaded;
+  } catch (err) {
+    Logger.warn(`[Registry] Failed to load custom endpoints from Redis: ${err instanceof Error ? err.message : String(err)}`);
+    return 0;
+  }
 }

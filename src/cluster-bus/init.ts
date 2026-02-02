@@ -118,7 +118,12 @@ export async function initClusterBusSystem(): Promise<boolean> {
       const payload = signal.payload;
       const replyTo = signal.sourceCluster;
 
+      // Guard against double-response (timeout vs async completion race)
+      let responded = false;
+
       const sendResult = (result: SignalPayloadMap['llm:result']) => {
+        if (responded) return;
+        responded = true;
         bus.send(replyTo, 'llm:result', result, {
           correlationId,
           priority: 2,
@@ -129,6 +134,8 @@ export async function initClusterBusSystem(): Promise<boolean> {
       };
 
       const sendError = (error: string) => {
+        if (responded) return;
+        responded = true;
         bus.send(replyTo, 'llm:error', {
           requestId: correlationId,
           error,
@@ -186,7 +193,7 @@ export async function initClusterBusSystem(): Promise<boolean> {
         return;
       }
 
-      // Legacy: single-shot execution (no passConfig)
+      // Single-shot execution (no passConfig)
       complete({
         model: payload.model || undefined,
         messages: [

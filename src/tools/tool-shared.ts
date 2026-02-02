@@ -26,7 +26,8 @@
  */
 
 import { rateLimitGuard, type RateLimitConfig } from '../utils/validation.js';
-import { handleToolError } from '../utils/errors.js';
+import { handleToolError, McpError } from '../utils/errors.js';
+import { Logger } from '../utils/logger.js';
 
 /**
  * Execute a tool with rate limiting and error handling.
@@ -35,6 +36,8 @@ import { handleToolError } from '../utils/errors.js';
  *   const blocked = rateLimitGuard(category);
  *   if (blocked) return blocked;
  *   try { return await fn(); } catch (e) { return handleToolError(name, e); }
+ *
+ * Preserves structured McpError information (code, context) in JSON response.
  *
  * @param toolName - Tool name for error logging
  * @param category - Rate limit category
@@ -53,6 +56,10 @@ export async function executeWithGuard(
   try {
     return await fn();
   } catch (error) {
+    if (error instanceof McpError) {
+      Logger.error(`[${toolName}] ${error.code}: ${error.message}`);
+      return JSON.stringify(error.toJSON());
+    }
     return handleToolError(toolName, error);
   }
 }

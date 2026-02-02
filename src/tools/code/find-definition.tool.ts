@@ -28,6 +28,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { executeCommand } from '../../utils/commandExecutor.js';
+import { quickPathCheck } from '../../utils/validation.js';
 
 /**
  * Language-specific patterns for finding symbol definitions
@@ -216,6 +217,9 @@ export const findDefinitionTool: UnifiedTool = {
 
     const symbolName = String(symbol).trim();
     const searchPath = String(path);
+    if (!quickPathCheck(searchPath)) {
+      return JSON.stringify({ success: false, error: 'Invalid or blocked path', code: 'PATH_VALIDATION_ERROR' });
+    }
     const limit = Number(maxResults);
 
     onProgress?.(`Searching for definition of "${symbolName}"...`);

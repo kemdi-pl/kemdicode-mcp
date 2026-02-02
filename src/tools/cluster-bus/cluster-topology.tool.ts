@@ -44,6 +44,12 @@ const schema = z.object({
     .array(z.string())
     .optional()
     .describe('Connected provider IDs (for register)'),
+  ttlSeconds: z
+    .number()
+    .min(0)
+    .max(86400)
+    .optional()
+    .describe('TTL in seconds for registered cluster (0 = no expiry, default 300)'),
   limit: z
     .number()
     .min(1)
@@ -115,13 +121,27 @@ export const clusterTopologyTool: UnifiedTool<typeof schema> = {
           metaTags: tagObjects,
           capabilities: args.capabilities,
           connectedProviders: args.providers,
+          ttlSeconds: args.ttlSeconds,
         });
+
+        // Subscribe local bus to virtual cluster channel for loopback routing
+        const bus = getClusterBus();
+        if (bus && bus.isConnected) {
+          await bus.subscribeToCluster(node.id);
+        }
 
         return `Cluster registered:\n- ID: ${node.id}\n- Name: ${node.name}\n- Status: ${node.status}`;
       }
 
       case 'deregister': {
         if (!args.clusterId) return 'Error: clusterId is required for deregister.';
+
+        // Unsubscribe local bus from virtual cluster channel
+        const busRef = getClusterBus();
+        if (busRef && busRef.isConnected) {
+          await busRef.unsubscribeFromCluster(args.clusterId);
+        }
+
         await deregisterCluster(args.clusterId);
         return `Cluster ${args.clusterId} deregistered.`;
       }

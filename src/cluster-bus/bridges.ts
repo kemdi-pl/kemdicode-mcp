@@ -88,10 +88,18 @@ export function connectBridges(
     clusterToEvents: 0,
   };
 
+  const MAX_BRIDGE_HOPS = 3;
+
+  // Guard: verify dependent buses are available before wiring
+  let hasDataFlowBus = true;
+  let hasEventBus = true;
+  try { getDataFlowBus(); } catch { hasDataFlowBus = false; Logger.warn('[Bridge] DataFlowBus not available — skipping dataflow bridges'); }
+  try { getGlobalEventBus(); } catch { hasEventBus = false; Logger.warn('[Bridge] GlobalEventBus not available — skipping event bridges'); }
+
   // -----------------------------------------------------------------------
   // ClusterBus → DataFlowBus
   // -----------------------------------------------------------------------
-  if (cfg.clusterToDataFlow.length > 0) {
+  if (hasDataFlowBus && cfg.clusterToDataFlow.length > 0) {
     for (const signalType of cfg.clusterToDataFlow) {
       const sub = bus.onSignal(signalType, (signal: ClusterSignal) => {
         const dataflowBus = getDataFlowBus();
@@ -120,7 +128,7 @@ export function connectBridges(
   // -----------------------------------------------------------------------
   // DataFlowBus → ClusterBus
   // -----------------------------------------------------------------------
-  if (cfg.dataFlowToCluster.length > 0) {
+  if (hasDataFlowBus && cfg.dataFlowToCluster.length > 0) {
     const dataflowBus = getDataFlowBus();
 
     for (const channel of cfg.dataFlowToCluster) {
@@ -152,15 +160,23 @@ export function connectBridges(
   // -----------------------------------------------------------------------
   // GlobalEventBus → ClusterBus
   // -----------------------------------------------------------------------
-  if (cfg.eventsToCluster.length > 0) {
+  if (hasEventBus && cfg.eventsToCluster.length > 0) {
     const eventBus = getGlobalEventBus();
 
     for (const eventType of cfg.eventsToCluster) {
       const sub = eventBus.on(eventType, (event) => {
+        // Prevent amplification loops — drop events that already crossed too many bridges
+        const hops = ((event.payload as Record<string, unknown>)?._bridgeHops as number) ?? 0;
+        if (hops >= MAX_BRIDGE_HOPS) {
+          Logger.debug(`[Bridge] Dropping event ${event.type} — bridge hop limit (${MAX_BRIDGE_HOPS}) reached`);
+          return;
+        }
+
         bus.broadcast('data:broadcast', {
           bridgedFrom: 'global-event-bus',
           eventType: event.type,
           ...event.payload,
+          _bridgeHops: hops + 1,
         }, {
           sessionId: event.sessionId,
           agentId: event.agentId,
@@ -180,9 +196,17 @@ export function connectBridges(
   // -----------------------------------------------------------------------
   // ClusterBus → GlobalEventBus
   // -----------------------------------------------------------------------
-  if (cfg.clusterToEvents.length > 0) {
+  if (hasEventBus && cfg.clusterToEvents.length > 0) {
     for (const signalType of cfg.clusterToEvents) {
       const sub = bus.onSignal(signalType, (signal: ClusterSignal) => {
+        // Prevent amplification loops
+        const payloadObj = (signal.payload && typeof signal.payload === 'object') ? signal.payload as Record<string, unknown> : {};
+        const hops = (payloadObj._bridgeHops as number) ?? 0;
+        if (hops >= MAX_BRIDGE_HOPS) {
+          Logger.debug(`[Bridge] Dropping signal ${signal.type} — bridge hop limit (${MAX_BRIDGE_HOPS}) reached`);
+          return;
+        }
+
         const eventBus = getGlobalEventBus();
 
         eventBus.emit(
@@ -191,7 +215,8 @@ export function connectBridges(
             signalId: signal.id,
             sourceCluster: signal.sourceCluster,
             targetCluster: signal.targetCluster,
-            ...((signal.payload && typeof signal.payload === 'object') ? signal.payload as Record<string, unknown> : {}),
+            ...payloadObj,
+            _bridgeHops: hops + 1,
           },
           {
             sessionId: signal.sessionId || '',

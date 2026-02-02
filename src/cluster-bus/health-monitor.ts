@@ -21,7 +21,7 @@
 import { Logger } from '../utils/logger.js';
 import type { ClusterBus } from './bus.js';
 import type { ClusterBusConfig, SignalPayloadMap } from './types.js';
-import { updateHeartbeat, detectStaleNodes, pruneStaleNodes, listClusters } from './cluster-registry.js';
+import { updateHeartbeat, detectStaleNodes, deregisterCluster, listClusters } from './cluster-registry.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -73,6 +73,7 @@ export class ClusterHealthMonitor {
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
   private pruneInterval: ReturnType<typeof setInterval> | null = null;
   private _running = false;
+  private _pruning = false;
   private handlers: HealthEventHandler[] = [];
 
   private stats: HealthMonitorStats = {
@@ -195,8 +196,13 @@ export class ClusterHealthMonitor {
   }
 
   private async checkAndPrune(): Promise<void> {
-    // Detect stale nodes
-    const stale = await detectStaleNodes(this.config.staleThresholdMs);
+    if (this._pruning) return;
+    this._pruning = true;
+
+    try {
+    // Detect stale nodes (exclude local virtual clusters — they don't send heartbeats)
+    const allStale = await detectStaleNodes(this.config.staleThresholdMs);
+    const stale = allStale.filter((n) => !this.bus.isLocalVirtualCluster(n.id));
 
     if (stale.length > 0) {
       this.stats.staleNodesDetected += stale.length;
@@ -210,8 +216,15 @@ export class ClusterHealthMonitor {
         });
       }
 
-      // Prune
-      const pruned = await pruneStaleNodes(this.config.staleThresholdMs);
+      // Prune only non-virtual stale nodes
+      const pruned: string[] = [];
+      for (const node of stale) {
+        await deregisterCluster(node.id);
+        pruned.push(node.id);
+      }
+      if (pruned.length > 0) {
+        Logger.info(`[HealthMonitor] Pruned ${pruned.length} stale nodes: ${pruned.join(', ')}`);
+      }
       this.stats.staleNodesPruned += pruned.length;
 
       for (const prunedId of pruned) {
@@ -226,6 +239,9 @@ export class ClusterHealthMonitor {
     // Update online count
     const all = await listClusters();
     this.stats.onlineClusterCount = all.filter((n) => n.status === 'online').length;
+    } finally {
+      this._pruning = false;
+    }
   }
 
   private emitHealthEvent(event: HealthEvent): void {

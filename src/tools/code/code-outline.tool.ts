@@ -29,8 +29,9 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { readFile } from 'fs/promises';
-import { existsSync } from 'fs';
+import { access } from 'fs/promises';
 import { isSilent } from '../../config/silent.js';
+import { validatePathSafe } from '../../utils/validation.js';
 
 /**
  * Outline node representing a code element
@@ -878,12 +879,14 @@ export const codeOutlineTool: UnifiedTool = {
       throw new Error('File path is required');
     }
 
-    const filePath = String(file).trim();
+    const pathResult = await validatePathSafe(String(file).trim(), { operation: 'read' }, 'code-outline');
+    if (!pathResult.ok) {
+      return JSON.stringify({ success: false, error: pathResult.error, code: pathResult.code });
+    }
+    const filePath = pathResult.path;
     const maxDepth = Math.min(Math.max(Number(depth), 1), 5);
 
-    if (!existsSync(filePath)) {
-      throw new Error(`File not found: ${filePath}`);
-    }
+    await access(filePath).catch(() => { throw new Error(`File not found: ${filePath}`); });
 
     onProgress?.(`Generating outline for ${filePath}...`);
 

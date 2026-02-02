@@ -160,6 +160,8 @@ export interface RegisterClusterInput {
   customEndpoints?: ClusterCustomEndpoint[];
   capabilities?: string[];
   sessionId?: string;
+  /** TTL in seconds (0 = no expiry, default 300) */
+  ttlSeconds?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -273,24 +275,30 @@ export type SignalPayloadMap = {
 // Redis Key Schema
 // ---------------------------------------------------------------------------
 
+/** Sanitize a user-provided ID for safe Redis key interpolation. */
+function sanitizeKeyPart(part: string): string {
+  // Allow only alphanumeric, dash, underscore, dot (max 64 chars)
+  return part.replace(/[^a-zA-Z0-9\-_.]/g, '').slice(0, 64);
+}
+
 /** Redis key helpers for cluster-bus persistence */
 export const CLUSTER_KEYS = {
   /** Cluster metadata hash: mcp:cluster:{id} */
-  node: (id: string) => `mcp:cluster:${id}`,
+  node: (id: string) => `mcp:cluster:${sanitizeKeyPart(id)}`,
   /** Sorted set of active clusters (score = heartbeat timestamp) */
   active: () => 'mcp:clusters:active',
   /** Capped signal history between two clusters */
-  signals: (src: string, tgt: string) => `mcp:cluster:signals:${src}:${tgt}`,
+  signals: (src: string, tgt: string) => `mcp:cluster:signals:${sanitizeKeyPart(src)}:${sanitizeKeyPart(tgt)}`,
   /** Broadcast signal history */
   broadcastHistory: () => 'mcp:cluster:signals:broadcast',
   /** Metrics hash per cluster */
-  metrics: (id: string) => `mcp:cluster:metrics:${id}`,
+  metrics: (id: string) => `mcp:cluster:metrics:${sanitizeKeyPart(id)}`,
   /** Dead-letter list for undeliverable signals */
   deadLetter: () => 'mcp:cluster:deadletter',
   /** Topology adjacency hash */
   topology: () => 'mcp:cluster:topology',
   /** Pub/Sub channel: unicast */
-  channelUnicast: (src: string, tgt: string) => `mcp:cluster:${src}:${tgt}`,
+  channelUnicast: (src: string, tgt: string) => `mcp:cluster:${sanitizeKeyPart(src)}:${sanitizeKeyPart(tgt)}`,
   /** Pub/Sub channel: broadcast */
   channelBroadcast: () => 'mcp:cluster:broadcast',
 } as const;

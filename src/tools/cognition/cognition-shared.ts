@@ -26,13 +26,14 @@
  */
 
 import { rateLimitGuard } from '../../utils/validation.js';
-import { handleToolError } from '../../utils/errors.js';
+import { handleToolError, McpError } from '../../utils/errors.js';
+import { Logger } from '../../utils/logger.js';
 
 /**
  * Execute a cognition tool with standard boilerplate:
  * 1. Rate limit check (60 req/min default)
  * 2. Store initialization via provided getter
- * 3. Try-catch with handleToolError
+ * 3. Try-catch with structured error preservation
  *
  * @param toolName - Tool name for error logging
  * @param getStore - Factory function to get the Redis-backed store
@@ -48,11 +49,27 @@ export async function executeCognitionTool<TStore>(
   const blocked = rateLimitGuard(toolName, { maxRequests, windowMs: 60000 });
   if (blocked) return blocked;
 
-  const store = getStore();
+  let store: TStore;
+  try {
+    store = getStore();
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    Logger.error(`[${toolName}] Store initialization failed: ${msg}`);
+    return JSON.stringify({
+      success: false,
+      error: `Store initialization failed: ${msg}`,
+      code: 'STORE_INIT_ERROR',
+      toolName,
+    });
+  }
 
   try {
     return await fn(store);
   } catch (error) {
+    if (error instanceof McpError) {
+      Logger.error(`[${toolName}] ${error.code}: ${error.message}`);
+      return JSON.stringify(error.toJSON());
+    }
     return handleToolError(toolName, error);
   }
 }

@@ -146,6 +146,12 @@ export const clusterMagistraleTool: UnifiedTool<typeof schema> = {
 
     lines.push('', '## Response', '', response.content || '*No response received*');
 
+    // Show errors even for single-result responses
+    const errors = response.results.filter((r) => r.error);
+    if (errors.length > 0 && response.results.length === 1) {
+      lines.push('', `**Error:** ${errors[0].error}`);
+    }
+
     if (response.results.length > 1) {
       lines.push('', '## Individual Results', '');
       for (const result of response.results) {

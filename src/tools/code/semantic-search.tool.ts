@@ -26,10 +26,11 @@
  */
 
 import { z } from 'zod';
-import { statSync, existsSync } from 'fs';
+import { stat, access } from 'fs/promises';
 import { UnifiedTool } from '../registry.js';
 import { executeAI, parseFiles } from '../../ai/index.js';
 import { getEnhancedContextString } from '../../utils/projectContext.enhanced.js';
+import { quickPathCheck } from '../../utils/validation.js';
 
 const schema = z.object({
   query: z.string().describe('Natural language search query'),
@@ -175,13 +176,15 @@ export const semanticSearchTool: UnifiedTool = {
       const validFiles: string[] = [];
 
       for (const filePath of parsedFiles) {
-        if (!existsSync(filePath)) {
-          // Path doesn't exist, skip it
+        if (!quickPathCheck(filePath)) continue;
+        try {
+          await access(filePath);
+        } catch {
           continue;
         }
 
         try {
-          const stats = statSync(filePath);
+          const stats = await stat(filePath);
           if (stats.isDirectory()) {
             // For directories, add to scope info in prompt instead of attaching
             scopeInfo += `\n- Search in directory: ${filePath}`;

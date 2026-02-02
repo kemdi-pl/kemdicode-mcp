@@ -53,7 +53,7 @@ import { appConfigSchema } from './config/schema.js';
 import { initSilentFromEnv, setOutputLevel, getOutputLevel } from './config/silent.js';
 import { initContext, initAgentMonitor, getSessionId } from './context/index.js';
 import { initAIClient } from './ai/index.js';
-import { registerBuiltinProviders, setProviderConfig } from './ai/providers/registry.js';
+import { registerBuiltinProviders, setProviderConfig, loadCustomEndpointsFromRedis } from './ai/providers/registry.js';
 import type { ProviderId } from './ai/providers/types.js';
 import { VERSION, type ServerConfig, startHttpServer, stopHttpServer, broadcastNotification } from './server/index.js';
 import { initToolsBroadcast, warmupLazySchemas } from './tools/registry.js';
@@ -253,6 +253,12 @@ async function main(): Promise<void> {
         baseURL: entry.baseURL,
       });
     }
+  }
+
+  // Restore custom endpoints from Redis (persisted across restarts)
+  const restoredEndpoints = await loadCustomEndpointsFromRedis();
+  if (restoredEndpoints > 0) {
+    Logger.info(`Restored ${restoredEndpoints} custom endpoint(s) from Redis`);
   }
 
   // Initialize cluster bus (L1 → L2 → L3 bus architecture)

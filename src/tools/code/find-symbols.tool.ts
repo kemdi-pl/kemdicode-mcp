@@ -28,7 +28,8 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { readFile } from 'fs/promises';
-import { existsSync } from 'fs';
+import { access } from 'fs/promises';
+import { validatePathSafe } from '../../utils/validation.js';
 
 /**
  * Symbol type enumeration
@@ -435,11 +436,13 @@ export const findSymbolsTool: UnifiedTool = {
       throw new Error('File path is required');
     }
 
-    const filePath = String(file).trim();
-
-    if (!existsSync(filePath)) {
-      throw new Error(`File not found: ${filePath}`);
+    const pathResult = await validatePathSafe(String(file).trim(), { operation: 'read' }, 'find-symbols');
+    if (!pathResult.ok) {
+      return JSON.stringify({ success: false, error: pathResult.error, code: pathResult.code });
     }
+    const filePath = pathResult.path;
+
+    await access(filePath).catch(() => { throw new Error(`File not found: ${filePath}`); });
 
     onProgress?.(`Analyzing symbols in ${filePath}...`);
 

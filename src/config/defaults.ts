@@ -119,4 +119,5 @@ export const DEFAULT_CONFIG: AppConfig = {
     openrouter: {},
     perplexity: {},
   },
+
 };
