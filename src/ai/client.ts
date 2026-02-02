@@ -146,7 +146,7 @@ export function updateClientConfig(updates: Partial<AIClientConfig>): void {
 
   // Dispose old client to prevent socket leaks
   if (client) {
-    try { (client as any).httpAgent?.destroy?.(); } catch {}
+    try { (client as any).httpAgent?.destroy?.(); } catch { /* ignore disposal errors */ }
   }
   const newConfig = { ...currentConfig, ...updates };
   initAIClient(newConfig);

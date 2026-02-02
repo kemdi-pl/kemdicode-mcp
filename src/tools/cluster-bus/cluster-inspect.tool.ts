@@ -304,7 +304,7 @@ export const clusterInspectTool: UnifiedTool<typeof schema> = {
             `- Active Subscriptions: ${diag.total}`,
             `- Oldest Idle: ${diag.oldestIdleMs > 0 ? `${Math.round(diag.oldestIdleMs / 60000)}min` : 'N/A'}`,
           );
-        } catch {}
+        } catch { /* ignore diagnostic errors */ }
 
         return lines.join('\n');
       }

@@ -51,7 +51,7 @@ const subscriptionCleanups: Array<() => void> = [];
  */
 export function disposeCognitionEventHandlers(): void {
   for (const cleanup of subscriptionCleanups) {
-    try { cleanup(); } catch {}
+    try { cleanup(); } catch { /* ignore cleanup errors */ }
   }
   subscriptionCleanups.length = 0;
   cognitionHandlersRegistered = false;

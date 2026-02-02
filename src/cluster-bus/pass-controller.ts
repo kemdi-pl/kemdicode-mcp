@@ -479,7 +479,7 @@ export class PassController {
           complexity: String(parsed.complexity || 'unknown'),
         };
       }
-    } catch {}
+    } catch { /* ignore parse errors */ }
 
     // Fallback: try to extract a number
     const numMatch = raw.match(/(\d+)\s*pass/i);
@@ -511,7 +511,7 @@ export class PassController {
               refinementNeeded: String(parsed.refinementNeeded || ''),
             },
           };
-        } catch {}
+        } catch { /* ignore parse errors */ }
       }
     }
 

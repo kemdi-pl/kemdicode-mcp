@@ -81,24 +81,23 @@ class GlobalEventBus {
    * Returns a subscription that auto-removes from tracking on unsubscribe.
    */
   on<T = unknown>(eventType: GlobalEventType | string, handler: EventHandler<T>): EventSubscription {
-    const bus = this;
     // Use a named reference so we can track invocations
     let subscriptionRef: EventSubscription | null = null;
     const wrappedHandler = (event: GlobalEvent) => {
       const runHandler = async () => {
         // Track last invocation time for idle cleanup
         if (subscriptionRef) {
-          const meta = bus.subscriptionMeta.get(subscriptionRef);
+          const meta = this.subscriptionMeta.get(subscriptionRef);
           if (meta) meta.lastInvokedAt = Date.now();
         }
-        const prevDepth = bus._emitDepth;
-        bus._emitDepth = (event._chainDepth ?? 0) + 1;
+        const prevDepth = this._emitDepth;
+        this._emitDepth = (event._chainDepth ?? 0) + 1;
         try {
           await (handler as EventHandler)(event);
         } catch (err) {
           Logger.error(`[GlobalEventBus] Handler error for ${eventType}:`, err);
         } finally {
-          bus._emitDepth = prevDepth;
+          this._emitDepth = prevDepth;
         }
       };
 

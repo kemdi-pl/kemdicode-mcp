@@ -94,7 +94,8 @@ async function prepareAndExecute(options: ExecuteAIOptions) {
   }
 
   const startTime = Date.now();
-  let { prompt, agent, model, files, continueSession, sessionId, projectRoot, onProgress, temperature, maxTokens, systemPrompt } = options;
+  let { prompt, files } = options;
+  const { agent, model, continueSession, sessionId, projectRoot, onProgress, temperature, maxTokens, systemPrompt } = options;
   const { enhancePrompt: enhanceOpt } = options;
 
   // Prompt enhancement ("first step") — rewrite vague prompts before LLM call
