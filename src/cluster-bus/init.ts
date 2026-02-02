@@ -28,7 +28,7 @@ import { loadClusterBusConfig } from './types.js';
 import type { SignalPayloadMap, ClusterSignal } from './types.js';
 import { initClusterBus, shutdownClusterBus, getClusterBus } from './bus.js';
 import { complete } from '../ai/client.js';
-import { registerCluster, deregisterCluster } from './cluster-registry.js';
+import { registerCluster, deregisterCluster, markVirtualLocal } from './cluster-registry.js';
 import { ClusterHealthMonitor } from './health-monitor.js';
 import { connectBridges } from './bridges.js';
 import type { BridgeHandle } from './bridges.js';
@@ -95,6 +95,8 @@ export async function initClusterBusSystem(): Promise<boolean> {
       capabilities: ['llm', 'code-analysis', 'kanban', 'memory', 'cognition'],
     });
     registeredClusterId = config.clusterId;
+    // Mark self-cluster as virtualLocal (exempt from stale detection)
+    await markVirtualLocal(config.clusterId, true);
 
     // 4. Apply default flow policies
     bus.flowController.addPolicy(defaultLLMPolicy());

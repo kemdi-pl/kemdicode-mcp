@@ -35,7 +35,6 @@ import type {
 import { CLUSTER_KEYS } from './types.js';
 import { MetaTagRouter } from './meta-router.js';
 import { SignalFlowController } from './signal-flow.js';
-import { markVirtualLocal } from './cluster-registry.js';
 
 /** Subscription record with TTL */
 interface Subscription {
@@ -330,8 +329,6 @@ export class ClusterBus {
 
     await this.subscriber.psubscribe(`mcp:cluster:*:${clusterId}`);
     this.localVirtualClusters.add(clusterId);
-    // Mark in registry so stale detection skips this node
-    markVirtualLocal(clusterId, true).catch(() => {});
     Logger.info(`[ClusterBus] Subscribed to virtual cluster channel: ${clusterId}`);
   }
 
@@ -344,8 +341,6 @@ export class ClusterBus {
 
     await this.subscriber.punsubscribe(`mcp:cluster:*:${clusterId}`);
     this.localVirtualClusters.delete(clusterId);
-    // Unmark in registry so stale detection can prune this node
-    markVirtualLocal(clusterId, false).catch(() => {});
     Logger.info(`[ClusterBus] Unsubscribed from virtual cluster channel: ${clusterId}`);
   }
 
