@@ -58,6 +58,11 @@
 \newcommand{\layertwo}{L\textsubscript{2}}
 \newcommand{\layerone}{L\textsubscript{1}}
 
+% ── Theorem-like environments ────────────────────────────────────
+\newtheorem{definition}{Definition}
+\newtheorem{property}{Property}
+\newtheorem{invariant}{Invariant}
+
 % ══════════════════════════════════════════════════════════════════
 \begin{document}
 
@@ -290,9 +295,25 @@ m = -\frac{n \ln p}{(\ln 2)^2}, \quad k = \frac{m}{n} \ln 2
 \label{eq:bloom}
 \end{equation}
 
-\noindent where $n$ is the expected item count, $p$ is the target false-positive rate, $m$ is the bit array size, and $k$ is the number of hash functions. At the configured parameters ($n=20{,}000$, $p=0.001$), this yields $m \approx 287{,}552$ bits and $k \approx 10$ hash functions.
+\noindent where $n$ is the expected item count, $p$ is the target false-positive rate, $m$ is the bit array size, and $k$ is the number of hash functions. At the configured parameters ($n=20{,}000$, $p=0.001$), this yields $m \approx 287{,}552$ bits and $k \approx 10$ hash functions. The actual false-positive probability after inserting $n'$ items is:
 
-When the recent set reaches capacity, its oldest entries are migrated to the bloom filter before eviction. This two-tier approach achieves zero false positives for recent signals while providing memory-bounded probabilistic deduplication for the long tail.
+\begin{equation}
+P(\text{FP}) = \left(1 - e^{-kn'/m}\right)^k
+\label{eq:bloomfp}
+\end{equation}
+
+When the recent set reaches capacity, its oldest entries are migrated to the bloom filter before eviction. The combined false-positive rate of the dual-layer system for a signal with ID $s$ is:
+
+\begin{equation}
+P_{\text{dup}}(s) = \begin{cases}
+0 & \text{if } s \in R_{\text{recent}} \\
+P(\text{FP}) & \text{if } s \notin R_{\text{recent}} \wedge s \notin B_{\text{actual}}\\
+0 & \text{otherwise}
+\end{cases}
+\label{eq:dualdedup}
+\end{equation}
+
+\noindent where $R_{\text{recent}}$ is the exact recent set and $B_{\text{actual}}$ is the set of IDs truly present in the bloom filter. This achieves zero false positives for the 2{,}000 most recent signals.
 
 \subsubsection{HMAC Authentication}
 
@@ -310,14 +331,24 @@ Signals are authenticated using HMAC-SHA256. The signing process computes:
 The SignalFlowController governs the throughput and reliability of signal processing through four mechanisms:
 
 \begin{description}[nosep,style=unboxed,leftmargin=0pt,font=\normalfont\itshape]
-\item[Rate Limiting.] A sliding-window rate limiter with 1-second windows caps the number of signals processed per window. Excess signals are either buffered or dropped based on the configured backpressure policy.
+\item[Rate Limiting.] A sliding-window rate limiter with window size $W = 1$\,s and maximum capacity $C_{\max}$ signals per window. The effective throughput at time $t$ is bounded by:
+\begin{equation}
+\Theta(t) \leq C_{\max} \cdot \frac{1}{W} \quad \text{[signals/s]}
+\label{eq:ratelimit}
+\end{equation}
+Excess signals are either buffered or dropped based on the configured backpressure policy.
 
-\item[Circuit Breaker.] Implements the standard three-state pattern (closed, open, half-open) with configurable thresholds:
-\begin{itemize}[nosep]
-  \item Failure threshold: 10~consecutive failures to transition from closed to open.
-  \item Open duration: 5{,}000\,ms before transitioning to half-open.
-  \item Half-open probes: 2~successful signals required to return to closed.
-\end{itemize}
+\item[Circuit Breaker.] Implements the three-state pattern modeled as a finite automaton $\mathcal{A} = (S, \Sigma, \delta, s_0)$ where $S = \{\text{closed}, \text{open}, \text{half-open}\}$, $s_0 = \text{closed}$, and the transition function $\delta$ is defined by:
+\begin{equation}
+\delta(s, \sigma) = \begin{cases}
+\text{open}      & s = \text{closed} \wedge f \geq F_{\max} \\
+\text{half-open} & s = \text{open} \wedge \Delta t \geq T_{\text{open}} \\
+\text{closed}    & s = \text{half-open} \wedge p \geq P_{\min} \\
+\text{open}      & s = \text{half-open} \wedge \sigma = \text{fail}
+\end{cases}
+\label{eq:circuit}
+\end{equation}
+where $f$ is the consecutive failure count ($F_{\max} = 10$), $\Delta t$ is the time since opening ($T_{\text{open}} = 5{,}000$\,ms), and $p$ is the successful probe count ($P_{\min} = 2$).
 
 \item[Priority Filtering.] Signals carry a priority field (0--3). Under backpressure, the controller drops low-priority signals first, ensuring critical signals (priority~3) are always processed.
 
@@ -398,7 +429,19 @@ DataFlowEnvelope<T> {
 }
 \end{lstlisting}
 
-Payloads are validated against per-channel Zod schemas at publish time. Invalid payloads cause synchronous rejection with descriptive error messages.
+Payloads are validated against per-channel Zod schemas at publish time.
+
+\begin{definition}[Envelope Validity]
+\label{def:envelope}
+An envelope $E$ on channel $c$ is valid iff:
+\begin{equation}
+\mathcal{V}(E) \iff \mathcal{Z}_c(E.\text{payload}) \wedge E.\text{ttl} > 0 \wedge E.\text{ts} \leq t_{\text{now}}
+\label{eq:validity}
+\end{equation}
+where $\mathcal{Z}_c$ is the Zod schema validator for channel $c$.
+\end{definition}
+
+\noindent Invalid envelopes cause synchronous rejection with descriptive error messages.
 
 \subsubsection{Subscription Management}
 
@@ -421,17 +464,26 @@ The GlobalEventBus is a singleton, in-process event emitter with namespaced even
 
 \subsubsection{Event Dispatch}
 
-Handlers execute asynchronously via \code{queueMicrotask()} with configurable priority. The dispatch algorithm:
+Handlers execute asynchronously via \code{queueMicrotask()} with configurable priority. Algorithm~\ref{alg:dispatch} formalizes the dispatch procedure. The chain depth limit of~8 prevents cascading event storms where handler~$A$ emits event~$e_1$, triggering handler~$B$ which emits~$e_2$, and so forth.
 
-\begin{enumerate}[nosep]
-\item Increment chain depth counter.
-\item Check $\text{depth} \leq \text{MAX\_EVENT\_CHAIN\_DEPTH}$ (configured as~8). If exceeded, log warning and discard.
-\item Sort handlers by priority (descending).
-\item Invoke each handler with \code{queueMicrotask()}, passing the event payload.
-\item Decrement chain depth counter on completion.
-\end{enumerate}
+\begin{algorithm}[!t]
+\caption{GlobalEventBus Dispatch}\label{alg:dispatch}
+\SetAlgoLined
+\SetKwInOut{Input}{Input}
+\Input{event $e$, payload $\rho$, depth $d$}
+$d \leftarrow d + 1$\;
+\If{$d > D_{\max}$}{
+  \textbf{log} warning, \textbf{return}\;
+}
+$H \leftarrow \text{handlers}[e.\text{type}]$\;
+\textbf{sort} $H$ by priority descending\;
+\ForEach{$h_i \in H$}{
+  \textbf{queueMicrotask}$(h_i, \rho, d)$\;
+}
+$d \leftarrow d - 1$\;
+\end{algorithm}
 
-The chain depth limit of~8 prevents cascading event storms where handler~$A$ emits event~$e_1$, triggering handler~$B$ which emits~$e_2$, and so forth.
+\noindent where $D_{\max} = 8$ is the maximum permitted chain depth.
 
 \subsubsection{Redis Bridge}
 
@@ -466,6 +518,16 @@ Chain depth    & \layerone{} enforces depth $\leq$ 8, limiting cascades. \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{invariant}[Signal Termination]
+\label{inv:termination}
+For any signal $s$ entering the bus system, the total number of copies produced across all layers is bounded by:
+\begin{equation}
+|C(s)| \leq H_{\max} \cdot D_{\max} = 5 \times 8 = 40
+\label{eq:termination}
+\end{equation}
+where $H_{\max}$ is the bridge hop limit and $D_{\max}$ is the event chain depth limit. In practice, deduplication reduces this to $|C(s)| \leq 3$ (one per layer).
+\end{invariant}
 
 The bridge mapping is summarized in Table~\ref{tab:bridgemap}.
 
@@ -581,7 +643,12 @@ Three strategies are supported:
 \begin{description}[nosep,style=unboxed,leftmargin=0pt,font=\normalfont\itshape]
 \item[Min-passes.] The LLM self-assesses task complexity and declares a minimum pass count, capped to the \code{maxPasses} budget. Early termination occurs when quality exceeds the target.
 
-\item[Quality-target.] Iterates until $Q \geq Q_\text{target}$ or the pass budget is exhausted. Each pass receives the previous pass's output as context.
+\item[Quality-target.] Iterates pass $i$ until convergence. The termination condition is:
+\begin{equation}
+Q_i \geq Q_{\text{target}} \quad \vee \quad i \geq N_{\max}
+\label{eq:passterm}
+\end{equation}
+where $Q_i$ is the quality score after pass $i$ and $N_{\max}$ is the budget. Each pass receives the previous pass's output as context, forming the recurrence $Q_{i+1} = f(Q_i, \text{context}_i)$.
 
 \item[Fixed.] Executes exactly $N$~passes without assessment. Used for deterministic pipelines.
 \end{description}
@@ -656,7 +723,14 @@ Records decisions with structured fields: question, options array with pros/cons
 
 \subsubsection{ConfidenceTracker}
 
-Maintains calibrated confidence scores in the range $[0, 1]$ per domain. Each entry includes the score, domain identifier, calibration notes, and trend data (improving, stable, declining). Calibration is computed by comparing predicted confidence to actual outcomes over a sliding window. Stored at \code{mcp:cognition:confidence:\{domain\}}.
+Maintains calibrated confidence scores in the range $[0, 1]$ per domain. Calibration quality is measured by the Expected Calibration Error over a sliding window of $N$ predictions:
+
+\begin{equation}
+\text{ECE} = \sum_{b=1}^{B} \frac{|n_b|}{N} \left| \text{acc}(b) - \text{conf}(b) \right|
+\label{eq:ece}
+\end{equation}
+
+\noindent where predictions are partitioned into $B$ bins, $n_b$ is the bin count, $\text{acc}(b)$ is the observed accuracy, and $\text{conf}(b)$ is the mean predicted confidence. Trend data (improving, stable, declining) is derived from the ECE gradient over the window. Stored at \code{mcp:cognition:confidence:\{domain\}}.
 
 \subsubsection{IntentTracker}
 
@@ -710,7 +784,25 @@ Maintains a composite agent ranking system with five tiers: bronze (0--200), sil
 \label{eq:rank}
 \end{equation}
 
-\noindent where $S_r$ is the success rate, $C_t$ is task complexity (normalized), $A_s$ is average speed (inverse-normalized), and $C_o$ is collaboration score. Scores decay over time at a rate of $\alpha = 0.95$ per day to reflect recent performance.
+\noindent where $S_r$ is the success rate, $C_t$ is task complexity (normalized), $A_s$ is average speed (inverse-normalized), and $C_o$ is collaboration score. To emphasize recent performance, scores undergo exponential temporal decay:
+
+\begin{equation}
+\text{Score}(t) = \text{Score}_0 \cdot \alpha^{\Delta t / \tau}
+\label{eq:decay}
+\end{equation}
+
+\noindent where $\alpha = 0.95$ is the decay factor, $\Delta t$ is the elapsed time since the last activity, and $\tau = 1$\,day is the decay period. The tier mapping is defined as:
+
+\begin{equation}
+\text{Tier}(s) = \begin{cases}
+\text{diamond}  & s \in [801, 1000] \\
+\text{platinum} & s \in [601, 800] \\
+\text{gold}     & s \in [401, 600] \\
+\text{silver}   & s \in [201, 400] \\
+\text{bronze}   & s \in [0, 200]
+\end{cases}
+\label{eq:tier}
+\end{equation}
 
 \subsection{CognitionCrossLinker}
 
@@ -810,13 +902,14 @@ As described in Section~\ref{sec:l3}, all cluster signals are HMAC-SHA256 authen
 
 \subsection{Multi-Party Computation}
 
-Shamir's Secret Sharing~\cite{shamir1979} enables distributed secret management:
+Shamir's Secret Sharing~\cite{shamir1979} enables distributed secret management. A secret $s$ is encoded as the constant term of a random polynomial of degree $t-1$ over a finite field $\mathbb{F}_p$:
 
-\begin{enumerate}[nosep]
-\item \code{mpc-split}: Split secret into $n$ shares with threshold $t$.
-\item \code{mpc-distribute}: Distribute shares to agents via encrypted channels.
-\item \code{mpc-reconstruct}: Reconstruct from $\geq t$ shares.
-\end{enumerate}
+\begin{equation}
+f(x) = s + a_1 x + a_2 x^2 + \cdots + a_{t-1} x^{t-1} \pmod{p}
+\label{eq:shamir}
+\end{equation}
+
+\noindent where $a_1, \ldots, a_{t-1} \overset{\$}{\leftarrow} \mathbb{F}_p$. Each of the $n$ shares is a point $(i, f(i))$ for $i \in \{1, \ldots, n\}$. Reconstruction from any $t$ shares uses Lagrange interpolation to recover $f(0) = s$. The tools \code{mpc-split}, \code{mpc-distribute}, and \code{mpc-reconstruct} implement this protocol.
 
 \subsection{Anti-ReDoS}
 
