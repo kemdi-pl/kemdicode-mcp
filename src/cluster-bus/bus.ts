@@ -19,6 +19,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { createHmac } from 'node:crypto';
 import Redis from 'ioredis';
 import { Logger } from '../utils/logger.js';
 import { getSharedRedis } from '../infrastructure/redis/connection.js';
@@ -35,12 +36,72 @@ import { CLUSTER_KEYS } from './types.js';
 import { MetaTagRouter } from './meta-router.js';
 import { SignalFlowController } from './signal-flow.js';
 
-/** Subscription record */
+/** Subscription record with TTL */
 interface Subscription {
   id: string;
   signalType: SignalType | '*';
   handler: ClusterSignalHandler;
   sourceFilter?: string[];
+  /** Timestamp when this subscription was created */
+  createdAt: number;
+  /** Last time this subscription's handler was invoked */
+  lastInvokedAt: number;
+  /** TTL in ms — subscriptions idle longer than this are auto-cleaned (0 = no TTL) */
+  ttlMs: number;
+}
+
+/**
+ * BloomFilter — space-efficient probabilistic set for signal deduplication.
+ * Uses k=3 hash functions over a bit array. False positive rate ~1% at 10K entries.
+ */
+class BloomFilter {
+  private bits: Uint32Array;
+  private readonly size: number;
+  private readonly hashCount: number;
+  private _count = 0;
+
+  constructor(expectedItems = 20000, falsePositiveRate = 0.01) {
+    // Optimal size: m = -n*ln(p) / (ln2)^2
+    this.size = Math.max(1024, Math.ceil(-expectedItems * Math.log(falsePositiveRate) / (Math.LN2 * Math.LN2)));
+    // Optimal hash count: k = (m/n) * ln2
+    this.hashCount = Math.max(2, Math.min(8, Math.round((this.size / expectedItems) * Math.LN2)));
+    this.bits = new Uint32Array(Math.ceil(this.size / 32));
+  }
+
+  private hash(str: string, seed: number): number {
+    let h = seed;
+    for (let i = 0; i < str.length; i++) {
+      h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+    }
+    return Math.abs(h) % this.size;
+  }
+
+  add(item: string): void {
+    for (let i = 0; i < this.hashCount; i++) {
+      const pos = this.hash(item, i * 0x9e3779b9);
+      this.bits[pos >>> 5] |= 1 << (pos & 31);
+    }
+    this._count++;
+  }
+
+  has(item: string): boolean {
+    for (let i = 0; i < this.hashCount; i++) {
+      const pos = this.hash(item, i * 0x9e3779b9);
+      if (!(this.bits[pos >>> 5] & (1 << (pos & 31)))) return false;
+    }
+    return true;
+  }
+
+  get count(): number { return this._count; }
+
+  /** Memory usage in bytes */
+  get memoryBytes(): number { return this.bits.byteLength; }
+
+  /** Reset the filter */
+  clear(): void {
+    this.bits.fill(0);
+    this._count = 0;
+  }
 }
 
 /**
@@ -57,20 +118,86 @@ export class ClusterBus {
   private publisher: Redis | null = null;
   private subscriber: Redis | null = null;
   private subscriptions: Subscription[] = [];
-  private seenSignals = new Set<string>();
-  private readonly maxSeen = 10000;
+  /** Bloom filter for fast signal dedup (probabilistic, ~0.1% false positive at 20K items) */
+  private bloomFilter = new BloomFilter(20000, 0.001);
+  /** Small exact-match set for recent signals (prevents bloom filter false positives) */
+  private recentSignals = new Set<string>();
+  private readonly maxRecent = 2000;
+  /** Generation counter — bloom filter resets every N signals to bound FP rate */
+  private bloomGeneration = 0;
+  private readonly bloomResetThreshold = 15000;
   private signalHistory: ClusterSignal[] = [];
   private _connected = false;
+  /** Subscription cleanup interval */
+  private subscriptionCleanupInterval: ReturnType<typeof setInterval> | null = null;
+  /** Default subscription TTL: 30 minutes */
+  private readonly defaultSubscriptionTtlMs = 30 * 60 * 1000;
+  /** Cleanup interval: every 5 minutes */
+  private readonly subscriptionCleanupIntervalMs = 5 * 60 * 1000;
 
   /** MetaTag-based signal router */
   readonly router: MetaTagRouter;
   /** Signal flow controller (rate limiting, backpressure, direction filtering) */
   readonly flowController: SignalFlowController;
+  /** HMAC secret for signal authentication (env: MCP_CLUSTER_SECRET) */
+  private readonly hmacSecret: string | null;
+  /** Whether to enforce signal authentication */
+  private readonly enforceAuth: boolean;
 
   constructor(config: ClusterBusConfig) {
     this.config = config;
     this.router = new MetaTagRouter();
     this.flowController = new SignalFlowController();
+    // Signal authentication: shared secret for HMAC signing
+    this.hmacSecret = process.env.MCP_CLUSTER_SECRET || null;
+    this.enforceAuth = process.env.MCP_CLUSTER_ENFORCE_AUTH === '1';
+    if (this.hmacSecret) {
+      Logger.info('[ClusterBus] Signal authentication enabled (HMAC-SHA256)');
+    }
+  }
+
+  /**
+   * Sign a serialized signal with HMAC-SHA256.
+   * Appends signature as a JSON wrapper: { data: ..., sig: ... }
+   */
+  private signMessage(serialized: string): string {
+    if (!this.hmacSecret) return serialized;
+    const sig = createHmac('sha256', this.hmacSecret).update(serialized).digest('hex');
+    return JSON.stringify({ data: serialized, sig });
+  }
+
+  /**
+   * Verify and unwrap a signed message.
+   * Returns the original serialized data or null if verification fails.
+   */
+  private verifyMessage(message: string): string | null {
+    if (!this.hmacSecret) return message;
+
+    try {
+      // Try to parse as signed envelope
+      const envelope = JSON.parse(message);
+      if (typeof envelope.data === 'string' && typeof envelope.sig === 'string') {
+        const expected = createHmac('sha256', this.hmacSecret).update(envelope.data).digest('hex');
+        // Constant-time comparison
+        if (envelope.sig.length === expected.length) {
+          let diff = 0;
+          for (let i = 0; i < envelope.sig.length; i++) {
+            diff |= envelope.sig.charCodeAt(i) ^ expected.charCodeAt(i);
+          }
+          if (diff === 0) return envelope.data;
+        }
+        Logger.warn('[ClusterBus] Signal authentication failed: invalid HMAC signature');
+        return this.enforceAuth ? null : message;
+      }
+    } catch {
+      // Not a signed envelope — pass through if not enforcing
+    }
+    // Unsigned message
+    if (this.enforceAuth) {
+      Logger.warn('[ClusterBus] Signal authentication enforced: rejecting unsigned message');
+      return null;
+    }
+    return message;
   }
 
   // -------------------------------------------------------------------------
@@ -113,6 +240,12 @@ export class ClusterBus {
       });
 
       this._connected = true;
+
+      // Start periodic subscription cleanup (removes idle/orphaned subscriptions)
+      this.subscriptionCleanupInterval = setInterval(() => {
+        this.cleanupIdleSubscriptions();
+      }, this.subscriptionCleanupIntervalMs);
+
       Logger.info(`[ClusterBus] Connected as ${this.config.clusterId} (${this.config.clusterName})`);
     } catch (err) {
       Logger.error(`[ClusterBus] Connection failed:`, err);
@@ -132,10 +265,16 @@ export class ClusterBus {
     // Don't disconnect publisher — it's the shared Redis connection
     this.publisher = null;
     this.subscriptions = [];
-    this.seenSignals.clear();
+    this.bloomFilter.clear();
+    this.recentSignals.clear();
+    this.bloomGeneration = 0;
     this.signalHistory = [];
     this.localVirtualClusters.clear();
     this.flowController.reset();
+    if (this.subscriptionCleanupInterval) {
+      clearInterval(this.subscriptionCleanupInterval);
+      this.subscriptionCleanupInterval = null;
+    }
     this._connected = false;
     Logger.info(`[ClusterBus] Disconnected`);
   }
@@ -290,12 +429,17 @@ export class ClusterBus {
     signalType: SignalType | '*',
     handler: ClusterSignalHandler<T>,
     sourceFilter?: string[],
+    options?: { ttlMs?: number },
   ): ClusterSubscription {
+    const now = Date.now();
     const sub: Subscription = {
       id: uuidv4(),
       signalType,
       handler: handler as ClusterSignalHandler,
       sourceFilter,
+      createdAt: now,
+      lastInvokedAt: now,
+      ttlMs: options?.ttlMs ?? this.defaultSubscriptionTtlMs,
     };
 
     this.subscriptions.push(sub);
@@ -342,6 +486,9 @@ export class ClusterBus {
     subscriptionCount: number;
     historySize: number;
     seenSetSize: number;
+    bloomMemoryBytes: number;
+    bloomGeneration: number;
+    recentSetSize: number;
     flowStats: import('./signal-flow.js').FlowStats;
   } {
     return {
@@ -349,7 +496,10 @@ export class ClusterBus {
       clusterId: this.config.clusterId,
       subscriptionCount: this.subscriptions.length,
       historySize: this.signalHistory.length,
-      seenSetSize: this.seenSignals.size,
+      seenSetSize: this.bloomFilter.count,
+      bloomMemoryBytes: this.bloomFilter.memoryBytes,
+      bloomGeneration: this.bloomGeneration,
+      recentSetSize: this.recentSignals.size,
       flowStats: this.flowController.getStats(),
     };
   }
@@ -402,9 +552,10 @@ export class ClusterBus {
     this.addToHistory(signal);
 
     const serialized = JSON.stringify(signal);
+    const wireMessage = this.signMessage(serialized);
 
     // Publish to Redis Pub/Sub
-    await this.publisher.publish(channel, serialized);
+    await this.publisher.publish(channel, wireMessage);
 
     // Persist to signal history in Redis
     try {
@@ -435,14 +586,27 @@ export class ClusterBus {
       return;
     }
     try {
-      const signal = JSON.parse(message) as ClusterSignal;
+      // Verify HMAC signature if authentication is configured
+      const verified = this.verifyMessage(message);
+      if (verified === null) return; // Authentication failed
 
-      // Dedup: skip if we've seen this signal
-      if (this.seenSignals.has(signal.id)) return;
+      const signal = JSON.parse(verified) as ClusterSignal;
+
+      // Dedup: skip if we've seen this signal (bloom filter + recent exact set)
+      if (this.recentSignals.has(signal.id) || this.bloomFilter.has(signal.id)) return;
       this.markSeen(signal.id);
 
       // Skip signals from ourselves
       if (signal.sourceCluster === this.config.clusterId) return;
+
+      // Enforce signal TTL: reject expired signals
+      if (signal.ttl > 0) {
+        const ageMs = Date.now() - signal.timestamp;
+        if (ageMs > signal.ttl * 1000) {
+          Logger.debug(`[ClusterBus] Dropping expired signal ${signal.id.slice(0, 8)} (age=${Math.round(ageMs / 1000)}s, ttl=${signal.ttl}s)`);
+          return;
+        }
+      }
 
       // Flow control: evaluate rate limits, direction, and backpressure
       const flowDecision = this.flowController.evaluate(signal);
@@ -465,10 +629,12 @@ export class ClusterBus {
   }
 
   private deliverToSubscriptions(signal: ClusterSignal): void {
+    const now = Date.now();
     for (const sub of this.subscriptions) {
       if (sub.signalType !== '*' && sub.signalType !== signal.type) continue;
       if (sub.sourceFilter?.length && !sub.sourceFilter.includes(signal.sourceCluster)) continue;
 
+      sub.lastInvokedAt = now;
       try {
         const result = sub.handler(signal);
         if (result instanceof Promise) {
@@ -482,16 +648,57 @@ export class ClusterBus {
     }
   }
 
+  /**
+   * Mark a signal as seen using bloom filter + small exact-match set.
+   * The bloom filter provides O(1) memory-bounded dedup.
+   * The recent set catches false positives for the most recent signals.
+   * The bloom filter resets every bloomResetThreshold signals to bound FP rate.
+   */
   private markSeen(signalId: string): void {
-    this.seenSignals.add(signalId);
-    // Evict oldest entries if set grows too large
-    if (this.seenSignals.size > this.maxSeen) {
-      const it = this.seenSignals.values();
-      for (let i = 0; i < 1000; i++) {
+    this.bloomFilter.add(signalId);
+    this.recentSignals.add(signalId);
+
+    // Evict oldest from recent set when it grows too large
+    if (this.recentSignals.size > this.maxRecent) {
+      const it = this.recentSignals.values();
+      for (let i = 0; i < 500; i++) {
         const next = it.next();
         if (next.done) break;
-        this.seenSignals.delete(next.value);
+        this.recentSignals.delete(next.value);
       }
+    }
+
+    // Reset bloom filter periodically to bound false positive rate
+    if (this.bloomFilter.count > this.bloomResetThreshold) {
+      this.bloomGeneration++;
+      this.bloomFilter.clear();
+      // Re-add recent signals to the new bloom filter
+      for (const id of this.recentSignals) {
+        this.bloomFilter.add(id);
+      }
+      Logger.info(`[ClusterBus] Bloom filter reset (generation ${this.bloomGeneration}), re-added ${this.recentSignals.size} recent signals`);
+    }
+  }
+
+  /**
+   * Cleanup idle subscriptions that haven't been invoked within their TTL.
+   * Prevents subscription leak from orphaned handlers.
+   */
+  private cleanupIdleSubscriptions(): void {
+    const now = Date.now();
+    const before = this.subscriptions.length;
+    this.subscriptions = this.subscriptions.filter((sub) => {
+      if (sub.ttlMs === 0) return true; // No TTL = permanent
+      const idleMs = now - sub.lastInvokedAt;
+      if (idleMs > sub.ttlMs) {
+        Logger.info(`[ClusterBus] Cleaned up idle subscription ${sub.id} (type=${sub.signalType}, idle=${Math.round(idleMs / 1000)}s)`);
+        return false;
+      }
+      return true;
+    });
+    const cleaned = before - this.subscriptions.length;
+    if (cleaned > 0) {
+      Logger.info(`[ClusterBus] Subscription cleanup: removed ${cleaned} idle subscriptions, ${this.subscriptions.length} active`);
     }
   }
 

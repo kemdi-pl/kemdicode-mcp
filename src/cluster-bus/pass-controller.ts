@@ -245,6 +245,7 @@ export class PassController {
 
   /**
    * Determine whether execution should continue.
+   * Uses adaptive quality delta analysis to detect diminishing returns.
    */
   shouldContinue(): boolean {
     const executionPasses = this.history.filter((h) => h.pass > 0);
@@ -273,13 +274,47 @@ export class PassController {
         }
         return true;
 
-      case 'quality-target':
-        // Iterate until quality met
+      case 'quality-target': {
+        // Quality met — done
         if (lastPass.quality >= this.config.qualityThreshold && lastPass.sufficient) {
           this.status = 'complete';
           return false;
         }
+
+        // Adaptive early-stop: detect diminishing returns via quality delta
+        if (passCount >= 2) {
+          const prevPass = executionPasses[passCount - 2];
+          const qualityDelta = lastPass.quality - prevPass.quality;
+          const qualityGap = this.config.qualityThreshold - lastPass.quality;
+
+          // If quality delta is negligible (< 3%) and gap is large (> 15%),
+          // further passes are unlikely to reach threshold — stop early
+          if (qualityDelta < 0.03 && qualityGap > 0.15) {
+            Logger.info(
+              `[PassController] Adaptive early-stop: delta=${qualityDelta.toFixed(3)}, gap=${qualityGap.toFixed(3)} — diminishing returns`,
+            );
+            this.status = 'complete';
+            return false;
+          }
+
+          // If quality decreased between passes, stop (model is oscillating)
+          if (qualityDelta < -0.05) {
+            Logger.info(
+              `[PassController] Adaptive early-stop: quality decreased by ${(-qualityDelta).toFixed(3)} — oscillation detected`,
+            );
+            this.status = 'complete';
+            return false;
+          }
+        }
+
+        // Near-threshold: accept if within 5% and sufficient flag set
+        if (lastPass.quality >= this.config.qualityThreshold - 0.05 && lastPass.sufficient) {
+          this.status = 'complete';
+          return false;
+        }
+
         return true;
+      }
 
       case 'fixed':
         // Execute exactly maxPasses
@@ -292,6 +327,18 @@ export class PassController {
       default:
         return false;
     }
+  }
+
+  /**
+   * Get the improvement rate across recent passes.
+   * Used externally for dispatch optimization decisions.
+   */
+  getImprovementRate(): number {
+    const executionPasses = this.history.filter((h) => h.pass > 0);
+    if (executionPasses.length < 2) return 0;
+    const last = executionPasses[executionPasses.length - 1];
+    const prev = executionPasses[executionPasses.length - 2];
+    return last.quality - prev.quality;
   }
 
   /**

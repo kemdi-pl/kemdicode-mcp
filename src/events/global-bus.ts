@@ -57,10 +57,23 @@ class GlobalEventBus {
   private maxListeners: number;
   /** Current chain depth — set by handler wrapper, read by emit() for propagation */
   _emitDepth = 0;
+  /** Track subscription creation times for idle cleanup */
+  private subscriptionMeta = new Map<EventSubscription, { createdAt: number; lastInvokedAt: number; eventType: string }>();
+  /** Periodic cleanup interval for idle subscriptions */
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
+  /** Idle subscription TTL: 60 minutes */
+  private readonly subscriptionIdleTtlMs = 60 * 60 * 1000;
+  /** Cleanup interval: every 10 minutes */
+  private readonly cleanupIntervalMs = 10 * 60 * 1000;
 
   constructor(maxListeners?: number) {
     this.maxListeners = maxListeners ?? DEFAULT_MAX_LISTENERS;
     this.emitter.setMaxListeners(this.maxListeners);
+
+    // Start periodic idle subscription cleanup
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupIdleSubscriptions();
+    }, this.cleanupIntervalMs);
   }
 
   /**
@@ -69,8 +82,15 @@ class GlobalEventBus {
    */
   on<T = unknown>(eventType: GlobalEventType | string, handler: EventHandler<T>): EventSubscription {
     const bus = this;
+    // Use a named reference so we can track invocations
+    let subscriptionRef: EventSubscription | null = null;
     const wrappedHandler = (event: GlobalEvent) => {
       queueMicrotask(async () => {
+        // Track last invocation time for idle cleanup
+        if (subscriptionRef) {
+          const meta = bus.subscriptionMeta.get(subscriptionRef);
+          if (meta) meta.lastInvokedAt = Date.now();
+        }
         const prevDepth = bus._emitDepth;
         bus._emitDepth = (event._chainDepth ?? 0) + 1;
         try {
@@ -89,10 +109,17 @@ class GlobalEventBus {
       unsubscribe: () => {
         this.emitter.removeListener(eventType, wrappedHandler);
         this.activeSubscriptions.delete(subscription);
+        this.subscriptionMeta.delete(subscription);
       },
     };
 
     this.activeSubscriptions.add(subscription);
+    subscriptionRef = subscription;
+    this.subscriptionMeta.set(subscription, {
+      createdAt: Date.now(),
+      lastInvokedAt: Date.now(),
+      eventType: String(eventType),
+    });
 
     // Warn if approaching maxListeners
     if (this.totalListeners >= this.maxListeners * LEAK_WARN_THRESHOLD) {
@@ -199,8 +226,64 @@ class GlobalEventBus {
   reset(): void {
     this.emitter.removeAllListeners();
     this.activeSubscriptions.clear();
+    this.subscriptionMeta.clear();
     this._initialized = false;
     this.redisBridge = null;
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+  }
+
+  /**
+   * Cleanup idle subscriptions that haven't been invoked within TTL.
+   * Prevents listener accumulation and memory leaks from orphaned handlers.
+   */
+  private cleanupIdleSubscriptions(): void {
+    const now = Date.now();
+    let cleaned = 0;
+
+    for (const [subscription, meta] of this.subscriptionMeta) {
+      const idleMs = now - meta.lastInvokedAt;
+      if (idleMs > this.subscriptionIdleTtlMs) {
+        Logger.info(
+          `[GlobalEventBus] Cleaning up idle subscription for '${meta.eventType}' (idle ${Math.round(idleMs / 60000)}min)`,
+        );
+        subscription.unsubscribe();
+        cleaned++;
+      }
+    }
+
+    if (cleaned > 0) {
+      Logger.info(
+        `[GlobalEventBus] Cleaned ${cleaned} idle subscriptions. Active: ${this.activeSubscriptions.size}`,
+      );
+    }
+  }
+
+  /**
+   * Get subscription diagnostics for monitoring.
+   */
+  getSubscriptionDiagnostics(): {
+    total: number;
+    byEventType: Record<string, number>;
+    oldestIdleMs: number;
+  } {
+    const byType: Record<string, number> = {};
+    let oldestIdleMs = 0;
+    const now = Date.now();
+
+    for (const [, meta] of this.subscriptionMeta) {
+      byType[meta.eventType] = (byType[meta.eventType] || 0) + 1;
+      const idleMs = now - meta.lastInvokedAt;
+      if (idleMs > oldestIdleMs) oldestIdleMs = idleMs;
+    }
+
+    return {
+      total: this.activeSubscriptions.size,
+      byEventType: byType,
+      oldestIdleMs,
+    };
   }
 
   /**

@@ -120,6 +120,12 @@ const DEFAULT_CONFIG: MagistraleConfig = {
   minResponses: 1,
 };
 
+/** Resource quota: max concurrent dispatches per magistrale instance */
+const MAX_CONCURRENT_DISPATCHES = 10;
+
+/** Resource quota: max total pending results across all dispatches */
+const MAX_TOTAL_PENDING_RESULTS = 50;
+
 // ---------------------------------------------------------------------------
 // LLMMagistrale
 // ---------------------------------------------------------------------------
@@ -219,6 +225,31 @@ export class LLMMagistrale {
     const cfg = { ...DEFAULT_CONFIG, ...config };
     const dispatchId = uuidv4();
     const startTime = Date.now();
+
+    // Resource quota: limit concurrent dispatches to prevent resource exhaustion
+    if (this.pendingDispatches.size >= MAX_CONCURRENT_DISPATCHES) {
+      Logger.warn(`[Magistrale] Resource quota: ${this.pendingDispatches.size} concurrent dispatches (max ${MAX_CONCURRENT_DISPATCHES})`);
+      return {
+        id: dispatchId,
+        prompt,
+        strategy: cfg.strategy,
+        content: `[Magistrale] Resource quota exceeded: ${this.pendingDispatches.size} dispatches active. Try again later.`,
+        chosenCluster: '',
+        results: [],
+        totalLatencyMs: Date.now() - startTime,
+        dispatchedTo: 0,
+        successCount: 0,
+      };
+    }
+
+    // Resource quota: limit total pending results across all dispatches
+    let totalPending = 0;
+    for (const [, p] of this.pendingDispatches) {
+      totalPending += p.targets.length - p.results.length;
+    }
+    if (totalPending >= MAX_TOTAL_PENDING_RESULTS) {
+      Logger.warn(`[Magistrale] Resource quota: ${totalPending} pending results (max ${MAX_TOTAL_PENDING_RESULTS})`);
+    }
 
     // Find target clusters with LLM capability
     let targets = await this.findTargets(cfg);
@@ -538,16 +569,34 @@ interface PendingDispatch {
 // Scoring & Consensus
 // ---------------------------------------------------------------------------
 
-/** Default scorer: prefer faster responses with more tokens. */
+/**
+ * Enhanced scorer: weighted scoring combining quality, content depth, and latency.
+ * Prioritizes quality from pass reports when available.
+ */
 function defaultScorer(result: MagistraleResult): number {
-  const latencyPenalty = result.latencyMs / 1000; // seconds
-  const tokenBonus = (result.completionTokens ?? 100) / 100;
-  return tokenBonus - latencyPenalty;
+  // Quality score from pass report (0-1) — most important signal
+  const qualityScore = result.passReport?.qualityAchieved ?? 0.5;
+
+  // Content depth: prefer substantive responses (log scale to avoid linear bias)
+  const contentLength = result.content.length;
+  const depthScore = contentLength > 0 ? Math.min(1, Math.log10(contentLength) / 4) : 0;
+
+  // Latency penalty: normalized (lower is better), but less weight than quality
+  const latencyPenalty = Math.min(1, result.latencyMs / 120000);
+
+  // Token efficiency: more completion tokens relative to prompt tokens = better
+  const tokenRatio = result.completionTokens
+    ? Math.min(1, (result.completionTokens / Math.max(result.promptTokens ?? 1, 1)))
+    : 0.5;
+
+  // Weighted combination: quality dominates
+  return (qualityScore * 0.45) + (depthScore * 0.25) + (tokenRatio * 0.15) - (latencyPenalty * 0.15);
 }
 
 /**
- * Simple consensus: find the most common response pattern.
- * Uses first-sentence similarity as a heuristic for agreement.
+ * Weighted consensus: combines agreement scoring with quality-based weighting.
+ * Each response's vote weight is proportional to its quality score from pass reports.
+ * Falls back to equal weights when pass reports are not available.
  */
 function computeConsensus(results: MagistraleResult[]): {
   content: string;
@@ -562,32 +611,43 @@ function computeConsensus(results: MagistraleResult[]): {
     return { content: results[0].content, chosenCluster: results[0].clusterId, score: 1 };
   }
 
-  // Normalize responses for comparison (first 1000 chars, lowercased, trimmed)
-  const normalized = results.map((r) => r.content.slice(0, 1000).toLowerCase().trim());
+  // Normalize responses for comparison (first 1500 chars, lowercased, trimmed)
+  const normalized = results.map((r) => r.content.slice(0, 1500).toLowerCase().trim());
 
-  // Score each response by how many others are similar
-  const scores = normalized.map((norm, i) => {
-    let matchCount = 0;
-    for (let j = 0; j < normalized.length; j++) {
-      if (i === j) continue;
-      if (jaccardSimilarity(norm, normalized[j]) > 0.5) {
-        matchCount++;
-      }
-    }
-    return matchCount;
+  // Compute quality weight for each result (from pass report or default)
+  const weights = results.map((r) => {
+    const quality = r.passReport?.qualityAchieved ?? 0.5;
+    // Weight = quality^2 to amplify high-quality responses
+    return quality * quality;
   });
 
-  // Pick the response with the highest agreement score
+  // Weighted agreement: each response's score = sum of (weight * similarity) for agreeing peers
+  const weightedScores = normalized.map((norm, i) => {
+    let weightedMatchSum = 0;
+    for (let j = 0; j < normalized.length; j++) {
+      if (i === j) continue;
+      const similarity = jaccardSimilarity(norm, normalized[j]);
+      if (similarity > 0.4) {
+        weightedMatchSum += weights[j] * similarity;
+      }
+    }
+    // Self-weight added
+    return weightedMatchSum + weights[i];
+  });
+
+  // Pick the response with the highest weighted agreement score
   let bestIdx = 0;
-  let bestScore = scores[0];
-  for (let i = 1; i < scores.length; i++) {
-    if (scores[i] > bestScore) {
-      bestScore = scores[i];
+  let bestScore = weightedScores[0];
+  for (let i = 1; i < weightedScores.length; i++) {
+    if (weightedScores[i] > bestScore) {
+      bestScore = weightedScores[i];
       bestIdx = i;
     }
   }
 
-  const consensusScore = (bestScore + 1) / results.length; // +1 includes self
+  // Consensus score: ratio of best weighted score to total possible weight
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  const consensusScore = totalWeight > 0 ? Math.min(1, bestScore / totalWeight) : 0;
 
   return {
     content: results[bestIdx].content,

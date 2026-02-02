@@ -45,7 +45,7 @@ export interface FlowPolicy {
   bufferOnPressure: boolean;
 }
 
-/** Backpressure state for a channel */
+/** Backpressure state for a channel with circuit breaker */
 interface ChannelState {
   /** Number of signals processed in the current window */
   windowCount: number;
@@ -55,6 +55,14 @@ interface ChannelState {
   queue: ClusterSignal[];
   /** Whether this channel is currently under backpressure */
   pressured: boolean;
+  /** Circuit breaker state */
+  circuitState: 'closed' | 'open' | 'half-open';
+  /** Consecutive failure count for circuit breaker */
+  consecutiveFailures: number;
+  /** Timestamp when circuit breaker opened */
+  circuitOpenedAt: number;
+  /** Sliding window: timestamps of recent signals for burst detection */
+  slidingWindow: number[];
 }
 
 /** Flow controller statistics */
@@ -95,6 +103,12 @@ export class SignalFlowController {
   };
 
   private readonly windowMs = 1000; // 1-second rate limit window
+  /** Circuit breaker: time to stay open before trying half-open (ms) */
+  private readonly circuitOpenDurationMs = 5000;
+  /** Circuit breaker: failures needed to trip */
+  private readonly circuitFailureThreshold = 10;
+  /** Burst detection: sliding window size in ms */
+  private readonly burstWindowMs = 500;
 
   // -------------------------------------------------------------------------
   // Policy Management
@@ -142,9 +156,19 @@ export class SignalFlowController {
   evaluate(signal: ClusterSignal): 'allow' | 'drop' | 'queue' {
     const matchingPolicies = this.getMatchingPolicies(signal.type);
 
-    // No policies = allow all
+    // No policies = allow all (but still check circuit breaker)
+    const channelKey = this.getChannelKey(signal);
+    if (this.isCircuitOpen(signal.type, signal.sourceCluster, signal.targetCluster || '*')) {
+      this.stats.totalDropped++;
+      Logger.debug(`[SignalFlow] Dropped ${signal.type} — circuit breaker open`);
+      return 'drop';
+    }
+
     if (matchingPolicies.length === 0) {
       this.recordProcessed(signal);
+      // Track in sliding window for burst detection
+      const state = this.getOrCreateState(channelKey);
+      state.slidingWindow.push(Date.now());
       return 'allow';
     }
 
@@ -343,10 +367,81 @@ export class SignalFlowController {
         windowStart: Date.now(),
         queue: [],
         pressured: false,
+        circuitState: 'closed',
+        consecutiveFailures: 0,
+        circuitOpenedAt: 0,
+        slidingWindow: [],
       };
       this.channelStates.set(key, state);
     }
     return state;
+  }
+
+  /**
+   * Record a failure for circuit breaker evaluation.
+   * Call this when a signal delivery fails downstream.
+   */
+  recordFailure(signalType: SignalType, sourceCluster: string, targetCluster = '*'): void {
+    const key = `${signalType}:${sourceCluster}:${targetCluster}`;
+    const state = this.getOrCreateState(key);
+    state.consecutiveFailures++;
+
+    if (state.consecutiveFailures >= this.circuitFailureThreshold && state.circuitState === 'closed') {
+      state.circuitState = 'open';
+      state.circuitOpenedAt = Date.now();
+      Logger.warn(`[SignalFlow] Circuit breaker OPEN for ${key} after ${state.consecutiveFailures} failures`);
+    }
+  }
+
+  /**
+   * Record a success — resets circuit breaker failure counter.
+   */
+  recordSuccess(signalType: SignalType, sourceCluster: string, targetCluster = '*'): void {
+    const key = `${signalType}:${sourceCluster}:${targetCluster}`;
+    const state = this.channelStates.get(key);
+    if (state) {
+      state.consecutiveFailures = 0;
+      if (state.circuitState === 'half-open') {
+        state.circuitState = 'closed';
+        Logger.info(`[SignalFlow] Circuit breaker CLOSED for ${key}`);
+      }
+    }
+  }
+
+  /**
+   * Check if a channel's circuit breaker allows traffic.
+   */
+  isCircuitOpen(signalType: SignalType, sourceCluster: string, targetCluster = '*'): boolean {
+    const key = `${signalType}:${sourceCluster}:${targetCluster}`;
+    const state = this.channelStates.get(key);
+    if (!state || state.circuitState === 'closed') return false;
+
+    if (state.circuitState === 'open') {
+      // Check if enough time passed to try half-open
+      if (Date.now() - state.circuitOpenedAt >= this.circuitOpenDurationMs) {
+        state.circuitState = 'half-open';
+        Logger.info(`[SignalFlow] Circuit breaker HALF-OPEN for ${key}`);
+        return false; // Allow one probe request
+      }
+      return true; // Still open
+    }
+
+    return false; // half-open allows traffic
+  }
+
+  /**
+   * Detect burst conditions using sliding window analysis.
+   * Returns the current signals/second rate for a channel.
+   */
+  getBurstRate(signalType: SignalType, sourceCluster: string, targetCluster = '*'): number {
+    const key = `${signalType}:${sourceCluster}:${targetCluster}`;
+    const state = this.channelStates.get(key);
+    if (!state) return 0;
+
+    const now = Date.now();
+    // Clean up old entries in sliding window
+    state.slidingWindow = state.slidingWindow.filter((t) => now - t < this.burstWindowMs);
+    return (state.slidingWindow.length / this.burstWindowMs) * 1000; // signals/sec
   }
 
   private recordProcessed(signal: ClusterSignal): void {
