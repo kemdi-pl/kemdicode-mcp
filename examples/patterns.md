@@ -264,3 +264,150 @@ feedback --action file-history --file "src/auth/middleware.ts"
 # Get stats
 feedback --action stats
 ```
+
+---
+
+## Pattern 11: Cluster Bus Signal Routing
+
+**Problem:** Multiple LLM nodes need to communicate with typed signals, routing, and flow control.
+
+**Solution:** Use the Cluster Bus with unicast, broadcast, or meta-tag routed signals.
+
+```
+# Register a cluster node
+cluster-bus-topology --action "register" --clusterId "node-1" --clusterName "Backend AI" \
+  --capabilities '["typescript", "code-review"]' --metaTags '["role:worker", "tier:pro"]'
+
+# Unicast to specific cluster
+cluster-bus-send --mode "unicast" --targetCluster "node-1" --signalType "llm:request" \
+  --payload '{"prompt": "Review auth code"}' --direction "downstream" --priority 2
+
+# Broadcast to all
+cluster-bus-send --mode "broadcast" --signalType "data:broadcast" \
+  --payload '{"message": "Deploy freeze"}' --direction "duplex" --priority 3
+
+# Routed via meta-tags (delivers to clusters matching tags)
+cluster-bus-send --mode "routed" --signalType "llm:request" \
+  --payload '{"prompt": "Optimize query"}' --direction "downstream" --priority 2
+```
+
+**Signal types:** `llm:request` `llm:result` `llm:stream-chunk` `llm:error` `cluster:join` `cluster:leave` `cluster:heartbeat` `data:broadcast` `data:unicast` `control:pause` `control:resume` `control:config`
+
+**See:** [08-cluster-bus-magistrale.md](08-cluster-bus-magistrale.md)
+
+---
+
+## Pattern 12: Magistrale — Distributed LLM Dispatch
+
+**Problem:** Need high-quality AI output by dispatching to multiple models and aggregating.
+
+**Solution:** Use Magistrale with aggregation strategies and multi-pass quality control.
+
+```
+# Best-of-N: dispatch to 3 clusters, pick highest quality
+cluster-bus-magistrale --prompt "Design a rate limiter" --strategy "best-of-n" \
+  --maxTargets 3 --timeoutMs 60000 --minResponses 2 --qualityThreshold 0.85 \
+  --passStrategy "quality-target" --maxPasses 5
+
+# Consensus: require agreement between clusters
+cluster-bus-magistrale --prompt "Redis vs PostgreSQL for sessions?" --strategy "consensus" \
+  --maxTargets 3 --timeoutMs 45000 --minResponses 2 --qualityThreshold 0.8 \
+  --passStrategy "min-passes"
+
+# Fallback-chain: cascade on failure
+cluster-bus-magistrale --prompt "Generate tests" --strategy "fallback-chain" \
+  --maxTargets 3 --timeoutMs 30000 --minResponses 1 --qualityThreshold 0.7 \
+  --passStrategy "fixed" --maxPasses 1
+```
+
+**Strategies:** `first-wins` (fastest) · `best-of-n` (quality) · `consensus` (agreement) · `fallback-chain` (resilience)
+
+**Pass strategies:** `min-passes` (LLM self-regulates) · `quality-target` (iterate to threshold) · `fixed` (exact N)
+
+**See:** [08-cluster-bus-magistrale.md](08-cluster-bus-magistrale.md)
+
+---
+
+## Pattern 13: Data Flow Bus — Inter-Module Communication
+
+**Problem:** AI, kanban, cognition, and agent modules need typed, traceable communication.
+
+**Solution:** The Data Flow Bus provides 12 typed channels with correlation tracking and Redis bridge.
+
+```
+12 Channels:
+  AI:        ai:completion, ai:structured, ai:research
+  Kanban:    kanban:task-change, kanban:complexity
+  Cognition: cognition:decision, cognition:intent, cognition:error
+  Agent:     agent:status, agent:message
+  System:    system:health, system:config
+
+Flows (automatic):
+  ask-ai → ai:completion → cognition subscribes → logs context
+  task-update → kanban:task-change → agent subscribes → notifies assignee
+  error detected → cognition:error → error-pattern DB → suggests fix
+  tool-health → system:health → monitor → alerts on degradation
+```
+
+**Features:** typed payloads with Zod schemas · correlation chains · priority routing (0–3) · TTL · source/target filtering · Redis Pub/Sub cross-session sync
+
+**See:** [09-dataflow-bus.md](09-dataflow-bus.md)
+
+---
+
+## Pattern 14: Cognition Cross-Tool Intelligence
+
+**Problem:** AI decisions, confidence, errors, and intents are isolated — they should react to each other.
+
+**Solution:** The cognition layer's event bus creates automatic cross-tool reactions.
+
+```
+Reaction chains:
+  decision-journal:record → auto-creates confidence-tracker entry
+  confidence < 0.5 → triggers intent drift detection
+  error-pattern:match → scans recent decisions for root cause
+  self-critique:lesson → cross-links to matching error patterns
+
+All backed by CognitionCrossLinker with bidirectional Redis links.
+```
+
+**Tools:** `decision-journal` `confidence-tracker` `mental-model` `intent-tracker` `error-pattern` `self-critique` `smart-handoff` `context-budget`
+
+**See:** [10-cognition-deep-dive.md](10-cognition-deep-dive.md)
+
+---
+
+## Pattern 15: MPC Secret Sharing for Credentials
+
+**Problem:** Sensitive credentials shouldn't be accessible by a single agent.
+
+**Solution:** Use Shamir Secret Sharing to split secrets across agents with a reconstruction threshold.
+
+```
+# Split into 5 shares, need any 3 to reconstruct
+mpc-split --secret "sk-prod-key-12345" --totalShares 5 --threshold 3 --label "Prod Key"
+
+# Distribute to agents
+mpc-distribute --splitId "id" --assignments '[...]'
+
+# Reconstruct with 3 of 5 shares
+mpc-reconstruct --splitId "id" --shares '[share-0, share-2, share-4]'
+```
+
+**See:** [11-session-recovery-mpc-rl.md](11-session-recovery-mpc-rl.md)
+
+---
+
+## Pattern 16: Session Recovery After Compaction
+
+**Problem:** Context window compaction loses session state.
+
+**Solution:** Single-call `session-recover` restores everything.
+
+```
+session-recover
+```
+
+Restores: active session memory · latest handoff · knowledge graph (loci) · tool availability · agent rankings · ambient learning insights.
+
+**See:** [11-session-recovery-mpc-rl.md](11-session-recovery-mpc-rl.md)

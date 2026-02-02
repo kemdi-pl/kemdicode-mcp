@@ -5,12 +5,12 @@
 <h3 align="center">Model Context Protocol Server for AI-Powered Development</h3>
 
 <p align="center">
-  137 tools &bull; 8 LLM providers &bull; cognition layer &bull; multi-agent orchestration &bull; kanban &bull; project memory
+  141 tools &bull; 8 LLM providers &bull; cluster bus &bull; cognition layer &bull; multi-agent orchestration &bull; kanban &bull; project memory
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/kemdicode-mcp"><img src="https://img.shields.io/badge/npm-kemdicode--mcp-CB3837?style=flat-square&logo=npm&logoColor=white" alt="npm" /></a>
-  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.24.0-blue?style=flat-square" alt="Version" /></a>
+  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.25.0-blue?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License" /></a>
 </p>
 
@@ -23,12 +23,12 @@
 
 ---
 
-**kemdiCode MCP** is a [Model Context Protocol](https://modelcontextprotocol.io/) server that gives AI agents and IDE assistants access to **137 specialized tools** for code analysis, generation, git operations, file management, AST-aware editing, project memory, cognition & self-improvement, multi-board kanban, multi-agent coordination, structured output, and LLM-driven task management.
+**kemdiCode MCP** is a [Model Context Protocol](https://modelcontextprotocol.io/) server that gives AI agents and IDE assistants access to **141 specialized tools** for code analysis, generation, git operations, file management, AST-aware editing, project memory, cognition & self-improvement, multi-board kanban, multi-agent coordination, cluster bus with distributed LLM magistrale, typed data flow bus, structured output, and LLM-driven task management.
 
 <details>
 <summary><strong>Table of Contents</strong></summary>
 
-- [What's New in 1.24.0](#whats-new-in-1240)
+- [What's New in 1.25.0](#whats-new-in-1250)
 - [Cognition Layer: How AI Remembers](#cognition-layer-how-ai-remembers)
 - [Usage Examples](#usage-examples)
 - [What's Next](#whats-next)
@@ -38,7 +38,7 @@
 - [IDE Configuration](#ide-configuration)
 - [Multi-Provider LLM](#multi-provider-llm)
 - [Tool Reference](#tool-reference)
-- [Architecture](#architecture)
+- [Architecture](#architecture) _(collapsible: system overview, 3-layer bus, cluster bus, data flow)_
 - [Multi-Agent Orchestration](#multi-agent-orchestration)
 - [Multi-Model Consensus](#multi-model-consensus)
 - [Kanban Task Management](#kanban-task-management)
@@ -52,76 +52,61 @@
 
 ---
 
-## What's New in 1.24.0
+## What's New in 1.25.0
 
-### Structured Output & JSON Repair
+### Cluster Bus &mdash; Distributed LLM Orchestration
 
-- `generateObject()` with Zod schema validation, retry logic, and automatic JSON repair via `jsonrepair`
-- `safeJsonParse` / `tryJsonParse` / `parseJsonWithSchema` utilities for robust LLM output parsing
+- Full-duplex inter-cluster communication via Redis Pub/Sub with typed signal envelopes
+- 12 signal types: `llm:request/result/stream-chunk/error`, `cluster:join/leave/heartbeat`, `data:broadcast/unicast`, `control:pause/resume/config`
+- 3 send modes: **unicast** (direct), **broadcast** (all), **routed** (meta-tag filtered)
+- Signal Flow Controller with backpressure, rate limiting, priority filtering, and directional control (upstream/downstream/duplex)
+- Health Monitor with heartbeat tracking, stale detection, and automatic pruning
+- 4 new tools: `cluster-bus-status`, `cluster-bus-topology`, `cluster-bus-send`, `cluster-bus-magistrale`
 
-### 8th LLM Provider &mdash; Perplexity
+### LLM Magistrale &mdash; Multi-Cluster AI Dispatch
 
-- New `perplexity` provider for research-tier queries (3-layer routing: main / research / fallback)
-- Provider syntax: `p:sonar-pro` or `perplexity:sonar-pro`
+- Dispatch a single prompt across multiple cluster nodes in parallel
+- 4 aggregation strategies: `first-wins` (fastest), `best-of-n` (quality), `consensus` (agreement), `fallback-chain` (resilience)
+- Self-regulating Pass Controller with 3 strategies: `min-passes` (LLM declares minimum), `quality-target` (iterate to threshold), `fixed` (exact N)
+- Quality self-assessment with early-stop when threshold reached
+- Provider and model hints for target cluster selection
 
-### Tool Annotations (MCP Protocol)
+### Data Flow Bus &mdash; Typed Inter-Module Communication
 
-- All 137 tools now carry MCP-level hints: `readOnlyHint`, `destructiveHint`, `openWorldHint`
-- Clients can use annotations for UI presentation and safety checks
+- 12 typed channels with Zod payload schemas: `ai:completion/structured/research`, `kanban:task-change/complexity`, `cognition:decision/intent/error`, `agent:status/message`, `system:health/config`
+- Correlation tracking for full request tracing across modules
+- Priority routing (0&ndash;3), TTL, source/target filtering
+- Redis Pub/Sub bridge for cross-session message propagation
+- Automatic flows: AI completions &rarr; cognition logging, task updates &rarr; agent notification, errors &rarr; pattern matching
 
-### LLM-Driven Task Clustering
+### 5 New Example Guides
 
-- `task-cluster` tool with 11 actions: `create`, `get`, `list`, `delete`, `add/remove tasks`, `checklist-add/toggle`, `extract-context`, `auto-cluster`, `digest`
-- Auto-clustering groups related tasks using LLM analysis
-- Context extraction and digest generation for cluster summaries
-
-### Task Complexity Scoring
-
-- `task-complexity` tool: LLM-scored 1&ndash;10 analysis with subtask breakdown recommendations
-
-### Data Flow Bus
-
-- Typed message bus with 12 channels, publish/subscribe, history, and correlation tracking across modules
-
-### Global Event Bus
-
-- Server-wide event system connecting cognition, kanban, recursive, and session modules
-- Namespaced events with optional Redis Pub/Sub propagation for cross-session visibility
-- Kanban event handlers: critical task alerts, completion metrics
-- Loop event handlers: tool frequency tracking, failure &rarr; error-pattern integration
-
-### MCP Client Capabilities
-
-- `client-sampling` &mdash; request LLM completions via the connected MCP client (uses client's model and API keys)
-- `client-elicit` &mdash; ask structured questions through the client UI (text, number, boolean, enum)
-- `client-roots` &mdash; list workspace roots the MCP client has open
-
-### Agent Orchestrate
-
-- `agent-orchestrate` tool for autonomous AI agent loops with function calling
-- Configurable `maxTokens` and `temperature` overrides per agent
-- Tool result limits raised to 16K default / 50K for file tools (was 4K)
-- File-write guardrail rejects truncated content
-
-### Ambient Learning & Agent Ranking
-
-- Silent knowledge gathering: tool sequences, file relations, time patterns
-- Agent ranking with composite scoring (bronze &rarr; diamond tiers) and decay
-- `agent-rank` tool for viewing and managing agent rankings
-
-### Session Recovery & Tool Health
-
-- `session-recover` &mdash; single-tool orchestrated context restore after compaction
-- `tool-health` &mdash; check tool availability with soft/force modes and fallback suggestions
-- Cost-optimized AI model selection with force-reload and auto-select
-
-### Code Deduplication
-
-- `executeWithGuard()` wrapper applied to 33 tool files
-- `executeCognitionTool()`, `executeGitTool()`, `validatePathSafe()`, `handleToolError()` shared helpers
-- Net reduction: **&minus;622 lines** across 262 files
+- [08 &mdash; Cluster Bus & Magistrale](examples/08-cluster-bus-magistrale.md)
+- [09 &mdash; Data Flow Bus](examples/09-dataflow-bus.md)
+- [10 &mdash; Cognition Deep Dive](examples/10-cognition-deep-dive.md)
+- [11 &mdash; Session Recovery, MPC & RL](examples/11-session-recovery-mpc-rl.md)
+- [12 &mdash; Knowledge Graph & Loci](examples/12-knowledge-graph-loci.md)
+- Updated [patterns.md](examples/patterns.md) with 6 new patterns (11&ndash;16)
 
 ### Previous Releases
+
+<details>
+<summary>1.24.0 &mdash; Structured Output, Perplexity, Task Clustering</summary>
+
+- `generateObject()` with Zod schema validation, retry logic, and automatic JSON repair via `jsonrepair`
+- 8th LLM provider: Perplexity for research-tier queries (3-layer routing)
+- Tool Annotations: all 137 tools carry MCP-level hints (`readOnlyHint`, `destructiveHint`, `openWorldHint`)
+- `task-cluster` with 11 actions for LLM-driven task grouping
+- `task-complexity`: LLM-scored 1&ndash;10 analysis with subtask recommendations
+- Data Flow Bus: typed message bus with 12 channels
+- Global Event Bus with Redis Pub/Sub bridge
+- MCP Client Capabilities: `client-sampling`, `client-elicit`, `client-roots`
+- `agent-orchestrate` for autonomous AI agent loops
+- Ambient Learning & Agent Ranking (bronze &rarr; diamond tiers)
+- `session-recover`: single-tool context restore after compaction
+- `executeWithGuard()` deduplication: **&minus;622 lines** across 262 files
+
+</details>
 
 <details>
 <summary>1.23.1 &mdash; Cognition Layer Fixes</summary>
@@ -301,7 +286,9 @@ The agent doesn't just write code &mdash; it builds a persistent understanding o
 
 | Capability | Description |
 |:-----------|:------------|
-| **137 MCP Tools** | Code review, refactoring, testing, git, file management, AST editing, memory, checkpoints, kanban, cognition, pipelines, structured output, task clustering |
+| **141 MCP Tools** | Code review, refactoring, testing, git, file management, AST editing, memory, checkpoints, kanban, cognition, cluster bus, data flow, pipelines, structured output, task clustering |
+| **Cluster Bus** | Distributed LLM orchestration: 12 signal types, 3 send modes, magistrale with 4 aggregation strategies, multi-pass quality control |
+| **Data Flow Bus** | 12 typed channels (`ai:*`, `kanban:*`, `cognition:*`, `agent:*`, `system:*`) with Zod schemas, correlation tracking, Redis bridge |
 | **Cognition Layer** | 8 self-improvement tools: decision journal, confidence tracking, mental models, intent hierarchy, error patterns, self-critique, smart handoff, context budget |
 | **Cross-Tool Intelligence** | Global event bus + cross-linker: tools react to each other across cognition, kanban, session, and recursive modules |
 | **8 LLM Providers** | Native SDKs for OpenAI, Anthropic, Gemini + OpenAI-compatible for Groq, DeepSeek, Ollama, OpenRouter, Perplexity |
@@ -488,10 +475,11 @@ Append a third segment to enable extended thinking:
 
 ## Tool Reference
 
-> **137 tools** across 22 categories.
+> **141 tools** across 23 categories.
 
 | Category | # | Tools |
 |:---------|:-:|:------|
+| **Cluster Bus** | 4 | `cluster-bus-status` `cluster-bus-topology` `cluster-bus-send` `cluster-bus-magistrale` |
 | **Cognition** | 8 | `decision-journal` `confidence-tracker` `mental-model` `intent-tracker` `error-pattern` `self-critique` `smart-handoff` `context-budget` |
 | **AI Agents** | 4 | `plan` `build` `brainstorm` `ask-ai` |
 | **Multi-LLM** | 2 | `multi-prompt` `consensus-prompt` |
@@ -521,20 +509,107 @@ Append a third segment to enable extended thinking:
 
 ## Architecture
 
-### System Overview
+<details>
+<summary><strong>System Overview</strong></summary>
 
 | Layer | Component | Description |
 |:------|:----------|:------------|
 | **Clients** | Claude Code, Cursor, KiroCode, RooCode | Connect via SSE + JSON-RPC (MCP Protocol) |
 | **HTTP Server** | `:3100` (Bun or Node.js) | Routes: `/sse`, `/message`, `/resume`, `/stream` |
 | **Session Manager** | Per-client isolation | CWD injection, activity tracking, SSE keep-alive |
-| **Tool Registry** | 137 tools, 22 categories | Zod schema validation, auto JSON Schema generation, tool annotations, lazy loading, `tools/list_changed` broadcast |
-| **Cognition Layer** | Global event bus + cross-linker | Namespaced events across all modules, bidirectional Redis links, Redis Pub/Sub bridge |
-| **Provider Registry** | 8 LLM providers | Native SDKs + OpenAI-compatible + Perplexity. Lazy init, hot-reload, unified thinking tokens, structured output |
-| **Tree-sitter AST** | 19 languages | WASM parsers, symbol navigation, rename, insert before/after |
-| **Runtime Abstraction** | Bun / Node.js | Auto-detection. Unified HTTP, process spawning, crypto |
+| **Tool Registry** | 141 tools, 23 categories | Zod schema validation, tool annotations, lazy loading |
+| **Cluster Bus** | Distributed signal bus | Full-duplex inter-cluster signals via Redis Pub/Sub |
+| **Data Flow Bus** | 12 typed channels | Zod schemas, correlation tracking, priority routing |
+| **Cognition Layer** | Global event bus + cross-linker | 9 reactive handlers, bidirectional Redis links |
+| **Provider Registry** | 8 LLM providers | Native SDKs + OpenAI-compatible. Hot-reload, structured output |
+| **Tree-sitter AST** | 19 languages | WASM parsers, symbol navigation, rename, insert |
+| **Runtime** | Bun / Node.js | Auto-detection, unified HTTP, process, crypto |
 | **Redis (DB 2)** | Shared state | `mcp:context:*`, `mcp:agents:*`, `mcp:kanban:*`, `mcp:memory:*`, `mcp:cognition:*` |
-| **Redis Pub/Sub** | Real-time messaging | Channels: `broadcast`, `inject:<agentId>`, `alerts`, `thoughts` |
+
+&rarr; Full diagram: [docs/architecture-overview.md](docs/architecture-overview.md)
+
+</details>
+
+<details>
+<summary><strong>3-Layer Bus Architecture</strong></summary>
+
+The server uses a 3-layer bus with 3 independent Redis paths and anti-amplification bridges:
+
+```
++====================================================================+
+||  L3: ClusterBus  (Redis Pub/Sub, mcp:cluster:*)                  ||
+||                                                                  ||
+||  12 signal types | 3 send modes (unicast/broadcast/routed)       ||
+||  SignalFlowCtrl | MetaRouter | HealthMonitor                     ||
+||                                                                  ||
+||  +---------------------+  +------------------------+             ||
+||  | EventBridge  L3<>L1 |  | DataFlowBridge  L3<>L2 |             ||
+||  | hop limit = 3       |  | hop limit = 3          |             ||
+||  +---------------------+  +------------------------+             ||
++====================================================================+
+||  L2: DataFlowBus  (in-process + Redis mcp:dataflow:{channel})    ||
+||                                                                  ||
+||  ai:completion | kanban:task-change | cognition:decision          ||
+||  ai:structured | kanban:complexity  | cognition:intent            ||
+||  ai:research   |                    | cognition:error             ||
+||  agent:status  | agent:message      | system:health | system:cfg ||
+||                                                                  ||
+||  DataFlowEnvelope: correlation, priority 0-3, TTL, Zod schemas   ||
++====================================================================+
+||  L1: GlobalEventBus  (in-process + Redis mcp:events:{type})      ||
+||                                                                  ||
+||  namespaced events | async queueMicrotask | max chain depth = 8  ||
+||  CognitionEventBus wrapper (auto-prefix "cognition:")            ||
++====================================================================+
+         |
+  Module Handlers: cognition (9) | kanban (2) | loop (2)
+```
+
+&rarr; Full documentation: [docs/architecture-3-layer-bus.md](docs/architecture-3-layer-bus.md)
+
+</details>
+
+<details>
+<summary><strong>Cluster Bus &amp; Magistrale</strong></summary>
+
+Distributed LLM orchestration across cluster nodes with typed signals and multi-pass quality control.
+
+```bash
+# Register a cluster node
+cluster-bus-topology --action "register" --clusterId "backend-ai" \
+  --clusterName "Backend LLM" --capabilities '["typescript","code-review"]' \
+  --metaTags '["role:worker","tier:pro"]'
+
+# Magistrale: dispatch to multiple clusters, pick best result
+cluster-bus-magistrale --prompt "Design a rate limiter" --strategy "best-of-n" \
+  --maxTargets 3 --timeoutMs 60000 --minResponses 2 --qualityThreshold 0.85 \
+  --passStrategy "quality-target" --maxPasses 5
+```
+
+**Magistrale strategies:** `first-wins` &bull; `best-of-n` &bull; `consensus` &bull; `fallback-chain`
+
+**Pass strategies:** `min-passes` &bull; `quality-target` &bull; `fixed`
+
+&rarr; Full guide: [examples/08-cluster-bus-magistrale.md](examples/08-cluster-bus-magistrale.md)
+
+</details>
+
+<details>
+<summary><strong>Data Flow Bus</strong></summary>
+
+12 typed channels for structured inter-module communication with Zod schemas and correlation tracking.
+
+**Automatic flows:**
+- `ask-ai` &rarr; `ai:completion` &rarr; cognition subscribes &rarr; logs decision context
+- `task-update` &rarr; `kanban:task-change` &rarr; agent subscribes &rarr; notifies assignee
+- error detected &rarr; `cognition:error` &rarr; error-pattern DB &rarr; suggests fix
+- `tool-health` &rarr; `system:health` &rarr; monitor &rarr; alerts on degradation
+
+Every message follows `DataFlowEnvelope`: unique ID, correlation chain, priority (0&ndash;3), TTL, Zod-validated payload. Redis bridge for cross-session sync.
+
+&rarr; Full guide: [examples/09-dataflow-bus.md](examples/09-dataflow-bus.md)
+
+</details>
 
 ---
 

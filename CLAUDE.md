@@ -8,7 +8,7 @@ Alternatively: `read-memory --names ["active-session"]` and update with `write-m
 
 ## Overview
 
-Model Context Protocol (MCP) server providing **137 specialized tools** across 22 categories: code analysis, generation, git operations, file management, line/symbol editing, project memory, cognition & self-improvement, multi-board kanban with workspaces, task clustering & complexity, thinking chains, recursive tool invocation, pipelines, session monitoring, multi-agent coordination, structured output, data flow bus, tool annotations, ambient learning, agent ranking, and MCP client capabilities.
+Model Context Protocol (MCP) server providing **141 specialized tools** across 23 categories: code analysis, generation, git operations, file management, line/symbol editing, project memory, cognition & self-improvement, multi-board kanban with workspaces, task clustering & complexity, thinking chains, recursive tool invocation, pipelines, session monitoring, multi-agent coordination, structured output, data flow bus, cluster bus with LLM magistrale, tool annotations, ambient learning, agent ranking, and MCP client capabilities.
 
 **8 LLM providers**: OpenAI, Anthropic, Gemini, Groq, DeepSeek, Ollama, OpenRouter, Perplexity. Provider syntax: `provider:model:thinking` (e.g., `a:claude-sonnet-4-5:4k`, `p:sonar-pro`).
 
@@ -29,6 +29,16 @@ src/
 │   ├── model-spec.ts        # Parser for provider:model:thinking syntax
 │   └── providers/           # Native LLM provider adapters (8 providers)
 ├── client/                  # MCP client capabilities bridge
+├── cluster-bus/             # Distributed inter-cluster communication
+│   ├── bus.ts               # ClusterBus: Redis Pub/Sub signal routing
+│   ├── llm-magistrale.ts    # LLM dispatch across clusters (4 strategies)
+│   ├── pass-controller.ts   # Self-regulating multi-pass execution
+│   ├── signal-flow.ts       # Backpressure, rate limiting, flow control
+│   ├── meta-router.ts       # Meta-tag based signal routing
+│   ├── health-monitor.ts    # Heartbeat tracking, stale detection
+│   ├── cluster-registry.ts  # Node registration and discovery
+│   ├── provider-pool.ts     # LLM provider pool for clusters
+│   └── bridges.ts           # DataFlow ↔ ClusterBus bridges
 ├── cognition/               # AI self-awareness (8 stores + event system)
 │   ├── ambient-learner.ts   # Silent knowledge gathering
 │   ├── agent-rank-store.ts  # Agent ranking (bronze→diamond)
@@ -69,6 +79,7 @@ src/
 │   ├── availability-checker.ts # Tool health + fallback suggestions
 │   ├── tool-shared.ts       # executeWithGuard, handleToolError helpers
 │   ├── agents/              # Agent monitoring (10 tools)
+│   ├── cluster-bus/         # Cluster bus tools (4 tools)
 │   ├── code/                # Code navigation + symbol editing (9 tools)
 │   ├── client/              # MCP client capabilities (3 tools)
 │   ├── cognition/           # AI self-improvement (8 tools)
@@ -92,10 +103,11 @@ src/
 └── utils/                   # Helpers (command executor, file, git, validation, logger)
 ```
 
-## Tool Categories (137 tools)
+## Tool Categories (141 tools)
 
 | Category | # | Key tools |
 |----------|:-:|-----------|
+| Cluster Bus | 4 | `cluster-bus-status` `cluster-bus-topology` `cluster-bus-send` `cluster-bus-magistrale` |
 | Cognition | 8 | `decision-journal` `confidence-tracker` `mental-model` `intent-tracker` `error-pattern` `self-critique` `smart-handoff` `context-budget` |
 | AI Agents | 4 | `plan` `build` `brainstorm` `ask-ai` |
 | Multi-LLM | 2 | `multi-prompt` `consensus-prompt` |
