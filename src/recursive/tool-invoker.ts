@@ -52,7 +52,7 @@ const memoryRateLimits = new Map<string, { count: number; resetAt: number }>();
 
 /** Periodic cleanup of expired in-memory rate limit entries (every 60s) */
 const RATE_LIMIT_CLEANUP_INTERVAL = 60_000;
-setInterval(() => {
+let rateLimitCleanupTimer: ReturnType<typeof setInterval> | null = setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of memoryRateLimits) {
     if (now >= entry.resetAt) {
@@ -60,6 +60,15 @@ setInterval(() => {
     }
   }
 }, RATE_LIMIT_CLEANUP_INTERVAL);
+
+/** Stop the periodic rate limit cleanup (for graceful shutdown or tests). */
+export function stopRateLimitCleanup(): void {
+  if (rateLimitCleanupTimer) {
+    clearInterval(rateLimitCleanupTimer);
+    rateLimitCleanupTimer = null;
+  }
+  memoryRateLimits.clear();
+}
 
 /** Reusable Map for batch parallel operations to reduce allocations */
 const batchContextCache = new Map<string, InvocationContext | undefined>();

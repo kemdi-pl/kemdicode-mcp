@@ -74,7 +74,8 @@ export class ClusterHealthMonitor {
   private pruneInterval: ReturnType<typeof setInterval> | null = null;
   private _running = false;
   private _pruning = false;
-  private handlers: HealthEventHandler[] = [];
+  private handlers = new Map<string, HealthEventHandler>();
+  private handlerIdCounter = 0;
 
   private stats: HealthMonitorStats = {
     heartbeatsSent: 0,
@@ -150,10 +151,10 @@ export class ClusterHealthMonitor {
 
   /** Register a health event handler. Returns unsubscribe function. */
   onHealthEvent(handler: HealthEventHandler): () => void {
-    this.handlers.push(handler);
+    const id = `heh-${++this.handlerIdCounter}`;
+    this.handlers.set(id, handler);
     return () => {
-      const idx = this.handlers.indexOf(handler);
-      if (idx !== -1) this.handlers.splice(idx, 1);
+      this.handlers.delete(id);
     };
   }
 
@@ -245,7 +246,7 @@ export class ClusterHealthMonitor {
   }
 
   private emitHealthEvent(event: HealthEvent): void {
-    for (const handler of this.handlers) {
+    for (const handler of this.handlers.values()) {
       try {
         const result = handler(event);
         if (result instanceof Promise) {

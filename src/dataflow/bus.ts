@@ -44,8 +44,10 @@ interface Subscription {
  * - Message history for debugging
  */
 class DataFlowBus {
-  private subscriptions = new Map<DataFlowChannel, Subscription[]>();
+  private subscriptions = new Map<DataFlowChannel, Map<string, Subscription>>();
   private messageHistory: DataFlowEnvelope[] = [];
+  private historyWriteIndex = 0;
+  private historyFull = false;
   private messageIds = new Set<string>();
   private readonly maxHistory = 200;
   private redisPublisher: ((channel: string, message: string) => Promise<void>) | null = null;
@@ -99,7 +101,8 @@ class DataFlowBus {
       return envelope.id;
     }
 
-    const subs = this.subscriptions.get(channel) || [];
+    const subsMap = this.subscriptions.get(channel);
+    const subs = subsMap ? [...subsMap.values()] : [];
     const matchingSubs = subs.filter((sub) => this.matchesSubscription(sub, envelope));
 
     const deliveryPromises = matchingSubs.map((sub) => {
@@ -149,17 +152,17 @@ class DataFlowBus {
     };
 
     if (!this.subscriptions.has(channel)) {
-      this.subscriptions.set(channel, []);
+      this.subscriptions.set(channel, new Map());
     }
-    this.subscriptions.get(channel)!.push(sub);
+    this.subscriptions.get(channel)!.set(sub.id, sub);
 
     Logger.debug(`dataflow: subscribed to ${channel} (id: ${sub.id})`);
 
     return () => {
-      const subs = this.subscriptions.get(channel);
-      if (subs) {
-        const idx = subs.findIndex((s) => s.id === sub.id);
-        if (idx !== -1) subs.splice(idx, 1);
+      const subsMap = this.subscriptions.get(channel);
+      if (subsMap) {
+        subsMap.delete(sub.id);
+        if (subsMap.size === 0) this.subscriptions.delete(channel);
       }
     };
   }
@@ -168,9 +171,20 @@ class DataFlowBus {
    * Get recent message history for a channel.
    */
   getHistory(channel?: DataFlowChannel, limit = 50): DataFlowEnvelope[] {
+    // Read circular buffer in chronological order
+    let ordered: DataFlowEnvelope[];
+    if (!this.historyFull) {
+      ordered = this.messageHistory;
+    } else {
+      ordered = [
+        ...this.messageHistory.slice(this.historyWriteIndex),
+        ...this.messageHistory.slice(0, this.historyWriteIndex),
+      ];
+    }
+
     const messages = channel
-      ? this.messageHistory.filter((m) => m.channel === channel)
-      : this.messageHistory;
+      ? ordered.filter((m) => m.channel === channel)
+      : ordered;
 
     return messages.slice(-limit);
   }
@@ -198,7 +212,7 @@ class DataFlowBus {
     }
 
     for (const [channel, subs] of this.subscriptions) {
-      subscriberCounts[channel] = subs.length;
+      subscriberCounts[channel] = subs.size;
     }
 
     return {
@@ -242,7 +256,8 @@ class DataFlowBus {
       // Store and deliver
       this.addToHistory(envelope);
 
-      const subs = this.subscriptions.get(resolvedChannel) || [];
+      const subsMap = this.subscriptions.get(resolvedChannel);
+      const subs = subsMap ? subsMap.values() : [];
 
       for (const sub of subs) {
         if (this.matchesSubscription(sub, envelope)) {
@@ -264,6 +279,8 @@ class DataFlowBus {
   reset(): void {
     this.subscriptions.clear();
     this.messageHistory = [];
+    this.historyWriteIndex = 0;
+    this.historyFull = false;
     this.messageIds.clear();
     this.redisPublisher = null;
     if (this.cleanupInterval) {
@@ -279,15 +296,15 @@ class DataFlowBus {
     const now = Date.now();
     let cleaned = 0;
 
-    for (const [channel, subs] of this.subscriptions) {
-      for (let i = subs.length - 1; i >= 0; i--) {
-        const idleMs = now - subs[i].lastInvokedAt;
+    for (const [channel, subsMap] of this.subscriptions) {
+      for (const [id, sub] of subsMap) {
+        const idleMs = now - sub.lastInvokedAt;
         if (idleMs > this.subscriptionIdleTtlMs) {
-          subs.splice(i, 1);
+          subsMap.delete(id);
           cleaned++;
         }
       }
-      if (subs.length === 0) {
+      if (subsMap.size === 0) {
         this.subscriptions.delete(channel);
       }
     }
@@ -298,11 +315,16 @@ class DataFlowBus {
   }
 
   private addToHistory(envelope: DataFlowEnvelope): void {
-    if (this.messageHistory.length >= this.maxHistory) {
-      const evicted = this.messageHistory.shift();
+    if (this.messageHistory.length < this.maxHistory) {
+      this.messageHistory.push(envelope);
+    } else {
+      // Circular buffer: evict oldest entry
+      const evicted = this.messageHistory[this.historyWriteIndex];
       if (evicted) this.messageIds.delete(evicted.id);
+      this.messageHistory[this.historyWriteIndex] = envelope;
+      this.historyFull = true;
     }
-    this.messageHistory.push(envelope);
+    this.historyWriteIndex = (this.historyWriteIndex + 1) % this.maxHistory;
     this.messageIds.add(envelope.id);
   }
 
