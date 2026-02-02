@@ -1,0 +1,761 @@
+% KemdiCode MCP Server — Technical Whitepaper v1.25.0
+% Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk)
+% Licensed under GNU GPL v3
+
+\documentclass[11pt,a4paper,twoside]{article}
+
+% ── Packages ──────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[english]{babel}
+\usepackage{geometry}
+\geometry{margin=2.5cm,top=3cm,bottom=3cm}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,calc,shapes.geometric,decorations.pathreplacing,backgrounds}
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  linkcolor={blue!60!black},
+  citecolor={blue!60!black},
+  urlcolor={blue!60!black},
+  pdftitle={KemdiCode MCP Server --- Technical Whitepaper v1.25.0},
+  pdfauthor={Dawid Irzyk, Kemdi Sp. z o.o.},
+}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{caption}
+\usepackage{listings}
+\usepackage{microtype}
+\usepackage{amsmath}
+
+% ── Colors ────────────────────────────────────────────────────────
+\definecolor{kemdiblue}{HTML}{1E3A5F}
+\definecolor{kemdilight}{HTML}{4A90D9}
+\definecolor{kemdidark}{HTML}{0D1B2A}
+\definecolor{l3color}{HTML}{C0392B}
+\definecolor{l2color}{HTML}{2980B9}
+\definecolor{l1color}{HTML}{27AE60}
+\definecolor{codebg}{HTML}{F5F5F5}
+\definecolor{graytext}{HTML}{666666}
+
+% ── Header/Footer ─────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE,RO]{\small\thepage}
+\fancyhead[RE]{\small\textit{KemdiCode MCP Server}}
+\fancyhead[LO]{\small\textit{Technical Whitepaper v1.25.0}}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ── Section styling ───────────────────────────────────────────────
+\titleformat{\section}{\Large\bfseries\color{kemdiblue}}{\thesection}{1em}{}
+\titleformat{\subsection}{\large\bfseries\color{kemdiblue!80}}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{kemdiblue!60}}{\thesubsubsection}{1em}{}
+
+% ── Listings ──────────────────────────────────────────────────────
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{gray!30},
+  breaklines=true,
+  tabsize=2,
+  columns=fullflexible,
+}
+
+% ══════════════════════════════════════════════════════════════════
+\begin{document}
+
+% ── Title Page ────────────────────────────────────────────────────
+\begin{titlepage}
+\centering
+\vspace*{3cm}
+
+{\Huge\bfseries\color{kemdiblue} KemdiCode MCP Server}\\[0.6cm]
+{\LARGE\color{kemdidark} Technical Whitepaper}\\[0.3cm]
+{\Large Version 1.25.0}\\[2cm]
+
+\begin{tikzpicture}[
+  layer/.style={draw, rounded corners=4pt, minimum width=10cm, minimum height=1cm, font=\sffamily\small},
+]
+  \node[layer, fill=l3color!15, draw=l3color] (l3) {L3: ClusterBus --- Inter-Cluster Communication};
+  \node[layer, fill=l2color!15, draw=l2color, below=0.4cm of l3] (l2) {L2: DataFlowBus --- Inter-Module Typed Channels};
+  \node[layer, fill=l1color!15, draw=l1color, below=0.4cm of l2] (l1) {L1: GlobalEventBus --- In-Process Events};
+  \draw[-{Stealth}, thick, l3color!60] (l3.south) -- (l2.north);
+  \draw[-{Stealth}, thick, l2color!60] (l2.south) -- (l1.north);
+\end{tikzpicture}
+
+\vfill
+
+{\large Dawid Irzyk}\\[0.2cm]
+{\color{graytext} Kemdi Sp.\ z~o.o.\ --- \href{mailto:dawid@kemdi.pl}{dawid@kemdi.pl}}\\[0.2cm]
+{\color{graytext} \href{https://kemdi.pl}{https://kemdi.pl}}\\[1cm]
+{\color{graytext}\today}
+
+\vspace{1cm}
+{\small\color{graytext} Licensed under the GNU General Public License v3.0}
+\end{titlepage}
+
+% ── Table of Contents ─────────────────────────────────────────────
+\tableofcontents
+\newpage
+
+% ══════════════════════════════════════════════════════════════════
+\section{Abstract}
+
+KemdiCode MCP Server is an open-source implementation of the Model Context Protocol (MCP) that provides 142 specialized tools across 23 categories for AI-assisted software engineering. The server integrates with multiple IDE clients (Claude Code, Cursor, KiroCode, RooCode) via a stateful HTTP transport layer with Server-Sent Events (SSE). Key innovations include a 3-layer bus architecture for distributed multi-cluster communication, a persistent cognition system enabling AI self-awareness across sessions, multi-agent coordination through Redis-backed shared state, and support for 8 LLM providers with intelligent routing and structured output. This paper describes the architecture, design decisions, and implementation details of version 1.25.0.
+
+% ══════════════════════════════════════════════════════════════════
+\section{Introduction}
+
+\subsection{Motivation}
+
+Modern AI-assisted development tools require deep integration between Large Language Models and the developer's working environment. The Model Context Protocol~(MCP), introduced by Anthropic, standardizes the interface between AI clients and tool servers. However, reference implementations typically provide a narrow set of tools with limited state management.
+
+KemdiCode MCP Server extends the MCP paradigm with:
+
+\begin{itemize}[nosep]
+  \item \textbf{Comprehensive tooling} --- 142 tools covering the full software engineering lifecycle.
+  \item \textbf{Persistent cognition} --- AI agents retain decision history, confidence calibration, error patterns, and mental models across sessions.
+  \item \textbf{Distributed execution} --- A 3-layer bus enables multi-cluster LLM orchestration with quality-driven aggregation.
+  \item \textbf{Multi-agent coordination} --- Redis-backed kanban boards, workspaces, agent registration, and message passing.
+  \item \textbf{Provider-agnostic LLM routing} --- 8 providers with fallback chains, cost optimization, and structured output via Zod schemas.
+\end{itemize}
+
+\subsection{Design Principles}
+
+\begin{enumerate}[nosep]
+  \item \textbf{Zero-friction integration.} Every MCP-compatible client works without modification.
+  \item \textbf{Lazy initialization.} Tool schemas and provider connections load on demand.
+  \item \textbf{Fail-safe defaults.} Subsystems degrade gracefully when Redis or LLM providers are unavailable.
+  \item \textbf{Anti-amplification.} Bus bridges enforce hop limits, deduplication, and source guards to prevent feedback loops.
+  \item \textbf{Runtime reconfiguration.} Providers, models, and tool availability can change without server restart.
+\end{enumerate}
+
+% ══════════════════════════════════════════════════════════════════
+\section{System Architecture}
+
+Figure~\ref{fig:arch-overview} shows the high-level architecture from client to infrastructure.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  node distance=0.6cm,
+  box/.style={draw, rounded corners=3pt, minimum width=11cm, minimum height=0.9cm, font=\sffamily\footnotesize, align=center},
+  smallbox/.style={draw, rounded corners=2pt, minimum width=2.4cm, minimum height=0.6cm, font=\sffamily\scriptsize, fill=#1},
+  arr/.style={-{Stealth}, thick, color=kemdiblue!60},
+]
+  % Clients
+  \node[box, fill=kemdiblue!8] (clients) {MCP Clients: Claude Code \quad Cursor \quad KiroCode \quad RooCode};
+
+  % HTTP Server
+  \node[box, fill=kemdiblue!12, below=of clients] (http) {HTTP Server (Bun / Node.js, port 3100) --- SSE + JSON-RPC};
+
+  % Session Manager
+  \node[box, fill=kemdiblue!6, below=of http] (session) {Session Manager --- per-client isolation, CWD injection, activity tracking};
+
+  % Tool Registry
+  \node[box, fill=kemdiblue!10, below=of session] (registry) {Tool Registry --- 142 tools, 23 categories, Zod validation, annotations, lazy loading};
+
+  % Tool categories row
+  \node[smallbox=orange!10, below left=0.7cm and 2cm of registry] (tc1) {Code (8)};
+  \node[smallbox=orange!10, right=0.15cm of tc1] (tc2) {Git (8)};
+  \node[smallbox=orange!10, right=0.15cm of tc2] (tc3) {Kanban (23)};
+  \node[smallbox=orange!10, right=0.15cm of tc3] (tc4) {Cognition (8)};
+  \node[smallbox=orange!10, right=0.15cm of tc4] (tc5) {Cluster (7)};
+
+  % Bus architecture
+  \node[box, fill=l3color!10, below=1.5cm of registry] (bus) {3-Layer Bus: L3 ClusterBus \quad L2 DataFlowBus \quad L1 GlobalEventBus};
+
+  % Infrastructure row
+  \node[smallbox=green!8, below left=0.7cm and 1.5cm of bus] (redis) {Redis (DB 2)};
+  \node[smallbox=green!8, right=0.4cm of redis] (llm) {8 LLM Providers};
+  \node[smallbox=green!8, right=0.4cm of llm] (ts) {Tree-sitter AST};
+  \node[smallbox=green!8, right=0.4cm of ts] (rt) {Runtime Layer};
+
+  % Arrows
+  \draw[arr] (clients) -- (http);
+  \draw[arr] (http) -- (session);
+  \draw[arr] (session) -- (registry);
+  \draw[arr] (registry) -- (bus);
+  \draw[arr] (registry) -- (tc1);
+  \draw[arr] (registry) -- (tc3);
+  \draw[arr] (registry) -- (tc5);
+  \draw[arr] (bus) -- (redis);
+  \draw[arr] (bus) -- (llm);
+\end{tikzpicture}
+\caption{High-level system architecture.}
+\label{fig:arch-overview}
+\end{figure}
+
+\subsection{Transport Layer}
+
+The server exposes an HTTP interface with the following endpoints:
+
+\begin{table}[htbp]
+\centering
+\begin{tabularx}{0.85\textwidth}{llX}
+\toprule
+\textbf{Method} & \textbf{Path} & \textbf{Purpose} \\
+\midrule
+\texttt{GET}  & \texttt{/sse}              & SSE stream for server notifications \\
+\texttt{POST} & \texttt{/message}          & JSON-RPC tool invocations \\
+\texttt{GET}  & \texttt{/stream/:id}       & Per-request execution stream \\
+\texttt{GET}  & \texttt{/health}           & Server health and uptime \\
+\texttt{GET}  & \texttt{/tools}            & Tool listing with schemas \\
+\texttt{GET}  & \texttt{/mcp}              & Streamable HTTP MCP endpoint \\
+\bottomrule
+\end{tabularx}
+\caption{HTTP endpoints.}
+\end{table}
+
+Each connected client receives its own session with isolated working directory, SSE keep-alive, and automatic session ID generation. Session state persists in Redis, enabling recovery after disconnection.
+
+\subsection{Tool Registry}
+
+The tool registry manages 142 tools through a unified \texttt{UnifiedTool} interface:
+
+\begin{itemize}[nosep]
+  \item \textbf{Zod schemas} --- Every tool defines its input schema using Zod. Schemas are converted to JSON Schema for the MCP protocol, with special handling for \texttt{discriminatedUnion} types (flattened into merged object schemas).
+  \item \textbf{Annotations} --- MCP-level hints (\texttt{readOnlyHint}, \texttt{destructiveHint}, \texttt{openWorldHint}) inform clients about tool behavior.
+  \item \textbf{Lazy loading} --- Tool implementations load on first invocation. A background warmup phase pre-loads all schemas after server start and emits \texttt{tools/list\_changed} notifications.
+  \item \textbf{Availability checking} --- Tools report their health status with soft/force modes and suggest fallback alternatives.
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════════
+\section{Tool Categories}
+
+Table~\ref{tab:tools} enumerates all 23 categories with their tool counts and representative tools.
+
+\begin{longtable}{lcp{7.5cm}}
+\toprule
+\textbf{Category} & \textbf{\#} & \textbf{Key Tools} \\
+\midrule
+\endhead
+Cluster Bus      & 7  & \texttt{cluster-bus-status}, \texttt{cluster-bus-send}, \texttt{cluster-bus-magistrale}, \texttt{cluster-bus-topology} \\
+Cognition        & 8  & \texttt{decision-journal}, \texttt{confidence-tracker}, \texttt{mental-model}, \texttt{intent-tracker}, \texttt{error-pattern}, \texttt{self-critique}, \texttt{smart-handoff}, \texttt{context-budget} \\
+AI Agents        & 4  & \texttt{plan}, \texttt{build}, \texttt{brainstorm}, \texttt{ask-ai} \\
+Multi-LLM        & 2  & \texttt{multi-prompt}, \texttt{consensus-prompt} \\
+Code Analysis    & 8  & \texttt{code-review}, \texttt{explain-code}, \texttt{find-definition}, \texttt{find-references}, \texttt{semantic-search}, \texttt{code-outline} \\
+Line Editing     & 4  & \texttt{insert-at-line}, \texttt{delete-lines}, \texttt{replace-lines}, \texttt{replace-content} \\
+Symbol Editing   & 3  & \texttt{insert-before-symbol}, \texttt{insert-after-symbol}, \texttt{rename-symbol} \\
+Code Modification& 5  & \texttt{fix-bug}, \texttt{refactor}, \texttt{auto-fix}, \texttt{auto-fix-agent}, \texttt{write-tests} \\
+Project Memory   & 8  & \texttt{write-memory}, \texttt{read-memory}, \texttt{list-memories}, \texttt{checkpoint-save}, \texttt{checkpoint-restore}, \texttt{checkpoint-diff} \\
+Git              & 8  & \texttt{git-status}, \texttt{git-diff}, \texttt{git-log}, \texttt{git-blame}, \texttt{git-branch}, \texttt{git-add}, \texttt{git-commit}, \texttt{git-stash} \\
+File Operations  & 9  & \texttt{file-read}, \texttt{file-write}, \texttt{file-search}, \texttt{file-tree}, \texttt{file-diff}, \texttt{file-delete}, \texttt{file-move}, \texttt{file-copy} \\
+Project          & 5  & \texttt{project-info}, \texttt{run-script}, \texttt{run-tests}, \texttt{run-lint}, \texttt{check-types} \\
+Kanban Tasks     & 12 & \texttt{task-create}, \texttt{task-list}, \texttt{task-update}, \texttt{task-claim}, \texttt{task-assign}, \texttt{task-cluster}, \texttt{task-complexity} \\
+Kanban Workspaces& 5  & \texttt{workspace-create}, \texttt{workspace-list}, \texttt{workspace-join}, \texttt{workspace-leave}, \texttt{workspace-delete} \\
+Kanban Boards    & 6  & \texttt{board-create}, \texttt{board-list}, \texttt{board-share}, \texttt{board-members}, \texttt{board-invite}, \texttt{board-delete} \\
+Recursive        & 4  & \texttt{invoke-tool}, \texttt{invoke-batch}, \texttt{invocation-log}, \texttt{agent-orchestrate} \\
+Multi-Agent      & 14 & \texttt{agent-list}, \texttt{agent-register}, \texttt{agent-watch}, \texttt{agent-inject}, \texttt{shared-thoughts}, \texttt{get-shared-context} \\
+Pipeline         & 1  & \texttt{pipeline} \\
+Session          & 6  & \texttt{session-list}, \texttt{session-info}, \texttt{session-create}, \texttt{session-recover} \\
+MCP Client       & 3  & \texttt{client-sampling}, \texttt{client-elicit}, \texttt{client-roots} \\
+Knowledge Graph  & 4  & \texttt{graph-query}, \texttt{graph-find-path}, \texttt{loci-recall}, \texttt{sequence-recommend} \\
+Thinking         & 1  & \texttt{thinking-chain} \\
+MPC Security     & 4  & \texttt{mpc-split}, \texttt{mpc-distribute}, \texttt{mpc-reconstruct}, \texttt{mpc-status} \\
+RL Learning      & 2  & \texttt{rl-reward-stats}, \texttt{rl-dopamine-log} \\
+System           & 8  & \texttt{env-info}, \texttt{memory-usage}, \texttt{ai-config}, \texttt{ai-models}, \texttt{tool-health}, \texttt{config}, \texttt{ping}, \texttt{help} \\
+\bottomrule
+\caption{Tool categories in KemdiCode MCP v1.25.0.}
+\label{tab:tools}
+\end{longtable}
+
+% ══════════════════════════════════════════════════════════════════
+\section{3-Layer Bus Architecture}
+
+The bus architecture provides communication at three distinct scopes, connected by anti-amplification bridges. Figure~\ref{fig:bus} illustrates the layered design.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  node distance=0.5cm,
+  layer/.style={draw, rounded corners=4pt, minimum width=12cm, font=\sffamily\footnotesize, align=center, minimum height=1.8cm},
+  bridge/.style={draw, dashed, rounded corners=2pt, minimum width=3cm, minimum height=0.5cm, font=\sffamily\scriptsize, fill=yellow!10},
+  signal/.style={font=\sffamily\tiny, color=graytext},
+]
+  % L3
+  \node[layer, fill=l3color!10, draw=l3color, thick] (l3) {
+    \textbf{L3: ClusterBus} --- Redis Pub/Sub (\texttt{mcp:cluster:*})\\[2pt]
+    12 signal types \quad 3 send modes \quad Dedup (5000+ seen set)\\[1pt]
+    SignalFlowController \quad MetaRouter \quad HealthMonitor
+  };
+
+  % Bridge L3-L2
+  \node[bridge, below=0.35cm of l3] (b32) {EventBridge + DataFlowBridge (hop limit = 5)};
+
+  % L2
+  \node[layer, fill=l2color!10, draw=l2color, thick, below=0.35cm of b32] (l2) {
+    \textbf{L2: DataFlowBus} --- In-process + Redis (\texttt{mcp:dataflow:\{ch\}})\\[2pt]
+    12 typed channels \quad Zod payloads \quad Correlation chains\\[1pt]
+    Priority 0--3 \quad TTL enforcement \quad O(1) unsubscribe
+  };
+
+  % Bridge L2-L1
+  \node[bridge, below=0.35cm of l2] (b21) {CognitionEventBus auto-prefix};
+
+  % L1
+  \node[layer, fill=l1color!10, draw=l1color, thick, below=0.35cm of b21] (l1) {
+    \textbf{L1: GlobalEventBus} --- In-process + Redis (\texttt{mcp:events:\{type\}})\\[2pt]
+    Namespaced events \quad Async handlers \quad Chain depth $\leq$ 8\\[1pt]
+    Redis bridge with retry \quad Capped history (100 events, 1h TTL)
+  };
+
+  % Arrows
+  \draw[-{Stealth}, thick, l3color!50] (l3.south) -- (b32.north);
+  \draw[-{Stealth}, thick, l2color!50] (b32.south) -- (l2.north);
+  \draw[-{Stealth}, thick, l2color!50] (l2.south) -- (b21.north);
+  \draw[-{Stealth}, thick, l1color!50] (b21.south) -- (l1.north);
+
+  % Anti-amp label
+  \node[font=\sffamily\tiny, color=red!60!black, right=0.1cm of b32] {anti-echo guards};
+  \node[font=\sffamily\tiny, color=red!60!black, right=0.1cm of b21] {chain depth limit};
+\end{tikzpicture}
+\caption{3-layer bus architecture with anti-amplification bridges.}
+\label{fig:bus}
+\end{figure}
+
+\subsection{L3: ClusterBus}
+
+The ClusterBus enables inter-cluster communication over Redis Pub/Sub. It supports 12 signal types grouped into four namespaces:
+
+\begin{table}[htbp]
+\centering
+\begin{tabularx}{0.9\textwidth}{lX}
+\toprule
+\textbf{Namespace} & \textbf{Signal Types} \\
+\midrule
+\texttt{llm:*}      & \texttt{request}, \texttt{result}, \texttt{stream-chunk}, \texttt{error} \\
+\texttt{cluster:*}   & \texttt{join}, \texttt{leave}, \texttt{heartbeat} \\
+\texttt{data:*}      & \texttt{broadcast}, \texttt{unicast} \\
+\texttt{control:*}   & \texttt{pause}, \texttt{resume}, \texttt{config} \\
+\bottomrule
+\end{tabularx}
+\caption{ClusterBus signal types.}
+\end{table}
+
+Three send modes are supported: \textbf{unicast} (target a specific node), \textbf{broadcast} (all nodes), and \textbf{routed} (via MetaRouter tag-based rules with AND/OR logic). The \texttt{SignalFlowController} provides backpressure, rate limiting, priority filtering, circuit breaking, bloom filter deduplication, and HMAC authentication.
+
+\subsection{L2: DataFlowBus}
+
+The DataFlowBus provides 12 typed channels with Zod-validated payloads for inter-module communication:
+
+\begin{itemize}[nosep]
+  \item \textbf{AI channels:} \texttt{ai:completion}, \texttt{ai:structured}, \texttt{ai:research}
+  \item \textbf{Kanban channels:} \texttt{kanban:task-change}, \texttt{kanban:complexity}
+  \item \textbf{Cognition channels:} \texttt{cognition:decision}, \texttt{cognition:intent}, \texttt{cognition:error}
+  \item \textbf{Agent channels:} \texttt{agent:status}, \texttt{agent:message}
+  \item \textbf{System channels:} \texttt{system:health}, \texttt{system:config}
+\end{itemize}
+
+Each message is wrapped in a \texttt{DataFlowEnvelope} carrying metadata: correlation ID, schema version, priority (0--3), TTL, source/target filters, session ID, and agent ID.
+
+\subsection{L1: GlobalEventBus}
+
+The GlobalEventBus is an in-process singleton with namespaced events (pattern: \texttt{module:category:action}). Handlers execute asynchronously via \texttt{queueMicrotask} with configurable priority. A maximum chain depth of~8 prevents cascading event storms. The Redis bridge propagates events across sessions with 2-retry backoff and capped history.
+
+\subsection{Anti-Amplification Guards}
+
+Bridges between layers employ four mechanisms to prevent feedback loops:
+
+\begin{table}[htbp]
+\centering
+\begin{tabularx}{0.9\textwidth}{llX}
+\toprule
+\textbf{Guard} & \textbf{Location} & \textbf{Mechanism} \\
+\midrule
+Hop limit      & bridges.ts      & \texttt{MAX\_BRIDGE\_HOPS = 5}; signals carry \texttt{\_bridgeHops} counter \\
+Source prefix   & bridges.ts      & Skip messages with \texttt{source.startsWith("cluster:")} \\
+Dedup          & bus.ts          & ClusterBus: seen set (5000+); DataFlowBus: message ID set \\
+Chain depth     & global-bus.ts   & \texttt{MAX\_EVENT\_CHAIN\_DEPTH = 8} on nested emits \\
+\bottomrule
+\end{tabularx}
+\caption{Anti-amplification guards.}
+\end{table}
+
+% ══════════════════════════════════════════════════════════════════
+\section{LLM Magistrale}
+
+The LLM Magistrale orchestrates distributed prompt execution across multiple clusters. Figure~\ref{fig:magistrale} shows the dispatch flow.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  node distance=0.8cm,
+  box/.style={draw, rounded corners=3pt, minimum width=3cm, minimum height=0.8cm, font=\sffamily\small, align=center},
+  arr/.style={-{Stealth}, thick},
+]
+  % Client
+  \node[box, fill=kemdiblue!10] (client) {MCP Client};
+
+  % Magistrale
+  \node[box, fill=l3color!15, below=of client] (mag) {LLM Magistrale};
+
+  % Pass Controller
+  \node[box, fill=l3color!8, below=of mag] (pass) {PassController};
+
+  % Clusters
+  \node[box, fill=l2color!10, below left=1cm and 1.5cm of pass] (ca) {Cluster A\\(Anthropic)};
+  \node[box, fill=l2color!10, below=1cm of pass] (cb) {Cluster B\\(OpenAI)};
+  \node[box, fill=l2color!10, below right=1cm and 1.5cm of pass] (cc) {Cluster C\\(Gemini)};
+
+  % Aggregator
+  \node[box, fill=l1color!10, below=2.5cm of pass] (agg) {Strategy Aggregator};
+
+  % Arrows
+  \draw[arr] (client) -- node[right, font=\sffamily\scriptsize] {prompt} (mag);
+  \draw[arr] (mag) -- node[right, font=\sffamily\scriptsize] {assess} (pass);
+  \draw[arr, dashed] (pass) -- (ca);
+  \draw[arr, dashed] (pass) -- (cb);
+  \draw[arr, dashed] (pass) -- (cc);
+  \draw[arr, dotted] (ca) -- (agg);
+  \draw[arr, dotted] (cb) -- (agg);
+  \draw[arr, dotted] (cc) -- (agg);
+  \draw[arr] (agg.south) -- ++(0,-0.6) node[below, font=\sffamily\scriptsize] {result};
+\end{tikzpicture}
+\caption{LLM Magistrale dispatch and aggregation.}
+\label{fig:magistrale}
+\end{figure}
+
+\subsection{Aggregation Strategies}
+
+\begin{table}[htbp]
+\centering
+\begin{tabularx}{0.95\textwidth}{lXl}
+\toprule
+\textbf{Strategy} & \textbf{Behavior} & \textbf{Use Case} \\
+\midrule
+\texttt{first-wins}     & Return first response, cancel remaining  & Low-latency queries \\
+\texttt{best-of-n}      & Score all responses, pick highest quality & Code generation \\
+\texttt{consensus}       & Jaccard similarity scoring, require agreement & Architecture decisions \\
+\texttt{fallback-chain}  & Try clusters in order, stop on success   & High availability \\
+\bottomrule
+\end{tabularx}
+\caption{Magistrale aggregation strategies.}
+\end{table}
+
+\subsection{PassController}
+
+The PassController governs multi-pass LLM execution within a single cluster:
+
+\begin{itemize}[nosep]
+  \item \texttt{min-passes} --- the LLM self-assesses task complexity and declares a minimum pass count (capped to \texttt{maxPasses} budget), with early-stop on quality.
+  \item \texttt{quality-target} --- iterates until quality $\geq$ threshold or budget exhaustion.
+  \item \texttt{fixed} --- skips assessment, executes exactly $N$ passes.
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════════
+\section{Cognition System}
+
+The cognition layer provides persistent AI self-awareness across sessions via 8 Redis-backed stores, interconnected by a cross-linker. Figure~\ref{fig:cognition} shows the store relationships.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  node distance=0.6cm and 0.8cm,
+  store/.style={draw, rounded corners=3pt, minimum width=2.6cm, minimum height=1cm, font=\sffamily\scriptsize, align=center, fill=#1},
+  link/.style={<->, thin, dashed, color=kemdiblue!40},
+]
+  % Top row
+  \node[store=blue!8]   (dec) {Decision\\Journal};
+  \node[store=green!8, right=of dec]  (conf) {Confidence\\Tracker};
+  \node[store=orange!8, right=of conf] (intent) {Intent\\Tracker};
+
+  % Center
+  \node[store=kemdiblue!15, below=1.2cm of conf] (xlink) {Cognition\\CrossLinker};
+
+  % Bottom row
+  \node[store=red!8, below left=1.2cm and 0.8cm of xlink]   (err) {Error\\Pattern DB};
+  \node[store=purple!8, below=1.2cm of xlink] (crit) {Self-\\Critique};
+  \node[store=yellow!12, below right=1.2cm and 0.8cm of xlink] (model) {Mental\\Model};
+
+  % Side stores
+  \node[store=teal!8, left=0.5cm of err] (hand) {Handoff\\Store};
+  \node[store=cyan!8, right=0.5cm of model] (budget) {Context\\Budget};
+
+  % Ambient + Rank (outside main ring)
+  \node[store=lime!10, above left=0.3cm and 1.5cm of dec] (ambient) {Ambient\\Learner};
+  \node[store=pink!10, above right=0.3cm and 1.5cm of intent] (rank) {Agent\\Rank};
+
+  % Links through cross-linker
+  \draw[link] (dec) -- (xlink);
+  \draw[link] (conf) -- (xlink);
+  \draw[link] (intent) -- (xlink);
+  \draw[link] (err) -- (xlink);
+  \draw[link] (crit) -- (xlink);
+  \draw[link] (model) -- (xlink);
+  \draw[link] (hand) -- (xlink);
+  \draw[link] (budget) -- (xlink);
+
+  % Ambient and rank feed into main system
+  \draw[-{Stealth}, thin, dotted] (ambient) -- (dec);
+  \draw[-{Stealth}, thin, dotted] (rank) -- (conf);
+\end{tikzpicture}
+\caption{Cognition stores interconnected via CognitionCrossLinker.}
+\label{fig:cognition}
+\end{figure}
+
+\subsection{Store Descriptions}
+
+\begin{description}[style=nextline, font=\normalfont\bfseries]
+  \item[DecisionJournal] Records decisions with options, reasoning, and outcome tracking. Supports retrospective evaluation.
+  \item[ConfidenceTracker] Maintains calibrated confidence scores (0--1) per domain with trend analysis.
+  \item[IntentTracker] Hierarchical goal tracking with mission, sub-goals, and drift detection.
+  \item[ErrorPatternDB] Cross-session error database. Matches symptoms to known patterns and suggests fixes.
+  \item[SelfCritiqueStore] Post-session reflection producing lessons learned. Supports check-application queries.
+  \item[MentalModelStore] Component-relationship maps for system architecture with dependency chains and invariant checks.
+  \item[HandoffStore] Auto-enriched session snapshots for structured context transfer between agents.
+  \item[ContextBudgetManager] Token estimation for context windows with trim suggestions.
+  \item[AmbientLearner] Silent background knowledge gathering: tool usage sequences, file relationships, time patterns.
+  \item[AgentRankStore] Composite scoring system with tiers from bronze to diamond, with temporal decay.
+\end{description}
+
+\subsection{Reactive Event Handlers}
+
+The cognition system reacts to events via 9 handlers on the GlobalEventBus:
+
+\begin{enumerate}[nosep]
+  \item \texttt{decision:recorded} $\to$ auto-create confidence record + cross-link.
+  \item \texttt{confidence:low} $\to$ check intent drift.
+  \item \texttt{error:recorded} $\to$ scan recent decisions for causal links.
+  \item \texttt{error:matched} $\to$ log known fix suggestion.
+  \item \texttt{critique:lesson-learned} $\to$ link to error patterns.
+  \item \texttt{intent:drifted} $\to$ trigger self-critique.
+  \item \texttt{handoff:created} $\to$ link mental models.
+  \item \texttt{model:stale} $\to$ flag affected decisions and intents.
+  \item \texttt{confidence:outcome} $\to$ propagate to linked decisions.
+\end{enumerate}
+
+% ══════════════════════════════════════════════════════════════════
+\section{Multi-Agent Coordination}
+
+KemdiCode supports multi-agent workflows where multiple AI sessions collaborate on shared tasks. The coordination infrastructure consists of:
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  node distance=0.8cm,
+  agent/.style={draw, rounded corners=3pt, minimum width=3.5cm, minimum height=1cm, font=\sffamily\small, align=center, fill=#1},
+  infra/.style={draw, rounded corners=3pt, minimum width=4cm, minimum height=0.8cm, font=\sffamily\small, align=center, fill=gray!8},
+]
+  \node[agent=blue!10] (lead) {Session A\\(Supervisor)};
+  \node[agent=green!10, right=2.5cm of lead] (worker) {Session B\\(Worker)};
+
+  \node[infra, below=1.5cm of $(lead)!0.5!(worker)$] (redis) {Redis Pub/Sub};
+  \node[infra, below=0.6cm of redis] (kanban) {Kanban System\\(Workspaces $\to$ Boards $\to$ Tasks)};
+
+  \draw[-{Stealth}, thick] (lead) -- node[left, font=\sffamily\scriptsize, align=right] {register\\inject\\alert} (redis);
+  \draw[-{Stealth}, thick] (worker) -- node[right, font=\sffamily\scriptsize, align=left] {watch\\claim\\report} (redis);
+  \draw[{Stealth}-{Stealth}, thick] (redis) -- (kanban);
+\end{tikzpicture}
+\caption{Multi-agent coordination via Redis and kanban.}
+\label{fig:multiagent}
+\end{figure}
+
+\begin{itemize}[nosep]
+  \item \textbf{Agent Registry} --- agents register with role, capabilities, and status. Discovery via \texttt{agent-list}.
+  \item \textbf{Message Passing} --- \texttt{agent-inject} sends context to specific agents; \texttt{agent-alert} broadcasts to all.
+  \item \textbf{Shared Thoughts} --- collective knowledge accessible by all agents via \texttt{shared-thoughts}.
+  \item \textbf{Kanban Boards} --- workspaces with role-based membership (owner/admin/member/viewer), boards, and tasks with claiming, assignment, comments, and LLM-driven clustering.
+  \item \textbf{Task Complexity} --- AI-powered estimation of task difficulty with priority scoring.
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════════
+\section{LLM Provider Integration}
+
+\subsection{Supported Providers}
+
+KemdiCode integrates 8 LLM providers through a unified routing layer:
+
+\begin{table}[htbp]
+\centering
+\begin{tabularx}{0.9\textwidth}{llcX}
+\toprule
+\textbf{Provider} & \textbf{Alias} & \textbf{SDK} & \textbf{Notes} \\
+\midrule
+Anthropic   & \texttt{a} & Native  & Claude models, extended thinking tokens \\
+OpenAI      & \texttt{o} & Native  & GPT-4, o1, structured output \\
+Gemini      & \texttt{g} & Native  & Gemini Pro/Flash/Ultra \\
+Groq        & \texttt{q} & Compat. & Fast inference, Llama/Mixtral \\
+DeepSeek    & \texttt{d} & Compat. & DeepSeek-V3, R1 \\
+Ollama      & \texttt{l} & Compat. & Local models, zero cost \\
+OpenRouter  & \texttt{r} & Compat. & Unified gateway to 100+ models \\
+Perplexity  & \texttt{p} & Compat. & Sonar search-augmented models \\
+\bottomrule
+\end{tabularx}
+\caption{LLM providers. ``Compat.'' denotes OpenAI-compatible adapters.}
+\end{table}
+
+\subsection{Model Specification Syntax}
+
+Models are specified as \texttt{provider:model:thinking}, for example:
+
+\begin{itemize}[nosep]
+  \item \texttt{a:claude-sonnet-4-5:4k} --- Anthropic Claude Sonnet 4.5 with 4K thinking tokens
+  \item \texttt{o:gpt-4o} --- OpenAI GPT-4o
+  \item \texttt{p:sonar-pro} --- Perplexity Sonar Pro
+  \item \texttt{l:llama3} --- Ollama local Llama 3
+\end{itemize}
+
+\subsection{Structured Output}
+
+The \texttt{generateObject()} function produces typed responses using Zod schemas. It employs \texttt{jsonrepair} to handle malformed LLM JSON output, providing reliable structured data extraction across all providers.
+
+% ══════════════════════════════════════════════════════════════════
+\section{Security}
+
+\subsection{Multi-Party Computation}
+
+KemdiCode includes a Shamir's Secret Sharing implementation for distributed secret management:
+
+\begin{enumerate}[nosep]
+  \item \texttt{mpc-split} --- Split a secret into $n$ shares with threshold $t$.
+  \item \texttt{mpc-distribute} --- Distribute shares to agents via encrypted Redis channels.
+  \item \texttt{mpc-reconstruct} --- Reconstruct the secret from $\geq t$ shares.
+  \item \texttt{mpc-status} --- Monitor share distribution and reconstruction state.
+\end{enumerate}
+
+\subsection{Input Validation}
+
+\begin{itemize}[nosep]
+  \item All tool inputs validated via Zod schemas before execution.
+  \item File paths undergo traversal protection (\texttt{validatePathSafe()}).
+  \item Redis JSON parsing uses prototype pollution protection (blocked keys: \texttt{\_\_proto\_\_}, \texttt{constructor}, \texttt{prototype}).
+  \item ClusterBus signals authenticated via HMAC.
+  \item MetaRouter regex patterns capped at 200 characters to prevent ReDoS.
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════════
+\section{Knowledge Graph}
+
+The Loci subsystem implements a knowledge graph for error-to-solution pathfinding:
+
+\begin{itemize}[nosep]
+  \item \textbf{graph-query} --- traverse nodes and edges in the knowledge graph.
+  \item \textbf{graph-find-path} --- find shortest path between two concepts (e.g., error symptom to fix).
+  \item \textbf{loci-recall} --- retrieve ambient learning insights.
+  \item \textbf{sequence-recommend} --- suggest next tool invocation based on historical usage patterns.
+\end{itemize}
+
+The graph is stored in Redis with bidirectional edges, enabling both forward (symptom $\to$ cause $\to$ fix) and reverse (fix $\to$ where applied) traversals.
+
+% ══════════════════════════════════════════════════════════════════
+\section{Recursive Tool Invocation}
+
+The recursive invocation system allows tools to call other tools, enabling autonomous agent loops:
+
+\begin{itemize}[nosep]
+  \item \textbf{invoke-tool} --- Call any registered tool with arguments, respecting depth limits.
+  \item \textbf{invoke-batch} --- Execute multiple tool calls in parallel with concurrency control.
+  \item \textbf{agent-orchestrate} --- Autonomous loop: plan $\to$ execute $\to$ evaluate $\to$ repeat.
+  \item \textbf{pipeline} --- Define sequential/parallel tool chains with data passing between stages.
+\end{itemize}
+
+Safety constraints include configurable maximum recursion depth, per-invocation timeout, and invocation logging for auditability.
+
+% ══════════════════════════════════════════════════════════════════
+\section{Session Management}
+
+Sessions provide isolated execution contexts per client connection:
+
+\begin{itemize}[nosep]
+  \item Automatic session ID generation with Redis persistence.
+  \item Per-session working directory (CWD) injection.
+  \item SSE keep-alive with configurable heartbeat interval.
+  \item \textbf{Session recovery} (\texttt{session-recover}) --- single-call restoration of active-session memory, latest handoff, loci resurrection, tool availability, agent rankings, and ambient learning insights.
+  \item Session switching for multi-context workflows.
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════════
+\section{Infrastructure}
+
+\subsection{Redis Schema}
+
+All persistent state uses Redis DB~2 with the following key patterns:
+
+\begin{table}[htbp]
+\centering
+\begin{tabularx}{0.85\textwidth}{lX}
+\toprule
+\textbf{Key Pattern} & \textbf{Purpose} \\
+\midrule
+\texttt{mcp:context:*}   & Shared tool outputs for multi-agent context \\
+\texttt{mcp:agents:*}    & Agent registry, rankings, and status \\
+\texttt{mcp:messages:*}  & Inter-agent message queues \\
+\texttt{mcp:kanban:*}    & Tasks, boards, workspaces, clusters \\
+\texttt{mcp:memory:*}    & Project memory entries \\
+\texttt{mcp:cognition:*} & Decisions, confidence, models, intents, errors, lessons \\
+\texttt{mcp:cluster:*}   & Cluster bus signals and registry \\
+\texttt{mcp:dataflow:*}  & Typed message channels \\
+\texttt{mcp:events:*}    & Event history and propagation \\
+\texttt{mcp:channel:*}   & Pub/Sub channel metadata \\
+\bottomrule
+\end{tabularx}
+\caption{Redis key schema (DB~2).}
+\end{table}
+
+\subsection{Runtime Compatibility}
+
+The server runs on both Bun and Node.js runtimes. A runtime abstraction layer (\texttt{src/runtime/}) provides unified interfaces for HTTP, process management, and cryptographic operations, with automatic runtime detection.
+
+\subsection{Code Analysis Engine}
+
+Tree-sitter WASM parsers provide AST-based code analysis for 19 programming languages, enabling symbol navigation, definition finding, reference searching, and safe rename operations across polyglot codebases.
+
+% ══════════════════════════════════════════════════════════════════
+\section{Performance Considerations}
+
+\begin{itemize}[nosep]
+  \item \textbf{Lazy schema loading} --- Tool schemas load on first invocation; background warmup runs after server start without blocking client connections.
+  \item \textbf{O(1) unsubscribe} --- Both DataFlowBus and HealthMonitor use \texttt{Map}-based subscription tracking for constant-time cleanup.
+  \item \textbf{Circuit breakers} --- SignalFlowController implements circuit breaking to prevent cascade failures in the cluster bus.
+  \item \textbf{Bloom filter deduplication} --- ClusterBus uses a bloom filter for probabilistic dedup, with a secondary seen-set for exactness.
+  \item \textbf{Backpressure} --- Signal flow control with queue depth monitoring, buffer/drop policies, and priority-based filtering.
+  \item \textbf{Idle cleanup} --- DataFlowBus subscriptions expire after 60 minutes of inactivity; HealthMonitor prunes stale nodes automatically.
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════════
+\section{Client Compatibility}
+
+KemdiCode MCP Server is fully compatible with all major MCP clients:
+
+\begin{table}[htbp]
+\centering
+\begin{tabularx}{0.7\textwidth}{lc}
+\toprule
+\textbf{IDE / Editor} & \textbf{Status} \\
+\midrule
+Claude Code  & Fully supported (primary) \\
+Cursor       & Fully supported \\
+KiroCode     & Fully supported \\
+RooCode      & Fully supported \\
+\bottomrule
+\end{tabularx}
+\caption{Client compatibility matrix.}
+\end{table}
+
+% ══════════════════════════════════════════════════════════════════
+\section{Conclusion}
+
+KemdiCode MCP Server v1.25.0 demonstrates that the Model Context Protocol can serve as a foundation for comprehensive AI-assisted software engineering. By combining 142 specialized tools, a 3-layer distributed bus architecture, persistent cognition, and multi-provider LLM orchestration, the server transforms MCP from a simple tool-calling interface into a full-featured AI development platform.
+
+The architecture prioritizes safety through anti-amplification guards, input validation, HMAC authentication, and prototype pollution protection. Lazy initialization and runtime reconfiguration ensure the server remains responsive under varying workloads and configurations.
+
+Future work includes expanding the knowledge graph with cross-project learning, adding WebSocket transport support, and deepening the reinforcement learning subsystem for autonomous tool selection optimization.
+
+\vspace{1cm}
+\noindent\rule{\textwidth}{0.4pt}
+\vspace{0.3cm}
+
+\noindent{\small\textbf{KemdiCode MCP Server} is open-source software licensed under the GNU General Public License v3.0.\\
+Source code: \href{https://git.kemdi.pl}{git.kemdi.pl}\\
+Author: Dawid Irzyk --- \href{mailto:dawid@kemdi.pl}{dawid@kemdi.pl} --- Kemdi Sp.\ z~o.o.}
+
+\end{document}

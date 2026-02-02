@@ -43,12 +43,12 @@
 +------------------------------------------------------------------+
 |  Tool Categories:                                                |
 |                                                                  |
-|  cluster-bus (7) | cognition (8)  | ai-agents (4) | multi-llm(3)|
-|  code (8)        | edit (7)       | code-mod (5)  | memory (8)  |
+|  cluster-bus (7) | cognition (8)  | ai-agents (4) | multi-llm(2)|
+|  code (8)        | edit (4)       | code-mod (5)  | memory (8)  |
 |  git (8)         | file (9)       | project (5)   | kanban (23) |
 |  recursive (4)   | multi-agent(14)| pipeline (1)  | session (6) |
 |  mcp-client (3)  | knowledge (4)  | thinking (1)  | mpc (4)     |
-|  rl (2)          | system (11)    |               |             |
+|  rl (2)          | system (8)     |               |             |
 +------------------------------------------------------------------+
    |         |         |         |
    v         v         v         v
