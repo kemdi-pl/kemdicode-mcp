@@ -180,9 +180,76 @@ export interface AgenticLoopResult {
 // Tool Call Parser (text-based fallback)
 // ---------------------------------------------------------------------------
 
-const TOOL_CALL_REGEX = /```tool-call\s*([\s\S]*?)\s*```/g;
-const RESULT_REGEX = /```result\s*([\s\S]*?)\s*```/g;
-const SUB_AGENT_REGEX = /```sub-agent\s*([\s\S]*?)\s*```/g;
+// Safer regex with possessive-like behavior via atomic groups workaround
+// Input is already truncated to MAX_PARSE_LENGTH before these are applied
+const TOOL_CALL_REGEX = /```tool-call\s*([^`]*(?:`(?!``)[^`]*)*)\s*```/g;
+const RESULT_REGEX = /```result\s*([^`]*(?:`(?!``)[^`]*)*)\s*```/g;
+const SUB_AGENT_REGEX = /```sub-agent\s*([^`]*(?:`(?!``)[^`]*)*)\s*```/g;
+
+/**
+ * Default-deny safe tools list.
+ * When allowedTools is not explicitly configured, only these read-only,
+ * non-destructive tools are available to agents.
+ */
+const SAFE_TOOLS: readonly string[] = [
+  // Read-only code analysis
+  'code-review', 'explain-code', 'find-definition', 'find-references',
+  'find-symbols', 'semantic-search', 'code-outline', 'analyze-deps',
+  // Read-only file operations
+  'file-read', 'file-search', 'file-tree', 'file-diff',
+  // Read-only project info
+  'project-info', 'env-info', 'help', 'ping',
+  // Read-only git
+  'git-status', 'git-diff', 'git-log', 'git-blame',
+  // Read-only memory
+  'read-memory', 'list-memories',
+  // Read-only session/context
+  'session-info', 'session-list', 'get-shared-context', 'shared-thoughts',
+  // AI tools (non-destructive)
+  'ask-ai', 'brainstorm', 'multi-prompt', 'consensus-prompt',
+  // Cognition (read + record)
+  'decision-journal', 'confidence-tracker', 'mental-model', 'intent-tracker',
+  'error-pattern', 'self-critique', 'context-budget',
+  // Kanban read
+  'task-list', 'task-get', 'board-status',
+  // Thinking
+  'thinking-chain',
+] as const;
+
+/**
+ * Global sub-agent budget to prevent fork-bomb resource exhaustion.
+ * Shared across all loops in the same process.
+ */
+let globalSubAgentCount = 0;
+const MAX_TOTAL_SUB_AGENTS = 10;
+
+function acquireSubAgentSlot(): boolean {
+  if (globalSubAgentCount >= MAX_TOTAL_SUB_AGENTS) return false;
+  globalSubAgentCount++;
+  return true;
+}
+
+function releaseSubAgentSlot(): void {
+  if (globalSubAgentCount > 0) globalSubAgentCount--;
+}
+
+/** Exported for testing */
+export function getSubAgentCount(): number { return globalSubAgentCount; }
+export function resetSubAgentCount(): void { globalSubAgentCount = 0; }
+
+/**
+ * Recursively strip prototype pollution keys from parsed JSON.
+ */
+function sanitizeParsedJSON(obj: unknown): unknown {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeParsedJSON);
+  const clean: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
+    clean[key] = sanitizeParsedJSON(value);
+  }
+  return clean;
+}
 
 /** Maximum input length for regex parsing to prevent ReDoS (500KB) */
 const MAX_PARSE_LENGTH = envInt('MCP_MAX_PARSE_LENGTH', 512_000);
@@ -202,12 +269,14 @@ export function parseToolCalls(response: string): ToolCall[] {
   TOOL_CALL_REGEX.lastIndex = 0;
   while ((match = TOOL_CALL_REGEX.exec(response)) !== null) {
     try {
-      const parsed = JSON.parse(match[1]);
+      const raw = JSON.parse(match[1]);
+      // Sanitize to prevent prototype pollution from AI-generated JSON
+      const parsed = sanitizeParsedJSON(raw) as Record<string, unknown>;
       if (parsed.tool && typeof parsed.tool === 'string') {
         calls.push({
-          tool: parsed.tool,
-          args: parsed.args || {},
-          id: parsed.id || uuidv4(),
+          tool: parsed.tool as string,
+          args: (parsed.args || {}) as Record<string, unknown>,
+          id: (parsed.id as string) || uuidv4(),
         });
       }
     } catch {
@@ -244,11 +313,12 @@ export function parseSubAgentRequests(response: string): Array<{ task: string; a
   let match: RegExpExecArray | null;
   while ((match = SUB_AGENT_REGEX.exec(response)) !== null) {
     try {
-      const parsed = JSON.parse(match[1]);
+      const raw = JSON.parse(match[1]);
+      const parsed = sanitizeParsedJSON(raw) as Record<string, unknown>;
       if (parsed.task && typeof parsed.task === 'string') {
         requests.push({
-          task: parsed.task,
-          agent: parsed.agent || 'general',
+          task: parsed.task as string,
+          agent: (parsed.agent as AgentType) || 'general',
         });
       }
     } catch {
@@ -720,6 +790,11 @@ async function executeWithFunctionCalling(
             messages.push({ role: 'user', content: `Sub-agent skipped (loop detected): "${req.task.slice(0, 60)}"` });
             continue;
           }
+          if (!acquireSubAgentSlot()) {
+            progress(`Sub-agent budget exhausted (max ${MAX_TOTAL_SUB_AGENTS}), skipping: ${req.task.slice(0, 60)}...`);
+            messages.push({ role: 'user', content: `Sub-agent skipped (global budget exhausted, max ${MAX_TOTAL_SUB_AGENTS}): "${req.task.slice(0, 60)}"` });
+            continue;
+          }
           progress(`Spawning sub-agent: ${req.task.slice(0, 60)}...`);
           emitLoop?.('loop:sub-agent-spawned', {
             subTask: req.task.slice(0, 200),
@@ -753,6 +828,8 @@ async function executeWithFunctionCalling(
           } catch (error) {
             const errMsg = error instanceof Error ? error.message : String(error);
             messages.push({ role: 'user', content: `Sub-agent error: ${errMsg}` });
+          } finally {
+            releaseSubAgentSlot();
           }
         }
       }
@@ -815,6 +892,11 @@ async function executeWithFunctionCalling(
           messages.push({ role: 'user', content: `Sub-agent skipped (loop detected): "${req.task.slice(0, 60)}"` });
           continue;
         }
+        if (!acquireSubAgentSlot()) {
+          progress(`Sub-agent budget exhausted (max ${MAX_TOTAL_SUB_AGENTS}), skipping: ${req.task.slice(0, 60)}...`);
+          messages.push({ role: 'user', content: `Sub-agent skipped (global budget exhausted): "${req.task.slice(0, 60)}"` });
+          continue;
+        }
         progress(`Spawning sub-agent: ${req.task.slice(0, 60)}...`);
         const updatedHistory = [...subAgentHistory, normalizeTask(req.task)];
         try {
@@ -842,6 +924,8 @@ async function executeWithFunctionCalling(
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : String(error);
           messages.push({ role: 'user', content: `Sub-agent error: ${errMsg}` });
+        } finally {
+          releaseSubAgentSlot();
         }
       }
     } else {
@@ -985,6 +1069,11 @@ async function executeWithTextParsing(
           conversationContext += `\n[sub-agent] Skipped (loop detected): "${req.task.slice(0, 60)}"\n`;
           continue;
         }
+        if (!acquireSubAgentSlot()) {
+          progress(`Sub-agent budget exhausted (max ${MAX_TOTAL_SUB_AGENTS}), skipping: ${req.task.slice(0, 60)}...`);
+          conversationContext += `\n[sub-agent] Skipped (global budget exhausted, max ${MAX_TOTAL_SUB_AGENTS}): "${req.task.slice(0, 60)}"\n`;
+          continue;
+        }
         progress(`Spawning sub-agent: ${req.task.slice(0, 60)}...`);
         emitLoop?.('loop:sub-agent-spawned', {
           subTask: req.task.slice(0, 200),
@@ -1014,6 +1103,8 @@ async function executeWithTextParsing(
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : String(error);
           conversationContext += `\n[sub-agent ERROR]: ${errMsg}\n`;
+        } finally {
+          releaseSubAgentSlot();
         }
       }
     } else if (subAgentReqs.length > 0) {
@@ -1061,12 +1152,15 @@ export async function executeAgenticLoop(config: AgenticLoopConfig): Promise<Age
   const emitLoop = (type: string, extra: Record<string, unknown>, publishToRedis = false) =>
     bus.emit(type, { loopId, ...extra }, loopMeta, publishToRedis ? { publishToRedis: true } : undefined);
 
-  // Build available tools list
-  let availableTools: string[] | undefined;
+  // Build available tools list — DEFAULT-DENY policy
+  // When allowedTools is not explicitly set, only safe read-only tools are available.
+  // This prevents agents from accessing shell-exec, file-write, file-delete etc. by default.
+  let availableTools: string[];
   if (config.allowedTools?.length) {
     availableTools = [...config.allowedTools];
-  } else if (executor.listAvailable) {
-    availableTools = executor.listAvailable();
+  } else {
+    availableTools = [...SAFE_TOOLS];
+    Logger.debug(`agentic-loop: default-deny policy applied, ${availableTools.length} safe tools available`);
   }
 
   // Auto-add cognitive tools when enableCognition is set

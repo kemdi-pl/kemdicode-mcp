@@ -24,6 +24,59 @@ import type { GlobalEvent, RedisEventOptions } from './types.js';
 const DEFAULT_HISTORY_CAP = 100;
 const DEFAULT_HISTORY_TTL = 3600; // 1 hour
 
+// Shared subscriber singleton — avoids creating new Redis connections per subscription
+let sharedSubscriber: import('ioredis').Redis | null = null;
+const activeSubscriptions = new Map<string, (event: GlobalEvent) => void>();
+
+/**
+ * Get or create the shared Redis subscriber instance.
+ * Auto-resubscribes all active patterns on reconnect.
+ */
+async function getSharedSubscriber(): Promise<import('ioredis').Redis> {
+  if (sharedSubscriber) return sharedSubscriber;
+
+  const { Redis } = await import('ioredis');
+
+  sharedSubscriber = new Redis({
+    host: process.env.REDIS_HOST || '127.0.0.1',
+    port: parseInt(process.env.REDIS_PORT || '6379'),
+    password: process.env.REDIS_PASSWORD || undefined,
+    db: 2,
+  });
+
+  sharedSubscriber.on('error', (err: Error) => {
+    Logger.error(`[RedisBridge] Subscriber error: ${err.message}`);
+  });
+
+  // Re-subscribe all active patterns after reconnect
+  sharedSubscriber.on('ready', async () => {
+    Logger.info('[RedisBridge] Subscriber reconnected, resubscribing to patterns');
+    for (const pattern of activeSubscriptions.keys()) {
+      try {
+        await sharedSubscriber!.psubscribe(pattern);
+      } catch (err) {
+        Logger.error(`[RedisBridge] Failed to resubscribe to ${pattern}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+  });
+
+  sharedSubscriber.on('pmessage', (_pattern: string, _channel: string, message: string) => {
+    try {
+      const event = JSON.parse(message) as GlobalEvent;
+      // Dispatch to matching handler
+      for (const [subPattern, handler] of activeSubscriptions) {
+        if (_pattern === subPattern || _channel.startsWith(subPattern.replace('*', ''))) {
+          queueMicrotask(() => handler(event));
+        }
+      }
+    } catch (err) {
+      Logger.warn(`[RedisBridge] Failed to parse event: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  });
+
+  return sharedSubscriber;
+}
+
 /**
  * Derive Redis channel from event type.
  * e.g. 'kanban:task:created' → 'mcp:events:kanban:task'
@@ -38,6 +91,7 @@ function deriveChannel(eventType: string): string {
 
 /**
  * Publish a GlobalEvent to Redis Pub/Sub and append to history.
+ * Rethrows errors so publishWithRetry can retry.
  */
 export async function publishToRedis(
   event: GlobalEvent,
@@ -60,45 +114,38 @@ export async function publishToRedis(
     await pipeline.exec();
   } catch (err) {
     Logger.warn(`[RedisBridge] Failed to publish ${event.type}: ${err instanceof Error ? err.message : String(err)}`);
+    throw err; // Rethrow so publishWithRetry can retry
   }
 }
 
 /**
  * Subscribe to Redis events matching a pattern.
+ * Uses shared subscriber singleton — no new connections per call.
  * Pattern example: 'kanban:*' → subscribes to 'mcp:events:kanban:*'
  */
 export async function subscribeToRedisEvents(
   pattern: string,
   handler: (event: GlobalEvent) => void,
-): Promise<() => void> {
-  const { Redis } = await import('ioredis');
+): Promise<() => Promise<void>> {
   const fullPattern = `mcp:events:${pattern}`;
+  const subscriber = await getSharedSubscriber();
 
-  const subscriber = new Redis({
-    host: process.env.REDIS_HOST || '127.0.0.1',
-    port: parseInt(process.env.REDIS_PORT || '6379'),
-    password: process.env.REDIS_PASSWORD || undefined,
-    db: 2,
-  });
-
-  subscriber.on('error', (err: Error) => {
-    Logger.error(`[RedisBridge] Subscriber error for ${fullPattern}: ${err.message}`);
-  });
-
+  activeSubscriptions.set(fullPattern, handler);
   await subscriber.psubscribe(fullPattern);
 
-  subscriber.on('pmessage', (_pattern: string, _channel: string, message: string) => {
+  return async () => {
     try {
-      const event = JSON.parse(message) as GlobalEvent;
-      handler(event);
-    } catch (err) {
-      Logger.warn(`[RedisBridge] Failed to parse event: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  });
+      await subscriber.punsubscribe(fullPattern);
+      activeSubscriptions.delete(fullPattern);
 
-  return () => {
-    subscriber.punsubscribe(fullPattern).catch(() => {});
-    subscriber.disconnect();
+      // Only disconnect if no more active subscriptions
+      if (activeSubscriptions.size === 0 && sharedSubscriber) {
+        await sharedSubscriber.quit();
+        sharedSubscriber = null;
+      }
+    } catch (err) {
+      Logger.warn(`[RedisBridge] Failed to unsubscribe from ${fullPattern}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   };
 }
 

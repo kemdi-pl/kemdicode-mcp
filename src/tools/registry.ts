@@ -70,6 +70,24 @@ function maskSensitiveKeys(keys: string[]): string[] {
 }
 
 /**
+ * Deep-clone args and replace sensitive values with [REDACTED]
+ * to prevent leaking tokens/passwords/secrets to logs and RL tracking.
+ */
+function redactSensitiveArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const redacted: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (SENSITIVE_KEYS.has(key.toLowerCase())) {
+      redacted[key] = '[REDACTED]';
+    } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      redacted[key] = redactSensitiveArgs(value as Record<string, unknown>);
+    } else {
+      redacted[key] = value;
+    }
+  }
+  return redacted;
+}
+
+/**
  * Mask sensitive data from stack traces before logging
  */
 function maskStackTrace(stack: string | undefined): string | undefined {
@@ -959,7 +977,9 @@ export async function executeTool(
       });
 
       // RL tracking (async, fire-and-forget — never blocks response) - skip in silent mode
-      recordToolExecution(name, args as Record<string, unknown>, true, duration).catch(() => {});
+      // Redact sensitive argument values before passing to RL tracking
+      const redactedArgs = redactSensitiveArgs(args as Record<string, unknown>);
+      recordToolExecution(name, redactedArgs, true, duration).catch(() => {});
     }
   } catch (error) {
     isError = true;
@@ -967,7 +987,8 @@ export async function executeTool(
 
     // RL tracking for failures (fire-and-forget) - skip in silent mode
     if (!silent) {
-      recordToolExecution(name, args as Record<string, unknown>, false, duration).catch(() => {});
+      const redactedArgs = redactSensitiveArgs(args as Record<string, unknown>);
+      recordToolExecution(name, redactedArgs, false, duration).catch(() => {});
     }
 
     // Handle Zod validation errors

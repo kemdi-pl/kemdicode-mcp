@@ -123,8 +123,8 @@ export async function createTask(input: CreateTaskInput): Promise<KanbanTask> {
     estimatedMinutes: input.estimatedMinutes,
   };
 
-  // Calculate score for sorting (priority + time)
-  const score = PRIORITY_SCORES[task.priority] * 1000000000 + (1000000000 - now / 1000);
+  // Calculate score for sorting (priority + time) — use integer math for ZSET consistency
+  const score = Math.floor(PRIORITY_SCORES[task.priority] * 1000000000 + (1000000000 - Math.floor(now / 1000)));
 
   // Use pipeline to batch all task creation operations
   const pipeline = client.pipeline();
@@ -316,6 +316,17 @@ export async function updateTask(
     // Update status indices atomically
     multi.srem(KANBAN_KEYS.byStatus(task.sessionId, oldStatus), taskId);
     multi.sadd(KANBAN_KEYS.byStatus(task.sessionId, task.status), taskId);
+
+    // Reset TTL when re-opening a done task (prevent premature expiry)
+    if (oldStatus === 'done' && task.status !== 'done') {
+      multi.expire(KANBAN_KEYS.task(taskId), DEFAULT_TASK_TTL);
+    }
+  }
+
+  // Update ZSET score when priority changes (keeps sorting consistent)
+  if (update.priority !== undefined) {
+    const newScore = Math.floor(PRIORITY_SCORES[task.priority] * 1000000000 + (1000000000 - Math.floor(task.createdAt / 1000)));
+    multi.zadd(KANBAN_KEYS.tasks(task.sessionId), newScore, taskId);
   }
 
   // Store updated task
@@ -394,15 +405,11 @@ export async function updateTask(
 export async function claimTask(taskId: string, agentId: string): Promise<KanbanTask | null> {
   const client = await getRedis();
 
-  // First, get task data and validate blocking conditions (non-atomic check)
+  // Get task data for Lua script parameters.
+  // The actual validation (assignee, blockers) is done atomically inside the Lua script.
   const task = await getTask(taskId);
   if (!task) {
     return null;
-  }
-
-  // Check if task is already assigned to another agent (early validation)
-  if (task.assignee && task.assignee !== agentId) {
-    throw new Error(`Task already assigned to ${task.assignee}`);
   }
 
   const now = Date.now();

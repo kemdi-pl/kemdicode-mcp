@@ -144,6 +144,10 @@ export function updateClientConfig(updates: Partial<AIClientConfig>): void {
     throw new AIError('AI client not initialized. Call initAIClient() first.');
   }
 
+  // Dispose old client to prevent socket leaks
+  if (client) {
+    try { (client as any).httpAgent?.destroy?.(); } catch {}
+  }
   const newConfig = { ...currentConfig, ...updates };
   initAIClient(newConfig);
   Logger.info('AI client configuration updated');
@@ -227,6 +231,8 @@ export async function complete(request: CompletionRequest): Promise<CompletionRe
         max_tokens: request.maxTokens ?? 8192,
         temperature: request.temperature ?? 0.7,
         stream: true,
+        tools: request.tools as any,
+        tool_choice: request.toolChoice as any,
       });
 
       let content = '';
@@ -299,13 +305,21 @@ export async function complete(request: CompletionRequest): Promise<CompletionRe
       toolCalls: toolCalls?.length ? toolCalls : undefined,
     };
   } catch (error) {
-    // Try fallback model if primary fails
+    // Try fallback model if primary fails (max 1 attempt to prevent infinite recursion)
     if (currentConfig?.fallbackModel && request.model !== currentConfig.fallbackModel) {
+      if ((request as any)._fallbackAttempt) {
+        // Already tried fallback once — don't recurse further
+        if (error instanceof OpenAI.APIError) {
+          throw new AIError(`API error: ${error.status} ${error.message}`, error.status);
+        }
+        throw error;
+      }
       Logger.warn(`Primary model failed, trying fallback: ${currentConfig.fallbackModel}`);
       return complete({
         ...request,
         model: currentConfig.fallbackModel,
-      });
+        _fallbackAttempt: true,
+      } as CompletionRequest);
     }
 
     if (error instanceof OpenAI.APIError) {

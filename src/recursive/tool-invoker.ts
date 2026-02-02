@@ -43,8 +43,12 @@ import {
   MAX_LOG_ENTRIES,
 } from './types.js';
 
-/** Current invocation context (per-request) */
+/** Current invocation context (per-request) with LRU eviction */
 const contextStack = new Map<string, InvocationContext>();
+const MAX_CONTEXT_SIZE = 100;
+
+/** In-memory rate limit fallback when Redis is unavailable */
+const memoryRateLimits = new Map<string, { count: number; resetAt: number }>();
 
 /** Reusable Map for batch parallel operations to reduce allocations */
 const batchContextCache = new Map<string, InvocationContext | undefined>();
@@ -63,27 +67,71 @@ async function tryGetRedis() {
 }
 
 /**
- * Read and normalize rate limit entry from Redis.
- * Resets the window if expired.
- * Returns default entry if Redis is unavailable.
+ * Atomic rate limiting using Lua script (INCR + EXPIRE in single round-trip).
+ * Falls back to in-memory rate limiter when Redis is unavailable.
+ */
+async function incrementRateLimit(agentId: string): Promise<number> {
+  const client = await tryGetRedis();
+  if (!client) {
+    // In-memory fallback with same window semantics
+    const now = Date.now();
+    const key = `memory:ratelimit:${agentId}`;
+    const entry = memoryRateLimits.get(key);
+
+    if (!entry || now >= entry.resetAt) {
+      memoryRateLimits.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+      return 1;
+    }
+    const newCount = entry.count + 1;
+    memoryRateLimits.set(key, { ...entry, count: newCount });
+    return newCount;
+  }
+
+  const rateLimitKey = RECURSIVE_KEYS.rateLimit(agentId);
+  const windowSeconds = Math.ceil(RATE_LIMIT_WINDOW / 1000);
+
+  const luaScript = `
+    local current = redis.call('INCR', KEYS[1])
+    if current == 1 then
+      redis.call('EXPIRE', KEYS[1], ARGV[1])
+    end
+    return current
+  `;
+
+  try {
+    const result = await client.eval(luaScript, 1, rateLimitKey, windowSeconds);
+    return Number(result);
+  } catch {
+    Logger.warn('Redis rate limit script failed, falling back to in-memory');
+    return incrementRateLimit(agentId);
+  }
+}
+
+/**
+ * Read rate limit entry from Redis or in-memory fallback.
+ * Uses atomic INCR-based keys (no JSON parsing needed).
  */
 async function getRateLimitEntry(agentId: string): Promise<RateLimitEntry> {
   const client = await tryGetRedis();
   if (!client) {
-    return { count: 0, windowStart: Date.now() };
+    // In-memory fallback
+    const key = `memory:ratelimit:${agentId}`;
+    const entry = memoryRateLimits.get(key);
+    const now = Date.now();
+
+    if (!entry || now >= entry.resetAt) {
+      return { count: 0, windowStart: now };
+    }
+    return { count: entry.count, windowStart: entry.resetAt - RATE_LIMIT_WINDOW };
   }
 
   const rateLimitKey = RECURSIVE_KEYS.rateLimit(agentId);
-  const data = await client.get(rateLimitKey);
+  const count = await client.get(rateLimitKey);
 
-  let entry: RateLimitEntry = { count: 0, windowStart: Date.now() };
-  if (data) {
-    entry = JSON.parse(data);
-    if (Date.now() - entry.windowStart > RATE_LIMIT_WINDOW) {
-      entry = { count: 0, windowStart: Date.now() };
-    }
+  if (!count) {
+    return { count: 0, windowStart: Date.now() };
   }
-  return entry;
+  return { count: parseInt(count, 10), windowStart: Date.now() };
 }
 
 /**
@@ -210,20 +258,15 @@ export async function invokeTool(
   const parentContext = contextStack.get(request.agentId);
 
   try {
-    // Update rate limit (skip if Redis unavailable)
-    if (client) {
-      try {
-        const rateEntry = await getRateLimitEntry(request.agentId);
-        rateEntry.count++;
-        const rateLimitKey = RECURSIVE_KEYS.rateLimit(request.agentId);
-        await client.setex(rateLimitKey, 120, JSON.stringify(rateEntry));
-      } catch {
-        redisAvailable = false;
-        Logger.warn('invoke-tool: Redis rate limit update failed, continuing without persistence');
-      }
+    // Atomic rate limit increment (works with Redis or in-memory fallback)
+    try {
+      await incrementRateLimit(request.agentId);
+    } catch {
+      redisAvailable = false;
+      Logger.warn('invoke-tool: Rate limit update failed, continuing without persistence');
     }
 
-    // Set up context
+    // Set up context with LRU eviction
     const context: InvocationContext = {
       rootInvocationId: parentContext?.rootInvocationId || invocationId,
       currentDepth: (parentContext?.currentDepth || 0) + 1,
@@ -231,16 +274,24 @@ export async function invokeTool(
       startTime,
     };
 
+    // LRU eviction — delete oldest entry when at capacity
+    if (contextStack.size >= MAX_CONTEXT_SIZE && !contextStack.has(request.agentId)) {
+      const firstKey = contextStack.keys().next().value;
+      if (firstKey) contextStack.delete(firstKey);
+    }
     contextStack.set(request.agentId, context);
 
     // Store invocation data (skip if Redis unavailable)
+    // Sanitize toolName to prevent log injection (CR/LF)
     if (client && redisAvailable) {
       try {
+        const sanitizedToolName = request.toolName.replace(/[\n\r]/g, ' ');
         await client.setex(
           RECURSIVE_KEYS.invocation(invocationId),
           INVOCATION_TTL,
           JSON.stringify({
             ...request,
+            toolName: sanitizedToolName,
             invocationId,
             depth: context.currentDepth,
             startTime,
@@ -443,7 +494,14 @@ async function logInvocation(
 
   const logKey = RECURSIVE_KEYS.log(agentId);
 
-  await client.lpush(logKey, JSON.stringify(entry));
+  // Sanitize to prevent log injection via CR/LF
+  const sanitizedEntry = {
+    ...entry,
+    toolName: entry.toolName.replace(/[\n\r]/g, ' '),
+    error: entry.error?.replace(/[\n\r]/g, ' '),
+  };
+
+  await client.lpush(logKey, JSON.stringify(sanitizedEntry));
   await client.ltrim(logKey, 0, MAX_LOG_ENTRIES - 1);
   await client.expire(logKey, INVOCATION_TTL);
 }

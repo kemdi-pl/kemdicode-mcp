@@ -232,8 +232,9 @@ export async function validatePath(
     });
   }
 
-  // Check for path traversal attempts
-  const normalizedPath = normalize(trimmedPath);
+  // Check for path traversal attempts (with Unicode NFKC normalization to prevent homoglyph bypass)
+  const nfkcPath = trimmedPath.normalize('NFKC');
+  const normalizedPath = normalize(nfkcPath);
   const pathSegments = normalizedPath.split(/[/\\]/);
   if (pathSegments.includes('..')) {
     logSecurityEvent('PATH_TRAVERSAL_ATTEMPT', { inputPath, normalizedPath, operation });
@@ -280,8 +281,10 @@ export async function validatePath(
   }
 
   // Check against always-blocked directories (for all operations)
+  // Use regex with (?:/|$) boundary to prevent bypass via paths like "/procnet"
   for (const blocked of ALWAYS_BLOCKED_DIRECTORIES) {
-    if (resolvedPath.startsWith(blocked + '/') || resolvedPath === blocked) {
+    const blockedPattern = new RegExp(`^${blocked.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/|$)`);
+    if (blockedPattern.test(resolvedPath)) {
       logSecurityEvent('BLOCKED_DIRECTORY_ACCESS', {
         inputPath,
         resolvedPath,
@@ -300,7 +303,9 @@ export async function validatePath(
   if (operation !== 'read' || !allowReadFromBlocked) {
     const allBlockedPaths = [...SENSITIVE_DIRECTORIES, ...additionalBlockedPaths];
     for (const blocked of allBlockedPaths) {
-      if (resolvedPath.startsWith(blocked + '/') || resolvedPath === blocked) {
+      // Use regex boundary check to prevent bypass via paths like "/etcpasswd"
+      const blockedPattern = new RegExp(`^${blocked.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/|$)`);
+      if (blockedPattern.test(resolvedPath)) {
         logSecurityEvent('SENSITIVE_PATH_ACCESS', {
           inputPath,
           resolvedPath,

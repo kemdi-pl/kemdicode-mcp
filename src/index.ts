@@ -184,8 +184,10 @@ async function main(): Promise<void> {
   const validationResult = appConfigSchema.safeParse(fullConfig);
   if (!validationResult.success) {
     for (const issue of validationResult.error.issues) {
-      Logger.warn(`Config validation: ${issue.path.join('.')} — ${issue.message}`);
+      Logger.error(`Config validation: ${issue.path.join('.')} — ${issue.message}`);
     }
+    Logger.error('Invalid configuration — aborting startup. Fix the above issues.');
+    process.exit(1);
   }
 
   const serverConfig = config.get('server');
@@ -200,10 +202,16 @@ async function main(): Promise<void> {
     const redisConfig = config.get('redis');
 
     // Parallel init: context sharing + agent monitor are independent
-    const [contextEnabled, monitor] = await Promise.all([
-      initContext(redisConfig),
-      initAgentMonitor(redisConfig),
-    ]);
+    let contextEnabled = false;
+    let monitor: { isConnected(): boolean } = { isConnected: () => false };
+    try {
+      [contextEnabled, monitor] = await Promise.all([
+        initContext(redisConfig),
+        initAgentMonitor(redisConfig),
+      ]);
+    } catch (initError) {
+      Logger.error(`Context/agent init failed: ${initError instanceof Error ? initError.message : String(initError)}`);
+    }
     Logger.debug(`Context sharing: ${contextEnabled ? 'enabled' : 'disabled'}`);
     Logger.debug(`Agent monitor: ${monitor.isConnected() ? 'connected' : 'disconnected'}`);
 
@@ -273,12 +281,11 @@ async function main(): Promise<void> {
       await stopHttpServer();
       await redisManager.disconnect();
       Logger.debug('Shutdown complete');
-      process.exit(0);
     } catch (error) {
       Logger.error('Error during shutdown:', error);
-      process.exit(1);
     } finally {
       clearTimeout(shutdownTimeout);
+      process.exit(0);
     }
   };
 
@@ -305,10 +312,20 @@ async function main(): Promise<void> {
       Logger.warn(`Schema warmup failed after 3 attempts: ${msg}. Tools will be loaded on first use.`);
     }
   };
-  runWarmup();
+  void runWarmup().catch((err) => Logger.warn(`Warmup failed: ${err instanceof Error ? err.message : String(err)}`));
 
   // Initialize global event system (cognition + kanban + loop handlers)
   initGlobalEventSystem();
+
+  // Global error handlers to ensure graceful shutdown on unhandled errors
+  process.on('unhandledRejection', (reason) => {
+    Logger.error('Unhandled rejection:', reason);
+    shutdown('unhandledRejection');
+  });
+  process.on('uncaughtException', (error) => {
+    Logger.error('Uncaught exception:', error);
+    shutdown('uncaughtException');
+  });
 }
 
 main().catch((error) => {

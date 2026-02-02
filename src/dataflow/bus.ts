@@ -84,7 +84,12 @@ class DataFlowBus {
       this.messageHistory.shift();
     }
 
-    // Deliver to local subscribers
+    // Deliver to local subscribers (skip expired messages)
+    if (envelope.ttl && envelope.ttl > 0 && Date.now() - envelope.timestamp > envelope.ttl) {
+      Logger.debug(`dataflow: message expired (ttl=${envelope.ttl}ms), skipping delivery`);
+      return envelope.id;
+    }
+
     const subs = this.subscriptions.get(channel) || [];
     const matchingSubs = subs.filter((sub) => this.matchesSubscription(sub, envelope));
 
@@ -208,14 +213,26 @@ class DataFlowBus {
       // Avoid re-publishing locally-originated messages
       if (this.messageHistory.some((m) => m.id === envelope.id)) return;
 
+      // Verify envelope channel matches actual Redis channel to prevent spoofing
+      const resolvedChannel = channel.replace('mcp:dataflow:', '') as DataFlowChannel;
+      if (envelope.channel && envelope.channel !== resolvedChannel) {
+        Logger.warn(`dataflow: channel mismatch (expected=${resolvedChannel}, got=${envelope.channel}), dropping message`);
+        return;
+      }
+
+      // Skip expired messages
+      if (envelope.ttl && envelope.ttl > 0 && Date.now() - envelope.timestamp > envelope.ttl) {
+        Logger.debug(`dataflow: expired Redis message (ttl=${envelope.ttl}ms), skipping`);
+        return;
+      }
+
       // Store and deliver
       this.messageHistory.push(envelope);
       if (this.messageHistory.length > this.maxHistory) {
         this.messageHistory.shift();
       }
 
-      const dataflowChannel = channel.replace('mcp:dataflow:', '') as DataFlowChannel;
-      const subs = this.subscriptions.get(dataflowChannel) || [];
+      const subs = this.subscriptions.get(resolvedChannel) || [];
 
       for (const sub of subs) {
         if (this.matchesSubscription(sub, envelope)) {
@@ -243,11 +260,21 @@ class DataFlowBus {
   private matchesSubscription(sub: Subscription, envelope: DataFlowEnvelope): boolean {
     const { sourceFilter, minPriority } = sub.options;
 
+    // Target filtering: skip if message is addressed to a specific target that doesn't match
+    if ((sub.options as any).target && (sub.options as any).target !== envelope.target) {
+      return false;
+    }
+
     if (sourceFilter?.length && !sourceFilter.includes(envelope.source)) {
       return false;
     }
 
     if (minPriority !== undefined && envelope.priority < minPriority) {
+      return false;
+    }
+
+    // TTL enforcement: skip expired messages
+    if (envelope.ttl && envelope.ttl > 0 && Date.now() - envelope.timestamp > envelope.ttl) {
       return false;
     }
 

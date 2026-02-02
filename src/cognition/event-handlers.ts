@@ -42,6 +42,22 @@ import { Logger } from '../utils/logger.js';
 // Track whether cognition handlers have been registered
 let cognitionHandlersRegistered = false;
 
+/** Stored unsubscribe functions for graceful shutdown / hot-reload */
+const subscriptionCleanups: Array<() => void> = [];
+
+/**
+ * Dispose all cognition event handlers (for graceful shutdown or hot-reload).
+ * Clears subscriptions and allows re-registration.
+ */
+export function disposeCognitionEventHandlers(): void {
+  for (const cleanup of subscriptionCleanups) {
+    try { cleanup(); } catch {}
+  }
+  subscriptionCleanups.length = 0;
+  cognitionHandlersRegistered = false;
+  Logger.info('[CognitionEventHandlers] All handlers disposed');
+}
+
 /**
  * Initialize all cognition cross-tool event handlers.
  * Safe to call multiple times — only registers once.
@@ -52,8 +68,11 @@ export function initCognitionEventHandlers(): void {
   const bus = getGlobalEventBus();
   const linker = getCrossLinker();
 
+  /** Helper to track subscription for disposal */
+  const track = (sub: { unsubscribe: () => void }) => subscriptionCleanups.push(() => sub.unsubscribe());
+
   // ── cognition:decision:recorded → auto-create confidence record ──────
-  bus.on('cognition:decision:recorded', async (event) => {
+  track(bus.on('cognition:decision:recorded', async (event) => {
     const { confidence, question, sourceId } = event.payload as {
       confidence: number;
       question: string;
@@ -79,10 +98,10 @@ export function initCognitionEventHandlers(): void {
         'auto-created confidence record for decision',
       );
     }
-  });
+  }));
 
   // ── cognition:confidence:low → check for intent drift ────────────────
-  bus.on('cognition:confidence:low', async (event) => {
+  track(bus.on('cognition:confidence:low', async (event) => {
     const { toolName, confidence } = event.payload as {
       toolName: string;
       confidence: number;
@@ -99,10 +118,10 @@ export function initCognitionEventHandlers(): void {
         `[CognitionHandler] Low confidence triggered drift detection (score=${drift.driftScore})`,
       );
     }
-  });
+  }));
 
   // ── cognition:error:recorded → tag related recent decisions ──────────
-  bus.on('cognition:error:recorded', async (event) => {
+  track(bus.on('cognition:error:recorded', async (event) => {
     const { context, symptoms, sourceId } = event.payload as {
       context: string;
       symptoms: string[];
@@ -130,10 +149,10 @@ export function initCognitionEventHandlers(): void {
         );
       }
     }
-  });
+  }));
 
   // ── cognition:error:matched → informational log ──────────────────────
-  bus.on('cognition:error:matched', async (event) => {
+  track(bus.on('cognition:error:matched', async (event) => {
     const { matchedPatternId, fix } = event.payload as {
       matchedPatternId: string;
       fix: string;
@@ -141,10 +160,10 @@ export function initCognitionEventHandlers(): void {
     Logger.info(
       `[CognitionHandler] Error matched known pattern ${matchedPatternId}: ${fix.substring(0, 100)}`,
     );
-  });
+  }));
 
   // ── cognition:critique:lesson-learned → link to matching error patterns
-  bus.on('cognition:critique:lesson-learned', async (event) => {
+  track(bus.on('cognition:critique:lesson-learned', async (event) => {
     const { lessons, sourceId } = event.payload as { lessons: string[]; sourceId: string };
 
     const errorStore = getErrorPatternStore();
@@ -174,10 +193,10 @@ export function initCognitionEventHandlers(): void {
         }
       }
     }
-  });
+  }));
 
   // ── cognition:intent:drifted → auto-create self-critique ─────────────
-  bus.on('cognition:intent:drifted', async (event) => {
+  track(bus.on('cognition:intent:drifted', async (event) => {
     const { driftScore, currentAction, expectedDirection, sourceId } = event.payload as {
       driftScore: number;
       currentAction: string;
@@ -199,7 +218,7 @@ export function initCognitionEventHandlers(): void {
       ],
       wouldChange: ['Check intent alignment before each major action'],
       lessonsLearned: ['Monitor intent alignment continuously'],
-      efficiency: Math.max(0, 1 - driftScore),
+      efficiency: Math.min(1, Math.max(0, 1 - driftScore)),
     });
 
     if (critique) {
@@ -211,10 +230,10 @@ export function initCognitionEventHandlers(): void {
         'Auto-created critique from intent drift',
       );
     }
-  });
+  }));
 
   // ── cognition:handoff:created → link to current mental models ────────
-  bus.on('cognition:handoff:created', async (event) => {
+  track(bus.on('cognition:handoff:created', async (event) => {
     const { sourceId } = event.payload as { sourceId: string };
     const modelStore = getMentalModelStore();
     const models = await modelStore.listBySession(event.sessionId);
@@ -230,10 +249,10 @@ export function initCognitionEventHandlers(): void {
           : 'Mental model snapshot (fresh)',
       );
     }
-  });
+  }));
 
   // ── cognition:model:stale → flag affected decisions/intents ──────────
-  bus.on('cognition:model:stale', async (event) => {
+  track(bus.on('cognition:model:stale', async (event) => {
     const { sourceId } = event.payload as { sourceId: string };
     const decisionStore = getDecisionStore();
     const intentStore = getIntentStore();
@@ -263,10 +282,10 @@ export function initCognitionEventHandlers(): void {
         );
       }
     }
-  });
+  }));
 
   // ── cognition:confidence:outcome-updated → propagate to linked decisions
-  bus.on('cognition:confidence:outcome-updated', async (event) => {
+  track(bus.on('cognition:confidence:outcome-updated', async (event) => {
     const { outcome, confidenceId } = event.payload as {
       outcome: string;
       confidenceId: string;
@@ -286,7 +305,7 @@ export function initCognitionEventHandlers(): void {
         }
       }
     }
-  });
+  }));
 
   cognitionHandlersRegistered = true;
   Logger.info('[CognitionEventHandlers] All cross-tool handlers registered');
