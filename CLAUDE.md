@@ -186,11 +186,34 @@ npm run build && npm run start                           # Node.js alternative
 4. Register in `tools/index.ts`
 5. Add annotation in `tools/annotations-map.ts`
 
-### After Code Changes
+### Server Management
 
+**Start server** (if not running):
 ```bash
-cd /opt/kemdicode-mcp && npm run build && pkill -f "bun dist/index.js" && ./start-server.sh
+nohup bun /opt/kemdicode-mcp/dist/index.js --port 3100 >> /tmp/kemdicode-mcp.log 2>&1 &
 ```
+
+**Restart server** (kill + start fresh):
+```bash
+pgrep -f "bun dist/index.js" | xargs kill -9 2>/dev/null
+sleep 2
+nohup bun /opt/kemdicode-mcp/dist/index.js --port 3100 >> /tmp/kemdicode-mcp.log 2>&1 &
+```
+
+**Health check:**
+```bash
+curl -s http://127.0.0.1:3100/health
+```
+
+**After code changes** (build + restart):
+```bash
+cd /opt/kemdicode-mcp && npm run build
+pgrep -f "bun dist/index.js" | xargs kill -9 2>/dev/null
+sleep 2
+nohup bun /opt/kemdicode-mcp/dist/index.js --port 3100 >> /tmp/kemdicode-mcp.log 2>&1 &
+```
+
+**Important:** After server restart, the user must reconnect MCP in Claude Code (`/mcp`). Always wait 2-3 seconds after start before health check. Logs are in `/tmp/kemdicode-mcp.log`.
 
 ## Conventions
 
