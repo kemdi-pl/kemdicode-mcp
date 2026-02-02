@@ -122,6 +122,6 @@ ${filesStr}
 Begin analysis:`;
 
     onProgress?.(`Dependency analysis (${depth}, ${direction}): ${filesStr}`);
-    return executeAI({ prompt, agent, files: parseFiles(filesStr), onProgress });
+    return executeAI({ prompt, agent, files: parseFiles(filesStr), onProgress, enhancePrompt: true });
   },
 };

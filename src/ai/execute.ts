@@ -17,6 +17,7 @@ import {
   type AgentType,
 } from './agents.js';
 import { loadFileContexts, formatFileContextForPrompt } from './file-context.js';
+import { enhancePrompt as runPromptEnhancer, type EnhancerOptions, type EnhancerResult } from './prompt-enhancer.js';
 import { Logger } from '../utils/logger.js';
 
 export interface ExecuteAIOptions {
@@ -52,6 +53,10 @@ export interface ExecuteAIOptions {
 
   /** Override system prompt (replaces agent's default system prompt) */
   systemPrompt?: string;
+
+  /** Enable prompt enhancement ("first step") before sending to LLM.
+   *  Pass true for defaults, or EnhancerOptions for fine control. */
+  enhancePrompt?: boolean | EnhancerOptions;
 }
 
 export interface ExecuteAIResult {
@@ -89,7 +94,30 @@ async function prepareAndExecute(options: ExecuteAIOptions) {
   }
 
   const startTime = Date.now();
-  const { prompt, agent, model, files, continueSession, sessionId, projectRoot, onProgress, temperature, maxTokens, systemPrompt } = options;
+  let { prompt, agent, model, files, continueSession, sessionId, projectRoot, onProgress, temperature, maxTokens, systemPrompt } = options;
+  const { enhancePrompt: enhanceOpt } = options;
+
+  // Prompt enhancement ("first step") — rewrite vague prompts before LLM call
+  let enhancerResult: EnhancerResult | undefined;
+  if (enhanceOpt && !systemPrompt && agent !== 'explore') {
+    const enhancerOpts: EnhancerOptions = typeof enhanceOpt === 'object' ? enhanceOpt : {};
+    if (!enhancerOpts.projectRoot) enhancerOpts.projectRoot = projectRoot || process.cwd();
+    try {
+      enhancerResult = await runPromptEnhancer(prompt, enhancerOpts);
+      if (!enhancerResult.skipped) {
+        prompt = enhancerResult.enhanced;
+        // Use enhancer-suggested files if caller didn't provide any
+        if (enhancerResult.filesLoaded.length > 0 && !files?.length) {
+          files = enhancerResult.filesLoaded;
+        }
+        Logger.debug(
+          `[Enhancer] Prompt enhanced (vagueness: ${enhancerResult.analysis.vaguenessScore}/10, ${enhancerResult.duration}ms)`,
+        );
+      }
+    } catch (err) {
+      Logger.warn(`[Enhancer] Failed, using original prompt: ${err instanceof Error ? err.message : err}`);
+    }
+  }
 
   // Load file contents if specified
   let fileContext = '';

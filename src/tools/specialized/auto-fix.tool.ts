@@ -189,7 +189,7 @@ Begin analysis:`;
     onProgress?.(`Auto-fix (${focus}, ${isDryRun ? 'dry-run' : 'apply'}): ${filesStr}`);
 
     // Get AI analysis with structured edits
-    const aiResponse = await executeAI({ prompt, agent, files: parseFiles(filesStr), onProgress });
+    const aiResponse = await executeAI({ prompt, agent, files: parseFiles(filesStr), onProgress, enhancePrompt: true });
 
     // Parse edits from AI response
     const edits = parseAIEdits(aiResponse);

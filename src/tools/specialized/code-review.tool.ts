@@ -161,6 +161,7 @@ Begin review:`;
       files: parseFiles(filesStr),
       continueSession: Boolean(continueSession),
       onProgress,
+      enhancePrompt: true,
     });
 
     // Record suggestions for feedback tracking

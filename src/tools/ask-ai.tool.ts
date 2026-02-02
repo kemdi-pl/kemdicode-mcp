@@ -59,6 +59,7 @@ export const askAITool: UnifiedTool = {
       files: args.files ? parseFiles(String(args.files)) : undefined,
       continueSession: Boolean(args.continueSession),
       onProgress,
+      enhancePrompt: true,
     });
   },
 };

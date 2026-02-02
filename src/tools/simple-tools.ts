@@ -90,6 +90,7 @@ export const planTool: UnifiedTool = {
       model: args.model as string | undefined,
       files: args.files ? parseFiles(String(args.files)) : undefined,
       onProgress,
+      enhancePrompt: true,
     });
   },
 };
@@ -114,6 +115,7 @@ export const buildTool: UnifiedTool = {
       model: args.model as string | undefined,
       files: args.files ? parseFiles(String(args.files)) : undefined,
       onProgress,
+      enhancePrompt: true,
     });
   },
 };

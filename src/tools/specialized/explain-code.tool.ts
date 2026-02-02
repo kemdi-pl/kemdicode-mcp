@@ -115,6 +115,6 @@ ${
 Begin explanation:`;
 
     onProgress?.(`Explaining code (${depth}, ${audience}): ${filesStr}`);
-    return executeAI({ prompt, agent, files: parseFiles(filesStr), onProgress });
+    return executeAI({ prompt, agent, files: parseFiles(filesStr), onProgress, enhancePrompt: true });
   },
 };

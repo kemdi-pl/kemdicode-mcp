@@ -128,7 +128,7 @@ public function test_bug_is_fixed(): void
 Begin analysis:`;
 
     onProgress?.(`Analyzing bug in: ${filesStr}`);
-    const result = await executeAI({ prompt, agent: 'plan', files: parseFiles(filesStr), onProgress });
+    const result = await executeAI({ prompt, agent: 'plan', files: parseFiles(filesStr), onProgress, enhancePrompt: true });
 
     // Record suggestions for feedback tracking
     const parsedFiles = parseFiles(filesStr);

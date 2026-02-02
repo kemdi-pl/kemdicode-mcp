@@ -211,6 +211,7 @@ export const semanticSearchTool: UnifiedTool = {
       agent: 'explore',
       files: attachedFiles,
       onProgress,
+      enhancePrompt: true,
     });
   },
 };

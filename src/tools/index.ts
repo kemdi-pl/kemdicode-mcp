@@ -668,6 +668,11 @@ registerLazyTool({
   description: 'CEO-and-Board pattern: board models respond, CEO synthesizes decision',
   loader: () => import('./multi-llm/index.js').then((m) => m.consensusPromptTool),
 });
+registerLazyTool({
+  name: 'enhance-prompt',
+  description: 'Analyze and rewrite vague prompts into clear, actionable instructions',
+  loader: () => import('./multi-llm/index.js').then((m) => m.enhancePromptTool),
+});
 
 // Thinking chain tools
 registerLazyTool({

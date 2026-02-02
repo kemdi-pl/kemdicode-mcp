@@ -109,6 +109,7 @@ Begin:`;
       agent: 'plan',
       model: model as string | undefined,
       onProgress,
+      enhancePrompt: true,
     });
   },
 };

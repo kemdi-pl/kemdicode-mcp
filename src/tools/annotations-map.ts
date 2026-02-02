@@ -90,6 +90,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
 
   // Multi-LLM (read-only - only makes API calls, no state change)
   'multi-prompt':      { title: 'Multi-Prompt',       readOnlyHint: true, openWorldHint: true },
+  'enhance-prompt':    { title: 'Enhance Prompt',     readOnlyHint: true, openWorldHint: true },
   'consensus-prompt':  { title: 'Consensus Prompt',   readOnlyHint: true, openWorldHint: true },
 
   // MPC read-only
