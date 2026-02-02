@@ -24,6 +24,12 @@ import type { GlobalEvent, RedisEventOptions } from './types.js';
 const DEFAULT_HISTORY_CAP = 100;
 const DEFAULT_HISTORY_TTL = 3600; // 1 hour
 
+/** Blocked keys for prototype-pollution-safe JSON parsing */
+const BLOCKED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+function safeJsonParse(raw: string): GlobalEvent | null {
+  return JSON.parse(raw, (key, value) => (BLOCKED_KEYS.has(key) ? undefined : value));
+}
+
 // Shared subscriber singleton — avoids creating new Redis connections per subscription
 let sharedSubscriber: import('ioredis').Redis | null = null;
 const activeSubscriptions = new Map<string, (event: GlobalEvent) => void>();
@@ -62,7 +68,8 @@ async function getSharedSubscriber(): Promise<import('ioredis').Redis> {
 
   sharedSubscriber.on('pmessage', (_pattern: string, _channel: string, message: string) => {
     try {
-      const event = JSON.parse(message) as GlobalEvent;
+      const event = safeJsonParse(message);
+      if (!event) return;
       // Dispatch to matching handler
       for (const [subPattern, handler] of activeSubscriptions) {
         if (_pattern === subPattern || _channel.startsWith(subPattern.replace('*', ''))) {
@@ -164,7 +171,7 @@ export async function getEventHistory(
     return items
       .map((item) => {
         try {
-          return JSON.parse(item) as GlobalEvent;
+          return safeJsonParse(item);
         } catch {
           return null;
         }

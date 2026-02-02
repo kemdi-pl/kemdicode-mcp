@@ -102,15 +102,15 @@ class GlobalEventBus {
         }
       };
 
-      // Priority-aware scheduling:
-      // - high: queueMicrotask (runs before any macrotasks)
-      // - normal (default): queueMicrotask
-      // - low: setTimeout(fn, 0) (yields to microtask queue first)
+      // Priority-aware scheduling with rejection safety:
+      // runHandler is async — its returned Promise must be caught to avoid
+      // unhandled rejections that can crash the Node.js process.
+      const safeRun = () => { runHandler().catch(() => {}); };
       const priority = (event as GlobalEvent & { _priority?: string })._priority;
       if (priority === 'low') {
-        setTimeout(runHandler, 0);
+        setTimeout(safeRun, 0);
       } else {
-        queueMicrotask(runHandler);
+        queueMicrotask(safeRun);
       }
     };
 

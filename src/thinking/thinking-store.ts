@@ -30,6 +30,9 @@ import type { ThinkingChain, Thought, ChainStatus } from './types.js';
 import { THINKING_KEYS, THINKING_TTL } from './types.js';
 import { randomBytes } from 'crypto';
 
+/** Maximum number of thoughts per chain to prevent unbounded growth */
+const MAX_CHAIN_DEPTH = 500;
+
 /**
  * Get Redis client
  */
@@ -171,6 +174,9 @@ export async function addThought(
 
   if (!chain) throw new Error(`Chain not found: ${chainId}`);
   if (chain.status !== 'active') throw new Error(`Chain is ${chain.status}, cannot add thoughts`);
+  if (chain.thoughts.length >= MAX_CHAIN_DEPTH) {
+    throw new Error(`Chain depth limit reached (${MAX_CHAIN_DEPTH}). Conclude this chain and start a new one.`);
+  }
 
   const now = Date.now();
   const thought: Thought = {

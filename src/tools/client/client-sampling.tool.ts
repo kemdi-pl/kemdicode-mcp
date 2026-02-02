@@ -96,7 +96,12 @@ export const clientSamplingTool: UnifiedTool = {
       params.includeContext = args.includeContext;
     }
 
-    const result = await clientCreateMessage(params);
+    const result = await Promise.race([
+      clientCreateMessage(params),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('sampling/createMessage request timed out')), 30000),
+      ),
+    ]);
 
     return JSON.stringify(
       {

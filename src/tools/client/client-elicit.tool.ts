@@ -73,14 +73,19 @@ export const clientElicitTool: UnifiedTool = {
       });
     }
 
-    const result = await clientElicitInput({
-      message: args.message,
-      requestedSchema: {
-        type: 'object',
-        properties: args.fields as Record<string, unknown>,
-        required: args.required,
-      },
-    });
+    const result = await Promise.race([
+      clientElicitInput({
+        message: args.message,
+        requestedSchema: {
+          type: 'object',
+          properties: args.fields as Record<string, unknown>,
+          required: args.required,
+        },
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('elicitation/create request timed out')), 30000),
+      ),
+    ]);
 
     return JSON.stringify(
       {
