@@ -109,19 +109,25 @@ export const clusterMagistraleTool: UnifiedTool<typeof schema> = {
 
     const magistrale = new LLMMagistrale(bus);
 
-    const response = await magistrale.dispatch(args.prompt, {
-      strategy: args.strategy as AggregationStrategy,
-      maxTargets: args.maxTargets,
-      timeoutMs: args.timeoutMs,
-      minResponses: args.minResponses,
-      preferredProvider: args.preferredProvider,
-      preferredModel: args.preferredModel,
-      passConfig: args.maxPasses ? {
-        maxPasses: args.maxPasses,
-        qualityThreshold: args.qualityThreshold,
-        strategy: args.passStrategy,
-      } : undefined,
-    });
+    let response;
+    try {
+      response = await magistrale.dispatch(args.prompt, {
+        strategy: args.strategy as AggregationStrategy,
+        maxTargets: args.maxTargets,
+        timeoutMs: args.timeoutMs,
+        minResponses: args.minResponses,
+        preferredProvider: args.preferredProvider,
+        preferredModel: args.preferredModel,
+        passConfig: args.maxPasses ? {
+          maxPasses: args.maxPasses,
+          qualityThreshold: args.qualityThreshold,
+          strategy: args.passStrategy,
+        } : undefined,
+      });
+    } finally {
+      // Always clean up subscriptions and intervals to prevent leaks
+      magistrale.destroy();
+    }
 
     const lines = [
       '# Magistrale Response',
@@ -146,10 +152,13 @@ export const clusterMagistraleTool: UnifiedTool<typeof schema> = {
 
     lines.push('', '## Response', '', response.content || '*No response received*');
 
-    // Show errors even for single-result responses
+    // Show errors for any failed results
     const errors = response.results.filter((r) => r.error);
-    if (errors.length > 0 && response.results.length === 1) {
-      lines.push('', `**Error:** ${errors[0].error}`);
+    if (errors.length > 0) {
+      lines.push('', '## Errors', '');
+      for (const err of errors) {
+        lines.push(`- **${err.clusterId}**: ${err.error}`);
+      }
     }
 
     if (response.results.length > 1) {

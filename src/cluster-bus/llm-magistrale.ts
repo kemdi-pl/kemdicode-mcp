@@ -135,18 +135,23 @@ export class LLMMagistrale {
   private bus: ClusterBus;
   private pendingDispatches = new Map<string, PendingDispatch>();
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
+  private subscriptions: Array<{ unsubscribe: () => void }> = [];
 
   constructor(bus: ClusterBus) {
     this.bus = bus;
 
     // Subscribe to LLM results coming back from clusters
-    this.bus.onSignal<SignalPayloadMap['llm:result']>('llm:result', (signal) => {
-      this.handleResult(signal);
-    });
+    this.subscriptions.push(
+      this.bus.onSignal<SignalPayloadMap['llm:result']>('llm:result', (signal) => {
+        this.handleResult(signal);
+      }),
+    );
 
-    this.bus.onSignal<SignalPayloadMap['llm:error']>('llm:error', (signal) => {
-      this.handleError(signal);
-    });
+    this.subscriptions.push(
+      this.bus.onSignal<SignalPayloadMap['llm:error']>('llm:error', (signal) => {
+        this.handleError(signal);
+      }),
+    );
 
     // Periodic cleanup of stale PendingDispatch entries (every 60s)
     this.cleanupInterval = setInterval(() => {
@@ -160,6 +165,16 @@ export class LLMMagistrale {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
     }
+  }
+
+  /** Fully destroy this magistrale instance: unsubscribe all handlers, stop cleanup. */
+  destroy(): void {
+    this.stopCleanup();
+    for (const sub of this.subscriptions) {
+      sub.unsubscribe();
+    }
+    this.subscriptions = [];
+    this.pendingDispatches.clear();
   }
 
   private sweepStaleDispatches(): void {
