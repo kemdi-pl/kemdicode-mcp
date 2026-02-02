@@ -25,6 +25,12 @@ const providerConfigs = new Map<ProviderId, Partial<ProviderConfig>>();
 /** Registry of custom endpoint configurations */
 const customEndpoints = new Map<string, CustomEndpointConfig>();
 
+/** Init locks to prevent concurrent initialization of the same provider */
+const initLocks = new Set<ProviderId>();
+
+/** Cumulative token usage tracking (reset on server restart) */
+const tokenUsage = { prompt: 0, completion: 0, total: 0 };
+
 /**
  * Register all built-in providers (called once at startup).
  */
@@ -190,9 +196,14 @@ function resolveApiKey(id: ProviderId): string | undefined {
 
 /**
  * Ensure a provider is initialized. Lazy initialization on first use.
+ * Uses a simple lock to prevent concurrent init of the same provider.
  */
 function ensureInitialized(provider: LLMProvider): boolean {
   if (provider.isInitialized()) return true;
+
+  // Prevent concurrent initialization
+  if (initLocks.has(provider.id)) return false;
+  initLocks.add(provider.id);
 
   const apiKey = resolveApiKey(provider.id);
 
@@ -221,6 +232,8 @@ function ensureInitialized(provider: LLMProvider): boolean {
       `Failed to initialize ${provider.id} provider: ${error instanceof Error ? error.message : String(error)}`
     );
     return false;
+  } finally {
+    initLocks.delete(provider.id);
   }
 }
 
@@ -297,6 +310,26 @@ export function listProviders(): Array<{
       ...(ep && { baseURL: ep.baseURL }),
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Cumulative Token Tracking
+// ---------------------------------------------------------------------------
+
+/**
+ * Record token usage from a completion response.
+ */
+export function recordTokenUsage(usage: { promptTokens: number; completionTokens: number; totalTokens: number }): void {
+  tokenUsage.prompt += usage.promptTokens;
+  tokenUsage.completion += usage.completionTokens;
+  tokenUsage.total += usage.totalTokens;
+}
+
+/**
+ * Get cumulative token usage since server start.
+ */
+export function getTokenUsage(): { prompt: number; completion: number; total: number } {
+  return { ...tokenUsage };
 }
 
 // ---------------------------------------------------------------------------

@@ -18,6 +18,7 @@ export class AnthropicProvider implements LLMProvider {
   init(config: ProviderConfig): void {
     this.client = new Anthropic({
       apiKey: config.apiKey,
+      timeout: 120_000,
     });
     Logger.info(`Anthropic provider initialized`);
   }

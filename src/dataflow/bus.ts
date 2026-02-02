@@ -28,6 +28,8 @@ interface Subscription {
   channel: DataFlowChannel;
   handler: DataFlowHandler;
   options: SubscriptionOptions;
+  createdAt: number;
+  lastInvokedAt: number;
 }
 
 /**
@@ -47,6 +49,15 @@ class DataFlowBus {
   private messageIds = new Set<string>();
   private readonly maxHistory = 200;
   private redisPublisher: ((channel: string, message: string) => Promise<void>) | null = null;
+  /** Idle subscription TTL: 60 minutes */
+  private readonly subscriptionIdleTtlMs = 60 * 60 * 1000;
+  /** Cleanup interval handle */
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+  constructor() {
+    // Periodic idle subscription cleanup (every 10 minutes)
+    this.cleanupInterval = setInterval(() => this.cleanupIdleSubscriptions(), 10 * 60 * 1000);
+  }
 
   /**
    * Publish a typed message to a channel.
@@ -92,6 +103,7 @@ class DataFlowBus {
     const matchingSubs = subs.filter((sub) => this.matchesSubscription(sub, envelope));
 
     const deliveryPromises = matchingSubs.map((sub) => {
+      sub.lastInvokedAt = Date.now();
       try {
         const result = sub.handler(envelope);
         return result instanceof Promise ? result.catch((err) => {
@@ -126,11 +138,14 @@ class DataFlowBus {
     handler: DataFlowHandler<C extends keyof ChannelPayloadMap ? ChannelPayloadMap[C] : unknown>,
     options: SubscriptionOptions = {},
   ): () => void {
+    const now = Date.now();
     const sub: Subscription = {
       id: uuidv4(),
       channel,
       handler: handler as DataFlowHandler,
       options,
+      createdAt: now,
+      lastInvokedAt: now,
     };
 
     if (!this.subscriptions.has(channel)) {
@@ -251,6 +266,35 @@ class DataFlowBus {
     this.messageHistory = [];
     this.messageIds.clear();
     this.redisPublisher = null;
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+  }
+
+  /**
+   * Cleanup idle subscriptions that haven't been invoked within TTL.
+   */
+  private cleanupIdleSubscriptions(): void {
+    const now = Date.now();
+    let cleaned = 0;
+
+    for (const [channel, subs] of this.subscriptions) {
+      for (let i = subs.length - 1; i >= 0; i--) {
+        const idleMs = now - subs[i].lastInvokedAt;
+        if (idleMs > this.subscriptionIdleTtlMs) {
+          subs.splice(i, 1);
+          cleaned++;
+        }
+      }
+      if (subs.length === 0) {
+        this.subscriptions.delete(channel);
+      }
+    }
+
+    if (cleaned > 0) {
+      Logger.info(`[DataFlowBus] Cleaned ${cleaned} idle subscriptions`);
+    }
   }
 
   private addToHistory(envelope: DataFlowEnvelope): void {

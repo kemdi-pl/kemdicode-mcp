@@ -567,8 +567,17 @@ const SUB_AGENT_MAX_ITERATIONS = envInt('MCP_SUB_AGENT_MAX_ITER', 5);
 /** Max chars of sub-agent answer injected back to parent (env: MCP_SUB_AGENT_ANSWER_LIMIT, default: 4000) */
 const SUB_AGENT_ANSWER_LIMIT = envInt('MCP_SUB_AGENT_ANSWER_LIMIT', 4000);
 
+/** Per-tool execution timeout in ms (env: MCP_TOOL_EXEC_TIMEOUT, default: 120000) */
+const TOOL_EXEC_TIMEOUT_MS = envInt('MCP_TOOL_EXEC_TIMEOUT', 120_000);
+
+/** File-content tools get a longer timeout (env: MCP_FILE_TOOL_TIMEOUT, default: 180000) */
+const FILE_TOOL_EXEC_TIMEOUT_MS = envInt('MCP_FILE_TOOL_TIMEOUT', 180_000);
+
 /** Max messages in conversation history before pruning older turns (env: MCP_MAX_HISTORY_MESSAGES, default: 80) */
 const MAX_HISTORY_MESSAGES = envInt('MCP_MAX_HISTORY_MESSAGES', 80);
+
+/** Max stored sub-agent results to prevent memory bloat (env: MCP_MAX_SUB_AGENT_RESULTS, default: 20) */
+const MAX_SUB_AGENT_RESULTS = envInt('MCP_MAX_SUB_AGENT_RESULTS', 20);
 
 /**
  * Prune conversation history to prevent unbounded memory growth.
@@ -635,7 +644,13 @@ async function executeSingleToolCall(
   const callStart = Date.now();
   try {
     progress(`Executing ${call.tool}`);
-    const result = await executor.execute(call.tool, call.args);
+    const timeoutMs = FILE_CONTENT_TOOLS.has(call.tool) ? FILE_TOOL_EXEC_TIMEOUT_MS : TOOL_EXEC_TIMEOUT_MS;
+    const result = await Promise.race([
+      executor.execute(call.tool, call.args),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Tool '${call.tool}' timed out after ${timeoutMs}ms`)), timeoutMs),
+      ),
+    ]);
     const duration = Date.now() - callStart;
 
     // Truncate large results to prevent context explosion
@@ -832,11 +847,13 @@ async function executeWithFunctionCalling(
               subAgentHistory: updatedHistory,
             });
 
-            subAgentResults.push({
-              task: req.task,
-              answer: subResult.answer,
-              iterations: subResult.iterations,
-            });
+            if (subAgentResults.length < MAX_SUB_AGENT_RESULTS) {
+              subAgentResults.push({
+                task: req.task,
+                answer: subResult.answer,
+                iterations: subResult.iterations,
+              });
+            }
 
             // Inject sub-agent result as user message
             messages.push({

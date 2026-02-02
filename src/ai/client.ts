@@ -13,7 +13,7 @@ import type {
 } from 'openai/resources/chat/completions';
 import { Logger } from '../utils/logger.js';
 import { parseModelSpec, hasProviderPrefix } from './model-spec.js';
-import { getProvider, isProviderAvailable, registerBuiltinProviders } from './providers/registry.js';
+import { getProvider, isProviderAvailable, registerBuiltinProviders, recordTokenUsage } from './providers/registry.js';
 import type { FunctionTool, ToolCallResult } from './providers/types.js';
 
 /**
@@ -173,7 +173,7 @@ export async function complete(request: CompletionRequest): Promise<CompletionRe
     if (isProviderAvailable(spec.provider)) {
       try {
         const provider = getProvider(spec.provider);
-        return await provider.complete({
+        const result = await provider.complete({
           provider: spec.provider,
           model: spec.model,
           messages: request.messages,
@@ -185,11 +185,21 @@ export async function complete(request: CompletionRequest): Promise<CompletionRe
           tools: request.tools,
           toolChoice: request.toolChoice,
         });
+        if (result.usage) recordTokenUsage(result.usage);
+        return result;
       } catch (error) {
-        // Try fallback model if configured
-        if (currentConfig?.fallbackModel && request.model !== currentConfig.fallbackModel) {
+        // Try fallback model if configured (prevent circular fallback via _fallbackAttempt)
+        if (
+          currentConfig?.fallbackModel &&
+          request.model !== currentConfig.fallbackModel &&
+          !(request as any)._fallbackAttempt
+        ) {
           Logger.warn(`Provider ${spec.provider} failed, trying fallback: ${currentConfig.fallbackModel}`);
-          return complete({ ...request, model: currentConfig.fallbackModel });
+          return complete({
+            ...request,
+            model: currentConfig.fallbackModel,
+            _fallbackAttempt: true,
+          } as CompletionRequest);
         }
         throw error;
       }
@@ -291,16 +301,20 @@ export async function complete(request: CompletionRequest): Promise<CompletionRe
         function: { name: tc.function.name, arguments: tc.function.arguments },
       }));
 
+    const usage = response.usage
+      ? {
+          promptTokens: response.usage.prompt_tokens,
+          completionTokens: response.usage.completion_tokens,
+          totalTokens: response.usage.total_tokens,
+        }
+      : undefined;
+
+    if (usage) recordTokenUsage(usage);
+
     return {
       content,
       model: response.model,
-      usage: response.usage
-        ? {
-            promptTokens: response.usage.prompt_tokens,
-            completionTokens: response.usage.completion_tokens,
-            totalTokens: response.usage.total_tokens,
-          }
-        : undefined,
+      usage,
       finishReason: choice?.finish_reason || undefined,
       toolCalls: toolCalls?.length ? toolCalls : undefined,
     };

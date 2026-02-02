@@ -134,12 +134,11 @@ export function createOpenAICompatProvider(providerId: ProviderId): LLMProvider 
               continue;
             }
 
-            const content = typeof raw.content === 'string' ? raw.content : JSON.stringify(raw);
-            return {
-              content,
-              model: response.model || request.model,
-              finishReason: 'stop',
-            };
+            // Non-standard response without choices — treat as error, not success
+            const rawContent = typeof raw.content === 'string' ? raw.content : JSON.stringify(raw);
+            throw new Error(
+              `${providerId}: non-standard response (no choices array). Raw: ${rawContent.slice(0, 200)}`,
+            );
           }
 
           return buildCompletionResponse(response);

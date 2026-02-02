@@ -50,6 +50,17 @@ const MAX_CONTEXT_SIZE = 100;
 /** In-memory rate limit fallback when Redis is unavailable */
 const memoryRateLimits = new Map<string, { count: number; resetAt: number }>();
 
+/** Periodic cleanup of expired in-memory rate limit entries (every 60s) */
+const RATE_LIMIT_CLEANUP_INTERVAL = 60_000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of memoryRateLimits) {
+    if (now >= entry.resetAt) {
+      memoryRateLimits.delete(key);
+    }
+  }
+}, RATE_LIMIT_CLEANUP_INTERVAL);
+
 /** Reusable Map for batch parallel operations to reduce allocations */
 const batchContextCache = new Map<string, InvocationContext | undefined>();
 
@@ -417,7 +428,8 @@ export async function invokeTool(
 export async function invokeBatch(
   requests: ToolInvocationRequest[],
   policy: InvocationPolicy = DEFAULT_POLICY,
-  parallel: boolean = true
+  parallel: boolean = true,
+  stopOnError: boolean = true,
 ): Promise<ToolInvocationResult[]> {
   if (parallel) {
     // Snapshot the current depth before launching parallel ops.
@@ -464,8 +476,8 @@ export async function invokeBatch(
     for (const request of requests) {
       const result = await invokeTool(request, policy);
       results.push(result);
-      // Stop on first error if sequential
-      if (!result.success) break;
+      // Stop on first error if sequential and stopOnError is enabled
+      if (!result.success && stopOnError) break;
     }
     return results;
   }

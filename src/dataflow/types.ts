@@ -56,7 +56,7 @@ export interface DataFlowEnvelope<T = unknown> {
   schemaVersion: number;
   /** Priority: 0=low, 1=normal, 2=high, 3=critical */
   priority: 0 | 1 | 2 | 3;
-  /** TTL in seconds (0 = no expiry) */
+  /** TTL in milliseconds (0 = no expiry) */
   ttl: number;
 }
 
