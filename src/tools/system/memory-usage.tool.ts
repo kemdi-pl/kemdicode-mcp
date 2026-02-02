@@ -263,7 +263,7 @@ export const memoryUsageTool: UnifiedTool = {
       { args: {}, description: 'Show basic memory usage' },
       { args: { detailed: true, gc: true }, description: 'Show detailed V8 heap stats after forced GC' },
     ],
-    relatedTools: ['env-info', 'process-list'],
+    relatedTools: ['env-info'],
   },
   execute: async (args) => {
     const detailed = Boolean(args.detailed);

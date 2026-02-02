@@ -1176,7 +1176,7 @@ export async function executeAgenticLoop(config: AgenticLoopConfig): Promise<Age
 
   // Build available tools list — DEFAULT-DENY policy
   // When allowedTools is not explicitly set, only safe read-only tools are available.
-  // This prevents agents from accessing shell-exec, file-write, file-delete etc. by default.
+  // This prevents agents from accessing file-write, file-delete etc. by default.
   let availableTools: string[];
   if (config.allowedTools?.length) {
     availableTools = [...config.allowedTools];

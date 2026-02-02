@@ -20,8 +20,6 @@
  * System Tools Index
  *
  * Exports all system tools:
- * - shell-exec: Execute shell commands safely
- * - process-list: List running processes
  * - env-info: Show environment information
  * - memory-usage: Show memory usage stats
  * - config: Runtime configuration management
@@ -29,8 +27,6 @@
  * @module tools/system
  */
 
-export { shellExecTool } from './shell-exec.tool.js';
-export { processListTool } from './process-list.tool.js';
 export { envInfoTool } from './env-info.tool.js';
 export { memoryUsageTool } from './memory-usage.tool.js';
 export { configTool } from './config.tool.js';

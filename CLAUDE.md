@@ -8,7 +8,7 @@ Alternatively: `read-memory --names ["active-session"]` and update with `write-m
 
 ## Overview
 
-Model Context Protocol (MCP) server providing **141 specialized tools** across 23 categories: code analysis, generation, git operations, file management, line/symbol editing, project memory, cognition & self-improvement, multi-board kanban with workspaces, task clustering & complexity, thinking chains, recursive tool invocation, pipelines, session monitoring, multi-agent coordination, structured output, data flow bus, cluster bus with LLM magistrale, tool annotations, ambient learning, agent ranking, and MCP client capabilities.
+Model Context Protocol (MCP) server providing **138 specialized tools** across 23 categories: code analysis, generation, git operations, file management, line/symbol editing, project memory, cognition & self-improvement, multi-board kanban with workspaces, task clustering & complexity, thinking chains, recursive tool invocation, pipelines, session monitoring, multi-agent coordination, structured output, data flow bus, cluster bus with LLM magistrale, tool annotations, ambient learning, agent ranking, and MCP client capabilities.
 
 **8 LLM providers**: OpenAI, Anthropic, Gemini, Groq, DeepSeek, Ollama, OpenRouter, Perplexity. Provider syntax: `provider:model:thinking` (e.g., `a:claude-sonnet-4-5:4k`, `p:sonar-pro`).
 
@@ -98,12 +98,12 @@ src/
 │   ├── session/             # Session management + recovery (6 tools)
 │   ├── specialized/         # AI analysis (8 tools)
 │   ├── thinking/            # Thinking chain (1 tool)
-│   └── system/              # System tools (11 tools)
+│   └── system/              # System tools (8 tools)
 ├── types/                   # Shared type definitions
 └── utils/                   # Helpers (command executor, file, git, validation, logger)
 ```
 
-## Tool Categories (141 tools)
+## Tool Categories (138 tools)
 
 | Category | # | Key tools |
 |----------|:-:|-----------|
@@ -131,7 +131,7 @@ src/
 | Thinking | 1 | `thinking-chain` |
 | MPC Security | 4 | `mpc-split` `mpc-distribute` `mpc-reconstruct` `mpc-status` |
 | RL Learning | 2 | `rl-reward-stats` `rl-dopamine-log` |
-| System | 11 | `shell-exec` `process-list` `env-info` `memory-usage` `ai-config` `ai-models` `tool-health` `config` `ping` `help` `timeout-test` |
+| System | 8 | `env-info` `memory-usage` `ai-config` `ai-models` `tool-health` `config` `ping` `help` |
 
 ## Key Components
 

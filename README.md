@@ -5,7 +5,7 @@
 <h3 align="center">Model Context Protocol Server for AI-Powered Development</h3>
 
 <p align="center">
-  141 tools &bull; 8 LLM providers &bull; cluster bus &bull; cognition layer &bull; multi-agent orchestration &bull; kanban &bull; project memory
+  138 tools &bull; 8 LLM providers &bull; cluster bus &bull; cognition layer &bull; multi-agent orchestration &bull; kanban &bull; project memory
 </p>
 
 <p align="center">
@@ -23,7 +23,7 @@
 
 ---
 
-**kemdiCode MCP** is a [Model Context Protocol](https://modelcontextprotocol.io/) server that gives AI agents and IDE assistants access to **141 specialized tools** for code analysis, generation, git operations, file management, AST-aware editing, project memory, cognition & self-improvement, multi-board kanban, multi-agent coordination, cluster bus with distributed LLM magistrale, typed data flow bus, structured output, and LLM-driven task management.
+**kemdiCode MCP** is a [Model Context Protocol](https://modelcontextprotocol.io/) server that gives AI agents and IDE assistants access to **138 specialized tools** for code analysis, generation, git operations, file management, AST-aware editing, project memory, cognition & self-improvement, multi-board kanban, multi-agent coordination, cluster bus with distributed LLM magistrale, typed data flow bus, structured output, and LLM-driven task management.
 
 <details>
 <summary><strong>Table of Contents</strong></summary>
@@ -286,7 +286,7 @@ The agent doesn't just write code &mdash; it builds a persistent understanding o
 
 | Capability | Description |
 |:-----------|:------------|
-| **141 MCP Tools** | Code review, refactoring, testing, git, file management, AST editing, memory, checkpoints, kanban, cognition, cluster bus, data flow, pipelines, structured output, task clustering |
+| **138 MCP Tools** | Code review, refactoring, testing, git, file management, AST editing, memory, checkpoints, kanban, cognition, cluster bus, data flow, pipelines, structured output, task clustering |
 | **Cluster Bus** | Distributed LLM orchestration: 12 signal types, 3 send modes, magistrale with 4 aggregation strategies, multi-pass quality control |
 | **Data Flow Bus** | 12 typed channels (`ai:*`, `kanban:*`, `cognition:*`, `agent:*`, `system:*`) with Zod schemas, correlation tracking, Redis bridge |
 | **Cognition Layer** | 8 self-improvement tools: decision journal, confidence tracking, mental models, intent hierarchy, error patterns, self-critique, smart handoff, context budget |
@@ -475,7 +475,7 @@ Append a third segment to enable extended thinking:
 
 ## Tool Reference
 
-> **141 tools** across 23 categories.
+> **138 tools** across 23 categories.
 
 | Category | # | Tools |
 |:---------|:-:|:------|
@@ -503,7 +503,7 @@ Append a third segment to enable extended thinking:
 | **Thinking Chain** | 1 | `thinking-chain` |
 | **MPC Security** | 4 | `mpc-split` `mpc-distribute` `mpc-reconstruct` `mpc-status` |
 | **RL Learning** | 2 | `rl-reward-stats` `rl-dopamine-log` |
-| **System** | 11 | `shell-exec` `process-list` `env-info` `memory-usage` `ai-config` `ai-models` `tool-health` `config` `ping` `help` `timeout-test` |
+| **System** | 8 | `env-info` `memory-usage` `ai-config` `ai-models` `tool-health` `config` `ping` `help` |
 
 ---
 
@@ -517,7 +517,7 @@ Append a third segment to enable extended thinking:
 | **Clients** | Claude Code, Cursor, KiroCode, RooCode | Connect via SSE + JSON-RPC (MCP Protocol) |
 | **HTTP Server** | `:3100` (Bun or Node.js) | Routes: `/sse`, `/message`, `/resume`, `/stream` |
 | **Session Manager** | Per-client isolation | CWD injection, activity tracking, SSE keep-alive |
-| **Tool Registry** | 141 tools, 23 categories | Zod schema validation, tool annotations, lazy loading |
+| **Tool Registry** | 138 tools, 23 categories | Zod schema validation, tool annotations, lazy loading |
 | **Cluster Bus** | Distributed signal bus | Full-duplex inter-cluster signals via Redis Pub/Sub |
 | **Data Flow Bus** | 12 typed channels | Zod schemas, correlation tracking, priority routing |
 | **Cognition Layer** | Global event bus + cross-linker | 9 reactive handlers, bidirectional Redis links |

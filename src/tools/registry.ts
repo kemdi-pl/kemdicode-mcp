@@ -709,7 +709,6 @@ export const getToolByName = (name: string): UnifiedTool | undefined => registry
 export enum InternalToolName {
   PING = 'ping',
   HELP = 'help',
-  TIMEOUT_TEST = 'timeout-test',
   GET_SHARED_CONTEXT = 'get-shared-context',
   AGENT_LIST = 'agent-list',
   AGENT_REGISTER = 'agent-register',
@@ -723,7 +722,6 @@ export enum InternalToolName {
 const SKIP_SHARE_TOOLS: ReadonlySet<string> = new Set([
   InternalToolName.PING,
   InternalToolName.HELP,
-  InternalToolName.TIMEOUT_TEST,
   InternalToolName.GET_SHARED_CONTEXT, // Avoid recursive context
   // Agent monitoring tools (internal)
   InternalToolName.AGENT_LIST,

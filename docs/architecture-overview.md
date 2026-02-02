@@ -31,7 +31,7 @@
    v
 +------------------------------------------------------------------+
 |                                                                  |
-|  Tool Registry  (141 tools, 23 categories)                       |
+|  Tool Registry  (138 tools, 23 categories)                       |
 |  Zod schema validation | auto JSON Schema generation             |
 |  tool annotations (readOnly/destructive/openWorld hints)         |
 |  lazy loading | tools/list_changed broadcast                     |

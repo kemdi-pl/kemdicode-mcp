@@ -48,7 +48,6 @@ const RL_SKIP_TOOLS = new Set([
   'graph-find-path',
   'ping',
   'Help',
-  'timeout-test',
   'tool-health',
   'agent-rank',
   'session-recover',

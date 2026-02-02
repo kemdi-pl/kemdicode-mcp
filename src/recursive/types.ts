@@ -88,7 +88,7 @@ function envInt(key: string, fallback: number): number {
 export const DEFAULT_POLICY: InvocationPolicy = {
   maxDepth: envInt('MCP_INVOKE_MAX_DEPTH', 5),
   maxInvocationsPerMinute: envInt('MCP_INVOKE_RATE_LIMIT', 30),
-  requiresApproval: ['shell-exec', 'file-write'],
+  requiresApproval: ['file-write'],
   blockedTools: [],
   allowWorkerInvocation: true,
 };

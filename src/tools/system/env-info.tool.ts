@@ -291,7 +291,7 @@ export const envInfoTool: UnifiedTool = {
       { args: { category: 'runtime', detailed: true }, description: 'Show detailed JavaScript runtime versions' },
       { args: { category: 'languages' }, description: 'Show installed programming languages' },
     ],
-    relatedTools: ['memory-usage', 'process-list', 'project-info'],
+    relatedTools: ['memory-usage', 'project-info'],
   },
   execute: async (args) => {
     const detailed = Boolean(args.detailed);

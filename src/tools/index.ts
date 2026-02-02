@@ -327,16 +327,6 @@ registerLazyTool({
 
 // System tools
 registerLazyTool({
-  name: 'shell-exec',
-  description: 'Execute shell commands safely with timeout',
-  loader: () => import('./system/index.js').then((m) => m.shellExecTool),
-});
-registerLazyTool({
-  name: 'process-list',
-  description: 'List running processes',
-  loader: () => import('./system/index.js').then((m) => m.processListTool),
-});
-registerLazyTool({
   name: 'env-info',
   description: 'Get environment information (Node.js version, OS, etc.)',
   loader: () => import('./system/index.js').then((m) => m.envInfoTool),
@@ -363,12 +353,6 @@ registerLazyTool({
   description: 'Get help information about available tools',
   loader: () => import('./simple-tools.js').then((m) => m.helpTool),
 });
-registerLazyTool({
-  name: 'timeout-test',
-  description: 'Test timeout handling (development only)',
-  loader: () => import('./timeout-test.tool.js').then((m) => m.timeoutTestTool),
-});
-
 // MPC (Multi-Party Computation) tools
 registerLazyTool({
   name: 'mpc-split',

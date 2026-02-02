@@ -117,7 +117,7 @@ export const agentOrchestrateTool: UnifiedTool = {
           agent: 'plan',
           sessionId: 'sess-abc123',
           maxSubAgentDepth: 1,
-          blockedTools: ['file-write', 'shell-exec', 'git-commit'],
+          blockedTools: ['file-write', 'git-commit'],
         },
         description: 'Read-only analysis with sub-agents but no write access',
       },

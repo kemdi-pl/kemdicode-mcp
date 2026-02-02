@@ -46,14 +46,11 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
   'run-tests':         { title: 'Run Tests',          readOnlyHint: true },
 
   // System read-only
-  'process-list':      { title: 'Process List',       readOnlyHint: true },
   'env-info':          { title: 'Environment Info',   readOnlyHint: true },
   'memory-usage':      { title: 'Memory Usage',       readOnlyHint: true },
   'ping':              { title: 'Health Check',        readOnlyHint: true },
   'help':              { title: 'Help',                readOnlyHint: true },
   'tool-health':       { title: 'Tool Health',        readOnlyHint: true },
-  'timeout-test':      { title: 'Timeout Test',       readOnlyHint: true },
-
   // Context read-only
   'get-shared-context': { title: 'Get Shared Context', readOnlyHint: true },
 
@@ -228,7 +225,6 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
   'session-delete':    { title: 'Delete Session',     destructiveHint: true },
   'delete-memory':     { title: 'Delete Memory',      destructiveHint: true },
   'file-backup-restore': { title: 'Backup/Restore',   destructiveHint: true },
-  'shell-exec':        { title: 'Shell Execute',      destructiveHint: true, openWorldHint: true },
   'run-script':        { title: 'Run Script',         destructiveHint: true, openWorldHint: true },
 };
 
