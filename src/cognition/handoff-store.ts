@@ -88,21 +88,18 @@ export class HandoffStore extends RedisBackedService {
       const sessionSetKey = COGNITION_KEYS.handoffBySession(report.sessionId);
       const latestKey = COGNITION_KEYS.latestHandoff(report.sessionId);
 
-      // Store the handoff report
-      await this.redis!.set(key, JSON.stringify(full));
+      const tx = this.redis!.multi();
+      tx.set(key, JSON.stringify(full));
+      tx.zadd(sessionSetKey, timestamp, id);
+      tx.set(latestKey, id);
 
-      // Index by session (sorted set, score = timestamp)
-      await this.redis!.zadd(sessionSetKey, timestamp, id);
-
-      // Store as the latest handoff for this session
-      await this.redis!.set(latestKey, id);
-
-      // Set TTLs
       if (COGNITION_TTL.handoff > 0) {
-        await this.redis!.expire(key, COGNITION_TTL.handoff);
-        await this.redis!.expire(sessionSetKey, COGNITION_TTL.handoff);
-        await this.redis!.expire(latestKey, COGNITION_TTL.handoff);
+        tx.expire(key, COGNITION_TTL.handoff);
+        tx.expire(sessionSetKey, COGNITION_TTL.handoff);
+        tx.expire(latestKey, COGNITION_TTL.handoff);
       }
+
+      await tx.exec();
 
       // Emit event for cross-tool reactions
       getCognitionEventBus().emit({

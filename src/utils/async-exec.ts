@@ -16,16 +16,25 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 
-const execPromise = promisify(exec);
+const execFilePromise = promisify(execFile);
 
+/**
+ * Execute a command safely using execFile (no shell interpolation).
+ * The first whitespace-delimited token is the binary; the rest are arguments.
+ */
 export async function asyncExec(cmd: string, timeoutMs = 5000): Promise<string> {
-  const { stdout } = await execPromise(cmd, {
+  const parts = cmd.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) throw new Error('asyncExec: empty command');
+
+  const [binary, ...args] = parts;
+  const { stdout } = await execFilePromise(binary, args, {
     encoding: 'utf-8',
     timeout: timeoutMs,
     maxBuffer: 1024 * 1024 * 10,
+    shell: false,
   });
   return stdout.trim();
 }

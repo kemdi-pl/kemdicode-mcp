@@ -81,17 +81,18 @@ export class SelfCritiqueStore extends RedisBackedService {
       };
 
       const key = COGNITION_KEYS.critique(id);
-      await this.redis!.set(key, JSON.stringify(full));
-
-      // Index by session (sorted set, score = timestamp)
       const sessionKey = COGNITION_KEYS.critiquesBySession(critique.sessionId);
-      await this.redis!.zadd(sessionKey, timestamp, id);
 
-      // Set TTL on the critique key and session index
+      const tx = this.redis!.multi();
+      tx.set(key, JSON.stringify(full));
+      tx.zadd(sessionKey, timestamp, id);
+
       if (COGNITION_TTL.critique > 0) {
-        await this.redis!.expire(key, COGNITION_TTL.critique);
-        await this.redis!.expire(sessionKey, COGNITION_TTL.critique);
+        tx.expire(key, COGNITION_TTL.critique);
+        tx.expire(sessionKey, COGNITION_TTL.critique);
       }
+
+      await tx.exec();
 
       // Emit events for cross-tool reactions
       const bus = getCognitionEventBus();

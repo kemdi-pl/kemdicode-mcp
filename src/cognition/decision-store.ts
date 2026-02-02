@@ -74,34 +74,21 @@ export class DecisionStore extends RedisBackedService {
       };
 
       const key = COGNITION_KEYS.decision(id);
-      await this.redis!.set(key, JSON.stringify(full));
+      const sessionKey = COGNITION_KEYS.decisionsBySession(decision.sessionId);
+      const agentKey = COGNITION_KEYS.decisionsByAgent(decision.agentId);
 
-      // Index by session (sorted set, score = timestamp)
-      await this.redis!.zadd(
-        COGNITION_KEYS.decisionsBySession(decision.sessionId),
-        timestamp,
-        id
-      );
+      const tx = this.redis!.multi();
+      tx.set(key, JSON.stringify(full));
+      tx.zadd(sessionKey, timestamp, id);
+      tx.zadd(agentKey, timestamp, id);
 
-      // Index by agent (sorted set, score = timestamp)
-      await this.redis!.zadd(
-        COGNITION_KEYS.decisionsByAgent(decision.agentId),
-        timestamp,
-        id
-      );
-
-      // Set TTL on the decision key
       if (COGNITION_TTL.decision > 0) {
-        await this.redis!.expire(key, COGNITION_TTL.decision);
-        await this.redis!.expire(
-          COGNITION_KEYS.decisionsBySession(decision.sessionId),
-          COGNITION_TTL.decision
-        );
-        await this.redis!.expire(
-          COGNITION_KEYS.decisionsByAgent(decision.agentId),
-          COGNITION_TTL.decision
-        );
+        tx.expire(key, COGNITION_TTL.decision);
+        tx.expire(sessionKey, COGNITION_TTL.decision);
+        tx.expire(agentKey, COGNITION_TTL.decision);
       }
+
+      await tx.exec();
 
       // Emit event for cross-tool reactions
       getCognitionEventBus().emit({

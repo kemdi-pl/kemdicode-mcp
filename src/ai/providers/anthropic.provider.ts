@@ -140,7 +140,16 @@ export class AnthropicProvider implements LLMProvider {
       request.onProgress?.(text);
     });
 
-    const finalMessage: Message = await stream.finalMessage();
+    let finalMessage: Message;
+    try {
+      finalMessage = await stream.finalMessage();
+    } catch (streamError) {
+      // Return partial content on mid-stream failure
+      if (content.length > 0) {
+        return { content, model: request.model, finishReason: 'error' };
+      }
+      throw streamError;
+    }
 
     // If no text content was streamed, extract from final message
     if (!content) {

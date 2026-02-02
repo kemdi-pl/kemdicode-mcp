@@ -480,11 +480,17 @@ export async function shareBoard(
  * const deleted = await deleteBoard('board_abc123');
  * ```
  */
-export async function deleteBoard(boardId: string): Promise<boolean> {
+export async function deleteBoard(boardId: string, requestingAgentId?: string): Promise<boolean> {
   const client = await getRedis();
   const board = await getBoard(boardId);
 
   if (!board) {
+    return false;
+  }
+
+  // Authorization: only the board creator can delete (when agent ID is provided)
+  if (requestingAgentId && board.createdBy !== requestingAgentId) {
+    Logger.warn(`board-store: agent ${requestingAgentId} not authorized to delete board ${boardId} (owner: ${board.createdBy})`);
     return false;
   }
 

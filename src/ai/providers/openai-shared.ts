@@ -99,19 +99,27 @@ export async function handleStreaming(
   let content = '';
   let finishReason: string | undefined;
 
-  for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta?.content || '';
-    const reasoning = (chunk.choices[0]?.delta as ReasoningDelta)?.reasoning_content || '';
-    const text = delta || reasoning;
+  try {
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content || '';
+      const reasoning = (chunk.choices[0]?.delta as ReasoningDelta)?.reasoning_content || '';
+      const text = delta || reasoning;
 
-    if (text) {
-      content += text;
-      onProgress?.(text);
-    }
+      if (text) {
+        content += text;
+        onProgress?.(text);
+      }
 
-    if (chunk.choices[0]?.finish_reason) {
-      finishReason = chunk.choices[0].finish_reason;
+      if (chunk.choices[0]?.finish_reason) {
+        finishReason = chunk.choices[0].finish_reason;
+      }
     }
+  } catch (streamError) {
+    // Return partial content on mid-stream failure rather than losing everything
+    if (content.length > 0) {
+      return { content, model, finishReason: 'error' };
+    }
+    throw streamError;
   }
 
   return { content, model, finishReason };

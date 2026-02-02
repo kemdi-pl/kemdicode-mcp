@@ -90,6 +90,13 @@ interface FileChange {
 }
 
 /**
+ * Escape a string for use in a regular expression
+ */
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Find all occurrences of a symbol using ripgrep
  */
 async function findSymbolOccurrences(
@@ -99,8 +106,8 @@ async function findSymbolOccurrences(
 ): Promise<Map<string, number[]>> {
   const typeFilters = getTypeFilters(language);
 
-  // Use word boundary to match whole words only
-  const pattern = `\\b${symbol}\\b`;
+  // Use word boundary to match whole words only (escape for regex safety)
+  const pattern = `\\b${escapeRegExp(symbol)}\\b`;
 
   const occurrences = new Map<string, number[]>();
 
@@ -149,8 +156,8 @@ async function replaceInFile(
 ): Promise<number> {
   const content = await fs.readFile(filePath, 'utf8');
 
-  // Create word-boundary regex
-  const regex = new RegExp(`\\b${oldName}\\b`, 'g');
+  // Create word-boundary regex (escape for regex safety)
+  const regex = new RegExp(`\\b${escapeRegExp(oldName)}\\b`, 'g');
 
   // Count replacements
   const matches = content.match(regex);

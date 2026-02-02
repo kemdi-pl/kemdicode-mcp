@@ -232,6 +232,9 @@ export async function listAllWorkspaces(options?: { limit?: number }): Promise<W
  * }
  * ```
  */
+/** Maximum number of sessions that can join a single workspace */
+const MAX_WORKSPACE_MEMBERS = 50;
+
 export async function joinWorkspace(workspaceId: string, sessionId: string): Promise<boolean> {
   const client = await getRedis();
   const workspace = await getWorkspace(workspaceId);
@@ -243,6 +246,12 @@ export async function joinWorkspace(workspaceId: string, sessionId: string): Pro
   // Check if already a member
   if (workspace.memberSessions.includes(sessionId)) {
     return true; // Already a member
+  }
+
+  // Guard: prevent unbounded membership growth
+  if (workspace.memberSessions.length >= MAX_WORKSPACE_MEMBERS) {
+    Logger.warn(`workspace-store: workspace ${workspaceId} has reached max members (${MAX_WORKSPACE_MEMBERS})`);
+    return false;
   }
 
   // Update workspace data

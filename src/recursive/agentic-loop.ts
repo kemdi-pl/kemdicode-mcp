@@ -567,6 +567,24 @@ const SUB_AGENT_MAX_ITERATIONS = envInt('MCP_SUB_AGENT_MAX_ITER', 5);
 /** Max chars of sub-agent answer injected back to parent (env: MCP_SUB_AGENT_ANSWER_LIMIT, default: 4000) */
 const SUB_AGENT_ANSWER_LIMIT = envInt('MCP_SUB_AGENT_ANSWER_LIMIT', 4000);
 
+/** Max messages in conversation history before pruning older turns (env: MCP_MAX_HISTORY_MESSAGES, default: 80) */
+const MAX_HISTORY_MESSAGES = envInt('MCP_MAX_HISTORY_MESSAGES', 80);
+
+/**
+ * Prune conversation history to prevent unbounded memory growth.
+ * Keeps the system message (index 0), the initial user message (index 1),
+ * and the most recent messages up to the limit.
+ */
+function pruneMessages(messages: Message[], limit: number): void {
+  if (messages.length <= limit) return;
+  // Keep first 2 messages (system + initial task) and the latest (limit - 2)
+  const keep = limit - 2;
+  const toRemove = messages.length - 2 - keep;
+  if (toRemove > 0) {
+    messages.splice(2, toRemove);
+  }
+}
+
 function getTruncationLimit(toolName: string): number {
   return FILE_CONTENT_TOOLS.has(toolName)
     ? FILE_CONTENT_TRUNCATION_LIMIT
@@ -834,6 +852,9 @@ async function executeWithFunctionCalling(
         }
       }
 
+      // Prune conversation history to prevent unbounded growth
+      pruneMessages(messages, MAX_HISTORY_MESSAGES);
+
       continue;
     }
 
@@ -870,6 +891,7 @@ async function executeWithFunctionCalling(
       messages.push({ role: 'user', content: `Tool results:\n${toolResultsText}\n\nContinue or provide your final answer.` });
 
       log.push(iterationLog);
+      pruneMessages(messages, MAX_HISTORY_MESSAGES);
       continue;
     }
 
