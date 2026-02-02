@@ -25,6 +25,10 @@
 
 **kemdiCode MCP** is a [Model Context Protocol](https://modelcontextprotocol.io/) server that gives AI agents and IDE assistants access to **142 specialized tools** for code analysis, generation, git operations, file management, AST-aware editing, project memory, cognition & self-improvement, multi-board kanban, multi-agent coordination, cluster bus with distributed LLM magistrale, typed data flow bus, structured output, and LLM-driven task management.
 
+### New in 1.25.0
+
+> **Cluster Bus & LLM Magistrale** &mdash; full-duplex inter-cluster communication with 12 signal types, HMAC auth, bloom filter dedup, and distributed prompt dispatch across nodes (4 aggregation strategies). Self-regulating Pass Controller for quality-driven multi-pass execution. Prompt enhancer for iterative refinement. 559 unit tests. [Read the full whitepaper &rarr;](docs/whitepaper-kemdicode-mcp-v1.25.pdf)
+
 <details>
 <summary><strong>Table of Contents</strong></summary>
 
@@ -769,7 +773,7 @@ bun dist/index.js [options]
 
 | Document | Description |
 |----------|-------------|
-| [Technical Whitepaper (PDF)](docs/whitepaper-kemdicode-mcp-v1.25.pdf) | IEEE journal-style paper describing the full architecture, protocol layers, cognition system, and LLM Magistrale with formal specifications |
+| [Technical Whitepaper (PDF)](docs/whitepaper-kemdicode-mcp-v1.25.pdf) | Full architecture description covering protocol layers, cognition system, and LLM Magistrale with formal specifications |
 | [Architecture Overview](docs/architecture-overview.md) | High-level system layers diagram |
 | [3-Layer Bus Architecture](docs/architecture-3-layer-bus.md) | Detailed L3/L2/L1 bus design with bridges |
 | [Examples](examples/) | 12 practical guides covering all major features |
