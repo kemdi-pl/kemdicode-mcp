@@ -38,6 +38,13 @@ import {
 
 const getRedis = getSharedRedis;
 
+/** Role hierarchy for permission checks (higher index = more privileges) */
+const ROLE_HIERARCHY: BoardRole[] = ['viewer', 'member', 'admin', 'owner'];
+
+function getRoleLevel(role: BoardRole): number {
+  return ROLE_HIERARCHY.indexOf(role);
+}
+
 /**
  * Add an agent as a member of a board
  *
@@ -219,6 +226,12 @@ export async function updateMemberRole(
   const membership = await getBoardMember(boardId, agentId);
 
   if (!membership) {
+    return null;
+  }
+
+  // Prevent escalation to owner role (owner can only be set by board creator)
+  if (newRole === 'owner' && membership.role !== 'owner') {
+    Logger.warn(`membership-store: blocked escalation to owner for ${agentId} on board ${boardId}`);
     return null;
   }
 

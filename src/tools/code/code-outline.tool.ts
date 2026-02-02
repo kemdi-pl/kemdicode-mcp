@@ -29,7 +29,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { readFile } from 'fs/promises';
-import { access } from 'fs/promises';
+import { stat } from 'fs/promises';
 import { isSilent } from '../../config/silent.js';
 import { validatePathSafe } from '../../utils/validation.js';
 
@@ -886,7 +886,10 @@ export const codeOutlineTool: UnifiedTool = {
     const filePath = pathResult.path;
     const maxDepth = Math.min(Math.max(Number(depth), 1), 5);
 
-    await access(filePath).catch(() => { throw new Error(`File not found: ${filePath}`); });
+    const fileStat = await stat(filePath).catch(() => { throw new Error(`File not found: ${filePath}`); });
+    if (fileStat.size > 5 * 1024 * 1024) {
+      throw new Error(`File too large (${(fileStat.size / 1024 / 1024).toFixed(1)}MB, max 5MB): ${filePath}`);
+    }
 
     onProgress?.(`Generating outline for ${filePath}...`);
 

@@ -100,7 +100,7 @@ export class ConfidenceStore extends RedisBackedService {
       const sessionKey = COGNITION_KEYS.confidenceBySession(record.sessionId);
       const agentKey = confidenceByAgentKey(record.agentId);
 
-      const pipeline = this.redis.pipeline();
+      const pipeline = this.redis.multi();
 
       // Store the record
       pipeline.set(key, JSON.stringify(fullRecord));

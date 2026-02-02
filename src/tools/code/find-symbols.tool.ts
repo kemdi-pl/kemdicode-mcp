@@ -28,7 +28,7 @@
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
 import { readFile } from 'fs/promises';
-import { access } from 'fs/promises';
+import { stat } from 'fs/promises';
 import { validatePathSafe } from '../../utils/validation.js';
 
 /**
@@ -442,7 +442,10 @@ export const findSymbolsTool: UnifiedTool = {
     }
     const filePath = pathResult.path;
 
-    await access(filePath).catch(() => { throw new Error(`File not found: ${filePath}`); });
+    const fileStat = await stat(filePath).catch(() => { throw new Error(`File not found: ${filePath}`); });
+    if (fileStat.size > 5 * 1024 * 1024) {
+      throw new Error(`File too large (${(fileStat.size / 1024 / 1024).toFixed(1)}MB, max 5MB): ${filePath}`);
+    }
 
     onProgress?.(`Analyzing symbols in ${filePath}...`);
 

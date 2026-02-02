@@ -62,10 +62,10 @@ export class CognitionCrossLinker extends RedisBackedService {
       const forwardMember = `${targetType}:${targetId}`;
       const backwardMember = `${sourceType}:${sourceId}`;
 
-      const pipeline = this.redis.pipeline();
-      pipeline.zadd(forwardKey, now, forwardMember);
-      pipeline.zadd(backwardKey, now, backwardMember);
-      pipeline.set(detailKey, linkValue);
+      const tx = this.redis.multi();
+      tx.zadd(forwardKey, now, forwardMember);
+      tx.zadd(backwardKey, now, backwardMember);
+      tx.set(detailKey, linkValue);
 
       const ttl = this.computeLinkTtl(
         this.getTtlForType(sourceType),
@@ -73,12 +73,12 @@ export class CognitionCrossLinker extends RedisBackedService {
       );
 
       if (ttl > 0) {
-        pipeline.expire(forwardKey, ttl);
-        pipeline.expire(backwardKey, ttl);
-        pipeline.expire(detailKey, ttl);
+        tx.expire(forwardKey, ttl);
+        tx.expire(backwardKey, ttl);
+        tx.expire(detailKey, ttl);
       }
 
-      await pipeline.exec();
+      await tx.exec();
       Logger.debug(
         `[CrossLinker] Linked ${sourceType}:${sourceId} -> ${targetType}:${targetId} (${reason})`,
       );
