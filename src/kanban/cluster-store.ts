@@ -36,6 +36,14 @@ function generateChecklistItemId(): string {
   return `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** Sanitize user-provided text before embedding in LLM prompts. */
+function sanitizeForPrompt(text: string, maxLen = 500): string {
+  return text
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/["""''`]/g, "'")
+    .slice(0, maxLen);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CLUSTER CRUD
 // ─────────────────────────────────────────────────────────────────────────────
@@ -382,14 +390,14 @@ export async function extractClusterContext(
   const taskDescriptions = tasks.map((t, i) => {
     const parts = [
       `Task ${i + 1} [${t.id}]:`,
-      `  Title: ${t.title}`,
-      t.description ? `  Description: ${t.description}` : '',
+      `  Title: ${sanitizeForPrompt(t.title)}`,
+      t.description ? `  Description: ${sanitizeForPrompt(t.description)}` : '',
       `  Status: ${t.status}, Priority: ${t.priority}`,
       t.assignee ? `  Assignee: ${t.assignee}` : '  Unassigned',
       t.relatedFiles.length > 0 ? `  Files: ${t.relatedFiles.join(', ')}` : '',
       t.labels.length > 0 ? `  Labels: ${t.labels.join(', ')}` : '',
       t.blockedBy.length > 0 ? `  Blocked by: ${t.blockedBy.join(', ')}` : '',
-      t.complexity ? `  Complexity: ${t.complexity.score}/10 - ${t.complexity.reasoning}` : '',
+      t.complexity ? `  Complexity: ${t.complexity.score}/10 - ${sanitizeForPrompt(t.complexity.reasoning)}` : '',
     ];
     return parts.filter(Boolean).join('\n');
   }).join('\n\n');
@@ -484,8 +492,8 @@ export async function autoClusterTasks(
 
   const taskDescriptions = unclustered.map((t) => {
     const parts = [
-      `[${t.id}] "${t.title}"`,
-      t.description ? `  Desc: ${t.description}` : '',
+      `[${t.id}] "${sanitizeForPrompt(t.title)}"`,
+      t.description ? `  Desc: ${sanitizeForPrompt(t.description)}` : '',
       `  Priority: ${t.priority}, Status: ${t.status}`,
       t.labels.length > 0 ? `  Labels: ${t.labels.join(', ')}` : '',
       t.relatedFiles.length > 0 ? `  Files: ${t.relatedFiles.join(', ')}` : '',

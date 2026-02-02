@@ -370,13 +370,14 @@ export class LociManager extends RedisBackedService {
   }
 
   /**
-   * Walk the entire palace in order
+   * Walk the entire palace in order (bounded to prevent memory exhaustion)
    */
-  async walkPalace(sessionId: string): Promise<LociRecall[]> {
+  async walkPalace(sessionId: string, limit = 200): Promise<LociRecall[]> {
     const lociList = await this.getSessionLoci(sessionId);
+    const bounded = lociList.slice(0, limit);
     const recalls: LociRecall[] = [];
 
-    for (const loci of lociList) {
+    for (const loci of bounded) {
       const recall = await this.recall(loci.id);
       if (recall) recalls.push(recall);
     }

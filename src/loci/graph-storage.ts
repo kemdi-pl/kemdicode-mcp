@@ -235,7 +235,7 @@ export class GraphStorage extends RedisBackedService {
         from: fromNodeId,
         to: toNodeId,
         type,
-        weight: Math.max(0, Math.min(1, weight)),
+        weight: Number.isFinite(weight) ? Math.max(0, Math.min(1, weight)) : 0,
         sessionId: fromNode.sessionId,
         createdAt: Date.now(),
         traversalCount: 0,

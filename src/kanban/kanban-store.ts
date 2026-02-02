@@ -574,16 +574,16 @@ export async function assignTask(
 
   const client = await getRedis();
 
-  // Use pipeline to batch assignee update operations
-  const pipeline = client.pipeline();
+  // Use MULTI/EXEC to atomically update assignee indices
+  const multi = client.multi();
 
   if (task.assignee) {
-    pipeline.srem(KANBAN_KEYS.byAgent(task.assignee), taskId);
+    multi.srem(KANBAN_KEYS.byAgent(task.assignee), taskId);
   }
 
-  pipeline.sadd(KANBAN_KEYS.byAgent(assigneeId), taskId);
+  multi.sadd(KANBAN_KEYS.byAgent(assigneeId), taskId);
 
-  await pipeline.exec();
+  await multi.exec();
 
   await emitEvent({
     type: 'task-assigned',
