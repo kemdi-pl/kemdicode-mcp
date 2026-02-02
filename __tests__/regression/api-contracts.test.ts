@@ -275,6 +275,9 @@ describe('Level 5 Regression: API Contracts', () => {
     it('should return false, not throw, for saveContext when disconnected', async () => {
       const disconnectedStorage = new ContextStorage({ db: 3 });
 
+      // Prevent lazy connect by stubbing connect() to always fail
+      vi.spyOn(disconnectedStorage, 'connect').mockResolvedValue(false);
+
       const result = await disconnectedStorage.saveContext({
         id: 'disconnect-contract',
         sessionId: 'test',

@@ -195,6 +195,9 @@ describe('Level 5 Regression: Known Issues', () => {
     it('should return false when not connected, not null', async () => {
       const disconnectedStorage = new ContextStorage({ db: 3 });
 
+      // Prevent lazy connect by stubbing connect() to always fail
+      vi.spyOn(disconnectedStorage, 'connect').mockResolvedValue(false);
+
       const result = await disconnectedStorage.saveContext({
         id: 'disconnect-test',
         sessionId: 'test-session',

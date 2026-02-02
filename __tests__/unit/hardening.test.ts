@@ -98,36 +98,8 @@ describe('signData and verifySignature hardening', () => {
 });
 
 // ============================================================
-// 2. process-list filter safety
+// 2. process-list filter safety (removed — tool no longer exists)
 // ============================================================
-
-describe('process-list filter safety', () => {
-  // We test the filtering logic by importing the tool and checking
-  // that special regex characters don't cause errors.
-  // The tool uses execSync internally so we mock it.
-
-  it('should not throw on special regex characters in filter', async () => {
-    const { processListTool } = await import(
-      '../../src/tools/system/process-list.tool.js'
-    );
-
-    // These would cause RegExp constructor to throw with old code
-    const dangerousFilters = ['(((', '.*+?', '[invalid', '\\', 'a{9999}'];
-
-    for (const filter of dangerousFilters) {
-      // Should not throw - it will return "No processes found" or similar
-      // because the subprocess might fail, but the tool itself handles errors
-      const result = await processListTool.execute({
-        filter,
-        sortBy: 'cpu',
-        limit: 5,
-        all: false,
-      });
-
-      expect(typeof result).toBe('string');
-    }
-  });
-});
 
 // ============================================================
 // 3. env-info redaction

@@ -91,6 +91,9 @@ describe('Level 4 Resilience: Error Handling', () => {
     it('should return false for context operations when disconnected', async () => {
       const disconnectedStorage = new ContextStorage({ db: 3 });
 
+      // Prevent lazy connect by stubbing connect() to always fail
+      vi.spyOn(disconnectedStorage, 'connect').mockResolvedValue(false);
+
       const result = await disconnectedStorage.saveContext({
         id: 'test-1',
         sessionId: 'test-session',
