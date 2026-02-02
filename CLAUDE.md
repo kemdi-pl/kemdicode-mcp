@@ -1,4 +1,4 @@
-# KemdiCode MCP Server
+# KemdiCode MCP Server v1.25.0
 
 ## Session Recovery
 
@@ -11,6 +11,8 @@ Alternatively: `read-memory --names ["active-session"]` and update with `write-m
 Model Context Protocol (MCP) server providing **142 specialized tools** across 23 categories: code analysis, generation, git operations, file management, line/symbol editing, project memory, cognition & self-improvement, multi-board kanban with workspaces, task clustering & complexity, thinking chains, recursive tool invocation, pipelines, session monitoring, multi-agent coordination, structured output, data flow bus, cluster bus with LLM magistrale, tool annotations, ambient learning, agent ranking, and MCP client capabilities.
 
 **8 LLM providers**: OpenAI, Anthropic, Gemini, Groq, DeepSeek, Ollama, OpenRouter, Perplexity. Provider syntax: `provider:model:thinking` (e.g., `a:claude-sonnet-4-5:4k`, `p:sonar-pro`).
+
+**559 unit tests** across 6 test files. See `docs/whitepaper-kemdicode-mcp-v1.25.pdf` for the full technical whitepaper.
 
 ## Architecture
 
@@ -80,10 +82,10 @@ src/
 │   ├── tool-shared.ts       # executeWithGuard, handleToolError helpers
 │   ├── agents/              # Agent monitoring (10 tools)
 │   ├── cluster-bus/         # Cluster bus tools (7 tools)
-│   ├── code/                # Code navigation + symbol editing (9 tools)
+│   ├── code/                # Code navigation + symbol editing (8 tools)
 │   ├── client/              # MCP client capabilities (3 tools)
 │   ├── cognition/           # AI self-improvement (8 tools)
-│   ├── context/             # Context sharing (4 tools)
+│   ├── context/             # Context sharing (3 tools)
 │   ├── edit/                # Line-based editing (4 tools)
 │   ├── file/                # File operations (9 tools)
 │   ├── git/                 # Git operations (8 tools)
@@ -91,7 +93,7 @@ src/
 │   ├── loci/                # Knowledge graph + resurrection (4 tools)
 │   ├── memory/              # Project memory (8 tools)
 │   ├── mpc/                 # Multi-party computation (4 tools)
-│   ├── multi-llm/           # Multi-provider LLM tools (3 tools)
+│   ├── multi-llm/           # Multi-provider LLM tools (3 tools: multi-prompt, consensus-prompt, enhance-prompt)
 │   ├── project/             # Project management (5 tools)
 │   ├── recursive/           # Recursive invocation + orchestrate (4 tools)
 │   ├── rl/                  # Reinforcement learning (2 tools)
@@ -161,9 +163,32 @@ mcp:messages:*    — Inter-agent messages
 mcp:kanban:*      — Tasks, boards, workspaces, clusters
 mcp:memory:*      — Project memory
 mcp:cognition:*   — Decisions, confidence, models, intents, errors, lessons
+mcp:cluster:*     — Cluster bus signals and registry
+mcp:dataflow:*    — Typed message channels (12 channels)
 mcp:channel:*     — Pub/Sub channels
 mcp:events:*      — Event history
 ```
+
+### 3-Layer Bus Architecture
+- **L3: ClusterBus** (`cluster-bus/`) — inter-cluster via Redis Pub/Sub (`mcp:cluster:*`). 12 signal types, 3 send modes (unicast/broadcast/routed). SignalFlowController (backpressure, rate limiting, circuit breaker, bloom filter, HMAC auth), MetaRouter (tag-based routing with AND/OR logic), HealthMonitor (heartbeat, stale pruning).
+- **L2: DataFlowBus** (`dataflow/`) — inter-module typed channels (`mcp:dataflow:{channel}`). 12 channels with Zod payloads, correlation tracking, priority 0-3, TTL, O(1) unsubscribe.
+- **L1: GlobalEventBus** (`events/`) — in-process events (`mcp:events:{type}`). Namespaced events, async handlers, max chain depth 8, Redis bridge with retry.
+- **Bridges** (`cluster-bus/bridges.ts`) — L3↔L2 (DataFlowBridge) and L3↔L1 (EventBridge) with anti-amplification: hop limit 5, source prefix guard, dedup via seen-set.
+
+### LLM Magistrale (`cluster-bus/llm-magistrale.ts`)
+- Dispatch prompts across multiple cluster nodes in parallel
+- 4 aggregation strategies: `first-wins`, `best-of-n`, `consensus` (Jaccard similarity), `fallback-chain`
+- PassController (`cluster-bus/pass-controller.ts`): 3 strategies — `min-passes` (LLM self-assesses), `quality-target` (iterate to threshold), `fixed` (exact N)
+- Budget capping: PassController caps `minPasses` to `maxPasses` instead of rejecting
+
+### Security Hardening (v1.25.0)
+- Prototype pollution protection in Redis JSON parsing (`events/redis-bridge.ts`)
+- HMAC authentication for ClusterBus signals
+- Bloom filter deduplication for signal dedup
+- Client timeout guards on `client-sampling` and `client-elicit` (30s)
+- Chain depth limit (500) on thinking chains
+- Promise rejection safety in GlobalEventBus async handlers
+- ReDoS-safe regex patterns in MetaRouter (200 char cap)
 
 ## CLI Options
 
@@ -233,6 +258,31 @@ nohup bun /opt/kemdicode-mcp/dist/index.js --port 3100 >> /tmp/kemdicode-mcp.log
 - **Agent selection**: `plan` for analysis/planning, `build` for code changes
 - **Error handling**: Descriptive errors, automatic fallback, `handleToolError()` shared helper
 - **File paths**: Use `@path/file.ts` notation in tool arguments
+
+## Documentation
+
+```
+docs/
+├── architecture-overview.md           # System layers, tool registry, providers
+├── architecture-3-layer-bus.md        # ClusterBus (L3), DataFlowBus (L2), GlobalEventBus (L1)
+├── README.md                          # Documentation index
+└── whitepaper-kemdicode-mcp-v1.25.pdf # Technical whitepaper (16 pages, TikZ diagrams, bibliography)
+
+examples/
+├── 01-hot-reload-config.md            # Switch AI providers at runtime
+├── 02-kanban-sprint.md                # End-to-end sprint workflow
+├── 03-multi-agent-coordination.md     # Agent teams with roles
+├── 04-multi-llm-consensus.md          # CEO-and-Board pattern
+├── 05-code-analysis-workflow.md       # Review, fix, test pipeline
+├── 06-project-memory.md               # Persistent cross-session memory
+├── 07-recursive-tool-invocation.md    # Agent self-service tools
+├── 08-cluster-bus-magistrale.md       # Distributed LLM orchestration
+├── 09-dataflow-bus.md                 # 12 typed inter-module channels
+├── 10-cognition-deep-dive.md          # 8 cognition tools in depth
+├── 11-session-recovery-mpc-rl.md      # Recovery, secrets, learning
+├── 12-knowledge-graph-loci.md         # Error-to-solution paths
+└── patterns.md                        # 18 reusable integration patterns
+```
 
 ## Compatibility
 
