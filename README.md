@@ -1,3 +1,5 @@
+# kemdiCode MCP
+
 <p align="center">
   <img src="kemdi-code-mcp-logo.png" alt="kemdiCode MCP" width="420" />
 </p>
@@ -10,7 +12,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/kemdicode-mcp"><img src="https://img.shields.io/badge/npm-kemdicode--mcp-CB3837?style=flat-square&logo=npm&logoColor=white" alt="npm" /></a>
-  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.25.2-blue?style=flat-square" alt="Version" /></a>
+  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.25.3-blue?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License" /></a>
 </p>
 
@@ -25,14 +27,14 @@
 
 **kemdiCode MCP** is a [Model Context Protocol](https://modelcontextprotocol.io/) server that gives AI agents and IDE assistants access to **142 specialized tools** for code analysis, generation, git operations, file management, AST-aware editing, project memory, cognition & self-improvement, multi-board kanban, multi-agent coordination, cluster bus with distributed LLM magistrale, typed data flow bus, structured output, and LLM-driven task management.
 
-### New in 1.25.2
+### New in 1.25.3
 
 > **Cluster Bus & LLM Magistrale** &mdash; full-duplex inter-cluster communication with 12 signal types, HMAC auth, bloom filter dedup, and distributed prompt dispatch across nodes (4 aggregation strategies). Self-regulating Pass Controller for quality-driven multi-pass execution. Prompt enhancer for iterative refinement. 559 unit tests. [Read the full whitepaper &rarr;](docs/whitepaper-kemdicode-mcp-v1.25.pdf)
 
 <details>
 <summary><strong>Table of Contents</strong></summary>
 
-- [What's New in 1.25.2](#whats-new-in-1251)
+- [What's New in 1.25.3](#whats-new-in-1251)
 - [Cognition Layer: How AI Remembers](#cognition-layer-how-ai-remembers)
 - [Usage Examples](#usage-examples)
 - [What's Next](#whats-next)
@@ -56,7 +58,7 @@
 
 ---
 
-## What's New in 1.25.2
+## What's New in 1.25.3
 
 ### Cluster Bus &mdash; Distributed LLM Orchestration
 
