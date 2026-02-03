@@ -150,16 +150,17 @@ export class LLMMagistrale {
     this.bus = bus;
 
     // Subscribe to LLM results coming back from clusters
+    // Permanent subscriptions (ttlMs: 0) — must not be cleaned up by idle subscription reaper
     this.subscriptions.push(
       this.bus.onSignal<SignalPayloadMap['llm:result']>('llm:result', (signal) => {
         this.handleResult(signal);
-      }),
+      }, undefined, { ttlMs: 0 }),
     );
 
     this.subscriptions.push(
       this.bus.onSignal<SignalPayloadMap['llm:error']>('llm:error', (signal) => {
         this.handleError(signal);
-      }),
+      }, undefined, { ttlMs: 0 }),
     );
 
     // Periodic cleanup of stale PendingDispatch entries (every 60s)

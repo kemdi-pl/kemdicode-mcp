@@ -101,6 +101,7 @@ export function connectBridges(
   // -----------------------------------------------------------------------
   if (hasDataFlowBus && cfg.clusterToDataFlow.length > 0) {
     for (const signalType of cfg.clusterToDataFlow) {
+      // Permanent subscription — bridge must not be cleaned up by idle reaper
       const sub = bus.onSignal(signalType, (signal: ClusterSignal) => {
         const dataflowBus = getDataFlowBus();
         const channel = mapSignalToDataFlowChannel(signal.type);
@@ -117,7 +118,7 @@ export function connectBridges(
         });
 
         stats.clusterToDataFlow++;
-      });
+      }, undefined, { ttlMs: 0 });
 
       unsubscribers.push(sub.unsubscribe);
     }
@@ -200,6 +201,7 @@ export function connectBridges(
   // -----------------------------------------------------------------------
   if (hasEventBus && cfg.clusterToEvents.length > 0) {
     for (const signalType of cfg.clusterToEvents) {
+      // Permanent subscription — bridge must not be cleaned up by idle reaper
       const sub = bus.onSignal(signalType, (signal: ClusterSignal) => {
         // Prevent amplification loops
         const payloadObj = (signal.payload && typeof signal.payload === 'object') ? signal.payload as Record<string, unknown> : {};
@@ -230,7 +232,7 @@ export function connectBridges(
         );
 
         stats.clusterToEvents++;
-      });
+      }, undefined, { ttlMs: 0 });
 
       unsubscribers.push(sub.unsubscribe);
     }

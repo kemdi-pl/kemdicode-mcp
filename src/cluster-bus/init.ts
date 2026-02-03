@@ -114,6 +114,7 @@ export async function initClusterBusSystem(): Promise<boolean> {
     bridgeHandle = connectBridges(bus);
 
     // 8. Register local llm:request handler (single-shot or multi-pass via PassController)
+    // Permanent subscription (ttlMs: 0) — must not be cleaned up by idle subscription reaper
     bus.onSignal<SignalPayloadMap['llm:request']>('llm:request', (signal: ClusterSignal<SignalPayloadMap['llm:request']>) => {
       const startTime = Date.now();
       const correlationId = signal.correlationId || signal.id;
@@ -219,7 +220,7 @@ export async function initClusterBusSystem(): Promise<boolean> {
         .catch((err) => {
           sendError(err instanceof Error ? err.message : String(err));
         });
-    });
+    }, undefined, { ttlMs: 0 });
 
     Logger.info(
       `[ClusterBus] System ready: ${config.clusterId} | tags: ${config.metaTags.map((t) => `${t.key}:${t.value}`).join(', ') || 'none'}`,

@@ -1,4 +1,4 @@
-# KemdiCode MCP Server v1.25.1
+# KemdiCode MCP Server v1.25.2
 
 ## Session Recovery
 
