@@ -38,13 +38,6 @@ import {
 
 const getRedis = getSharedRedis;
 
-/** Role hierarchy for permission checks (higher index = more privileges) */
-const ROLE_HIERARCHY: BoardRole[] = ['viewer', 'member', 'admin', 'owner'];
-
-function getRoleLevel(role: BoardRole): number {
-  return ROLE_HIERARCHY.indexOf(role);
-}
-
 /**
  * Add an agent as a member of a board
  *

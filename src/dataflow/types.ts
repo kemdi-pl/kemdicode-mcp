@@ -16,18 +16,18 @@ import { z } from 'zod';
  * Each channel has a strongly-typed payload schema.
  */
 export type DataFlowChannel =
-  | 'ai:completion'       // AI completion results
-  | 'ai:structured'       // Structured output results
-  | 'ai:research'         // Research model results
-  | 'kanban:task-change'  // Task state changes
-  | 'kanban:complexity'   // Complexity analysis results
-  | 'cognition:decision'  // Decision journal entries
-  | 'cognition:intent'    // Intent changes
-  | 'cognition:error'     // Error pattern matches
-  | 'agent:status'        // Agent status updates
-  | 'agent:message'       // Inter-agent messages
-  | 'system:health'       // System health events
-  | 'system:config';      // Configuration changes
+  | 'ai:completion' // AI completion results
+  | 'ai:structured' // Structured output results
+  | 'ai:research' // Research model results
+  | 'kanban:task-change' // Task state changes
+  | 'kanban:complexity' // Complexity analysis results
+  | 'cognition:decision' // Decision journal entries
+  | 'cognition:intent' // Intent changes
+  | 'cognition:error' // Error pattern matches
+  | 'agent:status' // Agent status updates
+  | 'agent:message' // Inter-agent messages
+  | 'system:health' // System health events
+  | 'system:config'; // Configuration changes
 
 /**
  * Envelope for all data flow messages.
@@ -63,9 +63,7 @@ export interface DataFlowEnvelope<T = unknown> {
 /**
  * Handler function for data flow messages.
  */
-export type DataFlowHandler<T = unknown> = (
-  envelope: DataFlowEnvelope<T>,
-) => void | Promise<void>;
+export type DataFlowHandler<T = unknown> = (envelope: DataFlowEnvelope<T>) => void | Promise<void>;
 
 /**
  * Subscription options for data flow listeners.
@@ -77,6 +75,8 @@ export interface SubscriptionOptions {
   minPriority?: 0 | 1 | 2 | 3;
   /** Process messages sequentially (default: parallel) */
   sequential?: boolean;
+  /** Only receive messages addressed to specific target */
+  target?: string;
 }
 
 // ─── Channel Payload Schemas ─────────────────────────────────────────────────

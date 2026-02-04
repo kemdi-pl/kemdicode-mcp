@@ -10,19 +10,22 @@
 
 import { z } from 'zod';
 import type { UnifiedTool } from '../registry.js';
-import { enhancePrompt, selectEnhancerModel } from '../../ai/prompt-enhancer.js';
+import { enhancePrompt } from '../../ai/prompt-enhancer.js';
 import { isSilent } from '../../config/silent.js';
 
 const schema = z.object({
   prompt: z.string().min(1).describe('The prompt to analyze and enhance'),
   model: z.string().optional().describe('Override enhancer model (provider:model syntax)'),
-  files: z.string().optional().describe('Additional file context hints (@path syntax, comma-separated)'),
+  files: z
+    .string()
+    .optional()
+    .describe('Additional file context hints (@path syntax, comma-separated)'),
   force: z.boolean().default(false).describe('Force enhancement even for detailed prompts'),
   verbose: z.boolean().default(false).describe('Show full analysis details'),
 });
 
 async function execute(args: Record<string, unknown>): Promise<string> {
-  const { prompt, model, files, force, verbose } = args as z.infer<typeof schema>;
+  const { prompt, model, force, verbose } = args as z.infer<typeof schema>;
 
   const result = await enhancePrompt(prompt, {
     model,
@@ -47,7 +50,9 @@ async function execute(args: Record<string, unknown>): Promise<string> {
   if (result.skipped) {
     lines.push(`# Prompt Enhancement — Skipped`);
     lines.push('');
-    lines.push(`The prompt is already clear enough (vagueness: ${result.analysis.vaguenessScore}/10).`);
+    lines.push(
+      `The prompt is already clear enough (vagueness: ${result.analysis.vaguenessScore}/10).`
+    );
     lines.push('');
     lines.push(`**Intent:** ${result.analysis.intent}`);
     lines.push(`**Model:** ${result.model}`);

@@ -13,7 +13,6 @@
 import { z } from 'zod';
 import { generateObject } from './structured-output.js';
 import { getClientConfig } from './client.js';
-import { hasProviderPrefix } from './model-spec.js';
 import { loadFileContexts, formatFileContextForPrompt, parseFilePath } from './file-context.js';
 import { getEnhancedContextString } from '../utils/projectContext.enhanced.js';
 import { Logger } from '../utils/logger.js';
@@ -95,7 +94,11 @@ const VAGUE_MARKERS = [
 // ─── Zod Schema for Analysis ───────────────────────────────────────────────────
 
 const PromptAnalysisSchema = z.object({
-  vaguenessScore: z.number().min(0).max(10).describe('Vagueness score: 0 = crystal clear, 10 = completely vague'),
+  vaguenessScore: z
+    .number()
+    .min(0)
+    .max(10)
+    .describe('Vagueness score: 0 = crystal clear, 10 = completely vague'),
   missingContext: z.array(z.string()).describe('List of specific missing information'),
   suggestedFiles: z.array(z.string()).describe('File paths that might be relevant'),
   intent: z.string().describe('The user intent in one clear sentence'),
@@ -161,7 +164,7 @@ function quickNeedsEnhancement(prompt: string, forceEnhance?: boolean): boolean 
 export async function analyzePrompt(
   prompt: string,
   model: string,
-  projectContext?: string,
+  projectContext?: string
 ): Promise<PromptAnalysis> {
   const contextSnippet = projectContext
     ? projectContext.slice(0, 1000) // Keep context brief for analysis
@@ -170,7 +173,8 @@ export async function analyzePrompt(
   const result = await generateObject({
     model,
     schema: PromptAnalysisSchema,
-    system: 'You are a prompt quality analyst for an AI coding assistant. Evaluate the user prompt and determine if it needs clarification or enhancement before being sent to the main AI model.',
+    system:
+      'You are a prompt quality analyst for an AI coding assistant. Evaluate the user prompt and determine if it needs clarification or enhancement before being sent to the main AI model.',
     prompt: [
       `Evaluate this user prompt:`,
       ``,
@@ -206,7 +210,7 @@ async function rewritePrompt(
   analysis: PromptAnalysis,
   model: string,
   projectContext: string,
-  fileContext?: string,
+  fileContext?: string
 ): Promise<string> {
   const parts = [
     `Rewrite this user prompt into a clear, specific, actionable instruction for an AI coding assistant.`,
@@ -237,7 +241,7 @@ async function rewritePrompt(
     `- Include relevant technical context from the project`,
     `- Be concise — max 3-4 sentences`,
     `- Write in the same language as the original prompt`,
-    `- Output ONLY the enhanced prompt text, nothing else`,
+    `- Output ONLY the enhanced prompt text, nothing else`
   );
 
   const response = await generateObject({
@@ -245,7 +249,8 @@ async function rewritePrompt(
     schema: z.object({
       enhancedPrompt: z.string().describe('The rewritten, enhanced prompt'),
     }),
-    system: 'You are a prompt engineer. Output only the enhanced prompt in a structured JSON response.',
+    system:
+      'You are a prompt engineer. Output only the enhanced prompt in a structured JSON response.',
     prompt: parts.join('\n'),
     temperature: 0.3,
     maxTokens: 1024,
@@ -278,7 +283,7 @@ async function rewritePrompt(
  */
 export async function enhancePrompt(
   prompt: string,
-  options: EnhancerOptions = {},
+  options: EnhancerOptions = {}
 ): Promise<EnhancerResult> {
   const startTime = Date.now();
   const {
@@ -333,7 +338,7 @@ export async function enhancePrompt(
     // Decision gate: skip if prompt is clear enough
     if (!analysis.shouldEnhance || analysis.vaguenessScore < VAGUENESS_THRESHOLD) {
       Logger.debug(
-        `[Enhancer] Prompt is clear (vagueness: ${analysis.vaguenessScore}/10), skipping`,
+        `[Enhancer] Prompt is clear (vagueness: ${analysis.vaguenessScore}/10), skipping`
       );
       return {
         original: prompt,
@@ -352,9 +357,7 @@ export async function enhancePrompt(
   let fileContext = '';
   if (analysis.suggestedFiles.length > 0) {
     try {
-      const filePaths = analysis.suggestedFiles
-        .slice(0, maxFiles)
-        .map((f) => parseFilePath(f));
+      const filePaths = analysis.suggestedFiles.slice(0, maxFiles).map((f) => parseFilePath(f));
       const root = projectRoot || process.cwd();
       const loaded = await loadFileContexts(filePaths, root);
       if (loaded.length > 0) {
@@ -369,7 +372,13 @@ export async function enhancePrompt(
   // Phase 2: Rewrite
   let enhanced: string;
   try {
-    enhanced = await rewritePrompt(prompt, analysis, model, projectContext, fileContext || undefined);
+    enhanced = await rewritePrompt(
+      prompt,
+      analysis,
+      model,
+      projectContext,
+      fileContext || undefined
+    );
   } catch (err) {
     Logger.warn(`[Enhancer] Rewrite failed: ${err instanceof Error ? err.message : err}`);
     return {
@@ -386,7 +395,7 @@ export async function enhancePrompt(
   const duration = Date.now() - startTime;
   Logger.debug(
     `[Enhancer] Enhanced prompt (vagueness: ${analysis.vaguenessScore}/10, ` +
-      `files: ${filesLoaded.length}, ${duration}ms)`,
+      `files: ${filesLoaded.length}, ${duration}ms)`
   );
 
   // Store in cognition memory (async, fire-and-forget)
@@ -432,7 +441,7 @@ async function storeEnhancementResult(
   enhanced: string,
   analysis: PromptAnalysis,
   model: string,
-  duration: number,
+  duration: number
 ): Promise<void> {
   try {
     const { getSharedRedis } = await import('../infrastructure/redis/connection.js');

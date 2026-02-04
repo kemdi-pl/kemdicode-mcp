@@ -75,7 +75,7 @@ class DataFlowBus {
       correlationId?: string;
       priority?: 0 | 1 | 2 | 3;
       ttl?: number;
-    },
+    }
   ): Promise<string> {
     const envelope: DataFlowEnvelope = {
       id: uuidv4(),
@@ -109,11 +109,17 @@ class DataFlowBus {
       sub.lastInvokedAt = Date.now();
       try {
         const result = sub.handler(envelope);
-        return result instanceof Promise ? result.catch((err) => {
-          Logger.error(`dataflow: handler error on ${channel}: ${err instanceof Error ? err.message : String(err)}`);
-        }) : Promise.resolve();
+        return result instanceof Promise
+          ? result.catch((err) => {
+              Logger.error(
+                `dataflow: handler error on ${channel}: ${err instanceof Error ? err.message : String(err)}`
+              );
+            })
+          : Promise.resolve();
       } catch (err) {
-        Logger.error(`dataflow: sync handler error on ${channel}: ${err instanceof Error ? err.message : String(err)}`);
+        Logger.error(
+          `dataflow: sync handler error on ${channel}: ${err instanceof Error ? err.message : String(err)}`
+        );
         return Promise.resolve();
       }
     });
@@ -125,7 +131,9 @@ class DataFlowBus {
       try {
         await this.redisPublisher(`mcp:dataflow:${channel}`, JSON.stringify(envelope));
       } catch (err) {
-        Logger.warn(`dataflow: Redis publish failed: ${err instanceof Error ? err.message : String(err)}`);
+        Logger.warn(
+          `dataflow: Redis publish failed: ${err instanceof Error ? err.message : String(err)}`
+        );
       }
     }
 
@@ -139,7 +147,7 @@ class DataFlowBus {
   subscribe<C extends DataFlowChannel>(
     channel: C,
     handler: DataFlowHandler<C extends keyof ChannelPayloadMap ? ChannelPayloadMap[C] : unknown>,
-    options: SubscriptionOptions = {},
+    options: SubscriptionOptions = {}
   ): () => void {
     const now = Date.now();
     const sub: Subscription = {
@@ -182,9 +190,7 @@ class DataFlowBus {
       ];
     }
 
-    const messages = channel
-      ? ordered.filter((m) => m.channel === channel)
-      : ordered;
+    const messages = channel ? ordered.filter((m) => m.channel === channel) : ordered;
 
     return messages.slice(-limit);
   }
@@ -243,7 +249,9 @@ class DataFlowBus {
       // Verify envelope channel matches actual Redis channel to prevent spoofing
       const resolvedChannel = channel.replace('mcp:dataflow:', '') as DataFlowChannel;
       if (envelope.channel && envelope.channel !== resolvedChannel) {
-        Logger.warn(`dataflow: channel mismatch (expected=${resolvedChannel}, got=${envelope.channel}), dropping message`);
+        Logger.warn(
+          `dataflow: channel mismatch (expected=${resolvedChannel}, got=${envelope.channel}), dropping message`
+        );
         return;
       }
 
@@ -264,12 +272,16 @@ class DataFlowBus {
           try {
             sub.handler(envelope);
           } catch (err) {
-            Logger.error(`dataflow: Redis handler error: ${err instanceof Error ? err.message : String(err)}`);
+            Logger.error(
+              `dataflow: Redis handler error: ${err instanceof Error ? err.message : String(err)}`
+            );
           }
         }
       }
     } catch (err) {
-      Logger.error(`dataflow: failed to parse Redis message: ${err instanceof Error ? err.message : String(err)}`);
+      Logger.error(
+        `dataflow: failed to parse Redis message: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 
@@ -332,7 +344,7 @@ class DataFlowBus {
     const { sourceFilter, minPriority } = sub.options;
 
     // Target filtering: skip if message is addressed to a specific target that doesn't match
-    if ((sub.options as any).target && (sub.options as any).target !== envelope.target) {
+    if (sub.options.target && sub.options.target !== envelope.target) {
       return false;
     }
 

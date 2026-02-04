@@ -50,6 +50,8 @@ export interface ConnectionOptions {
  */
 export class RedisConnectionManager {
   private redis: Redis | null = null;
+  private pool: Redis[] = [];
+  private poolSize = 3;
   private config: RedisConfig;
   private options: Required<ConnectionOptions>;
   private connected = false;
@@ -65,6 +67,7 @@ export class RedisConnectionManager {
       enableOfflineQueue: options.enableOfflineQueue ?? true,
       connectTimeout: options.connectTimeout ?? 5000,
     };
+    this.poolSize = Math.max(1, (options as { poolSize?: number }).poolSize ?? 3);
   }
 
   /**

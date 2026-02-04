@@ -1,0 +1,2366 @@
+{
+  "src/version.ts": {
+    "hash": "ca206ea9b44fd7831308d3d3d741c1f39c608302f664dc5e2dfb9ac287bf0629",
+    "mtime": 1769972632.945981,
+    "size": 665,
+    "refined": true
+  },
+  "test-multicluster.ts": {
+    "hash": "b5460662c3d67ff700bbaf59ab3d8c89bfea460a0ea7d43e6d347552dcdf7243",
+    "mtime": 1769986375.2930415,
+    "size": 11962,
+    "refined": true
+  },
+  "vitest.config.ts": {
+    "hash": "de61b960066ea10d0aafa399cb588798d49233fd28320b691cf95f1fa7bf2e63",
+    "mtime": 1767342233.125702,
+    "size": 717,
+    "refined": true
+  },
+  "test-iflow-clusters.ts": {
+    "hash": "7f95bf618f9dc25a6732f9a1c2d86d926292d286fda904b583fca534036c48fd",
+    "mtime": 1769986579.3131397,
+    "size": 9021,
+    "refined": true
+  },
+  "src/index.ts": {
+    "hash": "5189adb3417e01653c01ade58809b28b54aa27b81da0424612f2bfafa0efdd1f",
+    "mtime": 1770060312.13141,
+    "size": 13458,
+    "refined": true
+  },
+  "scripts/add-license-headers.ts": {
+    "hash": "ce484224cf1e18162fa6d89f342b5ac166edb86f297f9cd70bac8b202fd7b3b0",
+    "mtime": 1769959995.7862859,
+    "size": 3286,
+    "refined": true
+  },
+  "src/tools/batch.tool.ts": {
+    "hash": "e80adde89b35f08a50ea4b3c9213767641b99cf16c6a24f6dfe0af36858a0990",
+    "mtime": 1769960235.3903735,
+    "size": 5997,
+    "refined": true
+  },
+  "src/constants.ts": {
+    "hash": "5dfadba321dc869ea57e0d11a7cc3efa4c12b772f61e6c6c8aee69b03d3b3437",
+    "mtime": 1769960235.4543748,
+    "size": 3641,
+    "refined": true
+  },
+  "src/tools/pipeline.tool.ts": {
+    "hash": "8255ae349300a105e0baec36126fb7e264955c75ad5ef0fbbbde4d0cbfabd719",
+    "mtime": 1769960235.3943737,
+    "size": 6791,
+    "refined": true
+  },
+  "src/tools/annotations-map.ts": {
+    "hash": "4c8b677935a88172e5dd83732c9050ec4fd071b006874f2b4ca979ffaa20f95a",
+    "mtime": 1770040322.800433,
+    "size": 13862,
+    "refined": true
+  },
+  "src/tools/registry.ts": {
+    "hash": "8a47e305c8147fe0c44942a69d38d390aa8a379e6af469d61a40be191c00ec84",
+    "mtime": 1770060105.5632424,
+    "size": 38562,
+    "refined": true
+  },
+  "src/tools/ask-ai.tool.ts": {
+    "hash": "a29408dbb4700c49d40359ebd1e22cb4cfd7d1184cbe1fc1e07c8cee9a3551c8",
+    "mtime": 1770036085.0352333,
+    "size": 2673,
+    "refined": true
+  },
+  "src/tools/index.ts": {
+    "hash": "81bcb9abe6b329482a4b64aa82752c0f69f2227f539db3a405958288a9fb783a",
+    "mtime": 1770040316.4683053,
+    "size": 28938,
+    "refined": true
+  },
+  "src/tools/availability-checker.ts": {
+    "hash": "2555a6ee2082247741e82e54ebfefb3b17ea61d7aee5ff41e340ada37dcef4b7",
+    "mtime": 1769981063.7339938,
+    "size": 8314,
+    "refined": true
+  },
+  "src/tools/tool-shared.ts": {
+    "hash": "d863997bbf7a91071b28c9ffe619fc8a7a0d52c8be8b2ca0b36fbcc729d561a4",
+    "mtime": 1769994496.4643235,
+    "size": 2147,
+    "refined": true
+  },
+  "src/context/index.ts": {
+    "hash": "fe422995dfdebdadc2fc7f532c294d2731a90b15eb0b7a9d3a036e1254106191",
+    "mtime": 1769960235.418374,
+    "size": 1073,
+    "refined": true
+  },
+  "src/context/types.ts": {
+    "hash": "7b666e58a6d122b1613e06bf8a2a574e2cf2386f69b6e8006a80bedfed6785d4",
+    "mtime": 1769971486.3184283,
+    "size": 12929,
+    "refined": true
+  },
+  "src/tools/simple-tools.ts": {
+    "hash": "a7906ccb189e55c13f9d4a544cbc14a0e5630b9f05037c95b0403d83000e23f8",
+    "mtime": 1770036093.4474015,
+    "size": 4069,
+    "refined": true
+  },
+  "src/tools/brainstorm.tool.ts": {
+    "hash": "b5261a928d6a819f56bef317f32320ab39ee303326332327cb9d8e4cbdf1f5d0",
+    "mtime": 1770036098.611505,
+    "size": 4245,
+    "refined": true
+  },
+  "src/context/feedback-loop.ts": {
+    "hash": "c14ce5dc57f21a8668e04fe2a3e64270eae2fc52ecd179513d455c5eb7c03d7d",
+    "mtime": 1769960235.418374,
+    "size": 10555,
+    "refined": true
+  },
+  "src/context/storage.ts": {
+    "hash": "de369c8855ce8af67d29ff955473977756de4cde4a487abfc9e185ed59e43125",
+    "mtime": 1769960235.4223742,
+    "size": 20145,
+    "refined": true
+  },
+  "src/context/iteration-tracker.ts": {
+    "hash": "a05ac2f8388153050e2f87c7d71e94d9804d87f8c75f12aedf1b03ed1f04b04b",
+    "mtime": 1769960235.4223742,
+    "size": 12193,
+    "refined": true
+  },
+  "src/context/agent-monitor.ts": {
+    "hash": "c1b14702734f19a20f47a403a6f31006e59f596eaafa6412d389193d5a5efff2",
+    "mtime": 1769971477.2822485,
+    "size": 37979,
+    "refined": true
+  },
+  "src/context/integration.ts": {
+    "hash": "60a8a131f898ce856d9cd4b46a7d386380fe4ea6d09fdc1fd08b40f635f1e37c",
+    "mtime": 1769960235.418374,
+    "size": 9046,
+    "refined": true
+  },
+  "src/server/types.ts": {
+    "hash": "f05561200779ca46d9f9974fe8d079a4cc21df13996cbc8fb97551ec71e61008",
+    "mtime": 1769960235.4223742,
+    "size": 2419,
+    "refined": true
+  },
+  "src/server/index.ts": {
+    "hash": "ac2cf0015cbe6c82d432c968ceca4d7b39fd5dcac2b7669cff2decb822840a7e",
+    "mtime": 1769960235.4223742,
+    "size": 1403,
+    "refined": true
+  },
+  "src/server/session-server.ts": {
+    "hash": "2e580d34c8af78bcc76daf6caf7e908e9999d476e90f8a8993d314aee4e88f83",
+    "mtime": 1769973651.0789733,
+    "size": 10818,
+    "refined": true
+  },
+  "src/server/progress.ts": {
+    "hash": "790753c9bd9904035630c84c70c88412358d752fd0c8b4b0d938e6cef6407fb1",
+    "mtime": 1769960235.4223742,
+    "size": 7237,
+    "refined": true
+  },
+  "src/server/http-server.ts": {
+    "hash": "96b25e17884c7af614495a8fbaf91d11bd173a414bbc2a4c130aa3341605b444",
+    "mtime": 1769972607.1134346,
+    "size": 14238,
+    "refined": true
+  },
+  "src/ai/pricing.ts": {
+    "hash": "dd8025c27ac87995635cb324a5556afd4eda59fc9b74915a3a70e634da2a1744",
+    "mtime": 1769980925.823187,
+    "size": 9270,
+    "refined": true
+  },
+  "src/ai/file-context.ts": {
+    "hash": "0e4fdb6f13aed04806a8d4908f3939e72dbf8f03bf988a6b13bdbdacf9e31dce",
+    "mtime": 1769960235.4263742,
+    "size": 6142,
+    "refined": true
+  },
+  "src/ai/execute.ts": {
+    "hash": "2677ee829074b9150c313da0e77cfa79c2fa96a8d374986bdc3aa9ac7f1d8605",
+    "mtime": 1770067795.621453,
+    "size": 10020,
+    "refined": true
+  },
+  "src/ai/structured-output.ts": {
+    "hash": "4390c06a88d33bdd526754be922478f76a239c1ee204ae41a22fde54c8c38135",
+    "mtime": 1769975493.5424728,
+    "size": 6336,
+    "refined": true
+  },
+  "src/ai/agents.ts": {
+    "hash": "ede6a969e4bd717ee5456c862786c93b151f5dbb3e12fe4802396ac4d5a2c4b1",
+    "mtime": 1769960235.4263742,
+    "size": 5515,
+    "refined": true
+  },
+  "src/ai/workspace-editor.ts": {
+    "hash": "5bd09667fce9ea339684beba50af324dca058ef54a01c11cba7aecef7cf750e5",
+    "mtime": 1769960235.4263742,
+    "size": 5940,
+    "refined": true
+  },
+  "src/ai/index.ts": {
+    "hash": "f8958c0a1e256fbf12d8f4c481c30082f889bb64157e3435922fbdd2d2655af6",
+    "mtime": 1769985955.6206038,
+    "size": 1845,
+    "refined": true
+  },
+  "src/ai/client.ts": {
+    "hash": "6b9421f27b16c900a2ecd78f9488de3298a6410afa1cb30e5b1979cecc0232df",
+    "mtime": 1770067752.392614,
+    "size": 12030,
+    "refined": true
+  },
+  "src/ai/prompt-enhancer.ts": {
+    "hash": "9e212750ee4b7f6f268b8d51eeb4d81541637ad187bec1634d64c5cd7b70b9a1",
+    "mtime": 1770035941.7563684,
+    "size": 15621,
+    "refined": true
+  },
+  "src/ai/model-spec.ts": {
+    "hash": "236dbce25cc060bf393467129f9c90cfa383cd6b946fc50901ee916cfd1e2a4f",
+    "mtime": 1770002275.6491392,
+    "size": 5862,
+    "refined": true
+  },
+  "src/ai/routing.ts": {
+    "hash": "62f7215aa2f8a309a1930a53ec9c024fc81537931046e550720150ba19b55ccb",
+    "mtime": 1769980926.1511939,
+    "size": 8907,
+    "refined": true
+  },
+  "src/loci/types.ts": {
+    "hash": "f540eeb93ebd21361040ddc59c306581cbd640a452ff8c3936b941346f638b76",
+    "mtime": 1769960235.4263742,
+    "size": 15547,
+    "refined": true
+  },
+  "src/loci/index.ts": {
+    "hash": "6b7f75ea700fb0a690730960210c43e3183439c1c9d92dddd4d10976894f3b70",
+    "mtime": 1769960235.4303744,
+    "size": 2428,
+    "refined": true
+  },
+  "src/loci/graph-storage.ts": {
+    "hash": "aebaecf04f7442f7292668348094119796dafc817392f906d7cb9b054d2498a4",
+    "mtime": 1770056840.9053788,
+    "size": 15769,
+    "refined": true
+  },
+  "src/loci/timeline-recorder.ts": {
+    "hash": "c9b5d003a2232381a564c507103d10f2ca048aa11741c4e0129a82c6f4fa308e",
+    "mtime": 1769960235.4303744,
+    "size": 12793,
+    "refined": true
+  },
+  "src/loci/compaction-engine.ts": {
+    "hash": "225a7794dbfd63220fc104bf5da5e7e9eaeb829b66eb740c2bfc04eec22f0188",
+    "mtime": 1769980938.5314465,
+    "size": 24537,
+    "refined": true
+  },
+  "src/loci/graph-traversal.ts": {
+    "hash": "877287d73995a4dc6802f0f7492a5589e13cc11005455b821d975e14d8560218",
+    "mtime": 1769960235.4303744,
+    "size": 13866,
+    "refined": true
+  },
+  "src/runtime/types.ts": {
+    "hash": "64172a560fddb9f2baf2dbc341e44ca04ab9b0d69ec129df3700b19716eacd60",
+    "mtime": 1769960235.4303744,
+    "size": 3922,
+    "refined": true
+  },
+  "src/loci/sequence-tracker.ts": {
+    "hash": "83a2df306ed461b0b7d62a9685a4b957001bee9e4e16e592f55f2031cfc3f75d",
+    "mtime": 1769960235.4303744,
+    "size": 11789,
+    "refined": true
+  },
+  "src/loci/loci-manager.ts": {
+    "hash": "f36bdc3dfec4e1326005ee28fab39b2e9b0c208e4f128be8efcff58f8378850c",
+    "mtime": 1770056828.0051184,
+    "size": 14100,
+    "refined": true
+  },
+  "src/runtime/crypto.ts": {
+    "hash": "7e8524ec038305767eddbbfede58793f4bc827015d6c75db8436a989a8ca6e59",
+    "mtime": 1769960235.4303744,
+    "size": 7301,
+    "refined": true
+  },
+  "src/runtime/index.ts": {
+    "hash": "6efd0a593bfccbbdc7140363f57d14e9c7e0da0c2b98af1b8a9669c16b6eb0a3",
+    "mtime": 1769960235.4303744,
+    "size": 1751,
+    "refined": true
+  },
+  "src/runtime/net.ts": {
+    "hash": "4694103620803957b6e54d56fde3ff5b4d81ef9f5c81a717908f993b147ae412",
+    "mtime": 1769960235.4303744,
+    "size": 3624,
+    "refined": true
+  },
+  "src/runtime/http.ts": {
+    "hash": "8c0ef3bd657c0cb7cb62196a22225e9bca2bfc155234852cc99a56b17d69f1e7",
+    "mtime": 1769960235.4303744,
+    "size": 10891,
+    "refined": true
+  },
+  "src/runtime/process.ts": {
+    "hash": "85f0896b74ca8b4551aa01fb434e1f2d0f507d07af2f1fe2346141c5f651ac89",
+    "mtime": 1770002115.298,
+    "size": 7689,
+    "refined": true
+  },
+  "src/tree-sitter/types.ts": {
+    "hash": "30afbdf5429e1f6985ff492cd016acc5013ba4ed737f9285faaed6eecb721cc3",
+    "mtime": 1769960235.4303744,
+    "size": 12639,
+    "refined": true
+  },
+  "src/tree-sitter/index.ts": {
+    "hash": "2c5d50b78f76a1bdb729d2c340d3f8647d30cd55b11e98611bb0dec38ec685e9",
+    "mtime": 1769960235.4343743,
+    "size": 944,
+    "refined": true
+  },
+  "src/tree-sitter/web-tree-sitter.d.ts": {
+    "hash": "0f61a4b0e77393a7430cdefe0c7dd4821c3a58632d7442ff89aeed08fc39c5ad",
+    "mtime": 1769960235.4303744,
+    "size": 4145,
+    "refined": true
+  },
+  "src/tree-sitter/parser-manager.ts": {
+    "hash": "cb70ebc5a6ac55f6e086bb36167d7397fa2dee920100c1e3367305ff3b203138",
+    "mtime": 1769960235.4303744,
+    "size": 14868,
+    "refined": true
+  },
+  "src/kanban/workspace-store.ts": {
+    "hash": "3e10ed41eeb5f0d500bf08392df225590527a4478c1d1927f136fb45ce25294f",
+    "mtime": 1770002405.955697,
+    "size": 15721,
+    "refined": true
+  },
+  "src/kanban/types.ts": {
+    "hash": "c16af487332a5233313c218d3be49a574680fc60b0caa57ec4e22aacf847116e",
+    "mtime": 1769976515.3712568,
+    "size": 18659,
+    "refined": true
+  },
+  "src/kanban/kanban-store.ts": {
+    "hash": "54ab261030f7d0da4f6ff72a45afce2701add14a49869f54699e81d40f605ac2",
+    "mtime": 1770056836.0012798,
+    "size": 35651,
+    "refined": true
+  },
+  "src/kanban/index.ts": {
+    "hash": "c9e0c291109acc626a8b63d33baaf812965d53fe5e9ca2ce26f5286454babc90",
+    "mtime": 1769976639.5420547,
+    "size": 1431,
+    "refined": true
+  },
+  "src/kanban/board-store.ts": {
+    "hash": "b8fa18b1e21f3c5eb3eb5eeb6fcb5d959ef9f34518cd5471f2c0487f4029fd06",
+    "mtime": 1770001568.095412,
+    "size": 17694,
+    "refined": true
+  },
+  "src/kanban/resolvers.ts": {
+    "hash": "77118a6b4a1feb6a5c5e2fb20618e6538dd7c8256e1e72d026f0c03b86a84873",
+    "mtime": 1769960235.4343743,
+    "size": 6241,
+    "refined": true
+  },
+  "src/kanban/cluster-store.ts": {
+    "hash": "9d78dd6c75584199dc3045dd6f2bc6ed9e6cb3f4f06ad8b6d463f90729992467",
+    "mtime": 1770056874.3340533,
+    "size": 22347,
+    "refined": true
+  },
+  "src/cognition/mental-model-store.ts": {
+    "hash": "2c3f253283d66737ac7d37b82fad2d8b0f0068d34980af85ab7c27899345966d",
+    "mtime": 1770002155.4147844,
+    "size": 16090,
+    "refined": true
+  },
+  "src/kanban/migration.ts": {
+    "hash": "783303a31bbac2024ab5e4bfa7838a7916f2626b096487fdc8ec27ed8fc2f096",
+    "mtime": 1769960235.4343743,
+    "size": 9785,
+    "refined": true
+  },
+  "src/kanban/membership-store.ts": {
+    "hash": "987ff123f310ecfea00f1dc183ed4544d1735ea628daa18fe0c655af17c1b88d",
+    "mtime": 1769998166.1012025,
+    "size": 14444,
+    "refined": true
+  },
+  "src/cognition/event-bus.ts": {
+    "hash": "cff6cb0efc1ce0142e15afae60bdbc76f17626441f9d854cd30a2c176f267d0b",
+    "mtime": 1769968965.560284,
+    "size": 2964,
+    "refined": true
+  },
+  "src/cognition/types.ts": {
+    "hash": "c3479c988cccb2e8be49496c0084946f5f4f409303faece99d7a60677d564e6d",
+    "mtime": 1769960235.4343743,
+    "size": 17178,
+    "refined": true
+  },
+  "src/cognition/context-budget-manager.ts": {
+    "hash": "fbd2f5ec8bc81d3169fb82ee1f185f80f920af14e864a812a729339b6a307051",
+    "mtime": 1769960235.4383745,
+    "size": 15552,
+    "refined": true
+  },
+  "src/cognition/event-handlers.ts": {
+    "hash": "33f973dbb9193513ab915ad3bf6e9a881645542943767701743700ee1926945e",
+    "mtime": 1770067753.4646347,
+    "size": 11579,
+    "refined": true
+  },
+  "src/cognition/index.ts": {
+    "hash": "3db5fea597074063ae488640d0b1db9fa9a023299fea5a536acc21550102fa2d",
+    "mtime": 1769960235.4383745,
+    "size": 2218,
+    "refined": true
+  },
+  "src/cognition/self-critique-store.ts": {
+    "hash": "d62f54e63cc684d049d160492590e0408a971b45679e4f293929de093390bf29",
+    "mtime": 1770002012.5399947,
+    "size": 11451,
+    "refined": true
+  },
+  "src/cognition/agent-rank-store.ts": {
+    "hash": "e3f78c82b1097bb2bb28e072c823bd4ba27af5e4380ae2c682a218a22d6ea18f",
+    "mtime": 1769980927.1192136,
+    "size": 8430,
+    "refined": true
+  },
+  "src/cognition/handoff-store.ts": {
+    "hash": "7a018ec602a92dbaba9c6cb583cc5ea90512b55620ee7670643adef68ae96ae0",
+    "mtime": 1770001561.3432834,
+    "size": 7581,
+    "refined": true
+  },
+  "src/cognition/intent-store.ts": {
+    "hash": "f85aee0fca54a0860b2c129e66611bde6300185530e7fe1e214bd80658609b50",
+    "mtime": 1769980934.29936,
+    "size": 13291,
+    "refined": true
+  },
+  "src/cognition/cross-linker.ts": {
+    "hash": "d78dc5dc2fb99a2b537a3f41085d5952fa85953ae3a02d8eecd24ba28e8103ce",
+    "mtime": 1769998021.5822368,
+    "size": 5846,
+    "refined": true
+  },
+  "src/cognition/confidence-store.ts": {
+    "hash": "a00c25e7c8bce899f88cdac000bdedad13ee2ff27fdad793953cd6a24c61f896",
+    "mtime": 1769998075.2313378,
+    "size": 14178,
+    "refined": true
+  },
+  "src/cognition/ambient-learner.ts": {
+    "hash": "93b2eb86af3e659ed8773a21e96889c9f4f38f272e6a572166bf219a4c192c5b",
+    "mtime": 1769980928.0392323,
+    "size": 12963,
+    "refined": true
+  },
+  "src/dataflow/index.ts": {
+    "hash": "bf9dd29db7fd1a1b7d201671c04e1fb36415682352f54b3710debb6c6dc734a5",
+    "mtime": 1769975688.1342747,
+    "size": 606,
+    "refined": true
+  },
+  "src/dataflow/types.ts": {
+    "hash": "4cb43a7849d3aa39183d37b767f75a5e4331c9c20754bb83d6826be981ac1485",
+    "mtime": 1770044841.4712317,
+    "size": 4844,
+    "refined": true
+  },
+  "src/cognition/decision-store.ts": {
+    "hash": "a7e32ebf636b6be031577bd4e39318cbd23a0fcdcba40e96274a22e52be5ef3e",
+    "mtime": 1770002006.859884,
+    "size": 8541,
+    "refined": true
+  },
+  "src/cognition/error-pattern-store.ts": {
+    "hash": "6cb9d8d2793dfdf85d89f6cadf243530e481e92ed8920dce9bdcffbda41249b6",
+    "mtime": 1770002029.3003213,
+    "size": 18491,
+    "refined": true
+  },
+  "src/dataflow/bus.ts": {
+    "hash": "5eeba8ba5fc70e9fa719a12643c290ffaba11a329ea061edb57e73c3578388f2",
+    "mtime": 1770054972.875702,
+    "size": 11411,
+    "refined": true
+  },
+  "src/recursive/agentic-loop.ts": {
+    "hash": "b6046877bfc5b5db0a6cf7cef316d22ec19e6dc6a590fad06888419f58bcf508",
+    "mtime": 1770044921.9088373,
+    "size": 47485,
+    "refined": true
+  },
+  "src/recursive/types.ts": {
+    "hash": "89b403464073804e206c03d39d3b8aca93f75602fe3433b3507db942a59c5322",
+    "mtime": 1770022458.0012348,
+    "size": 4360,
+    "refined": true
+  },
+  "src/recursive/index.ts": {
+    "hash": "92bb492561a0a2289da5158623c7d51fc5ec85819cd9553936cf66257ab64f6d",
+    "mtime": 1769960235.4423745,
+    "size": 954,
+    "refined": true
+  },
+  "src/recursive/tool-invoker.ts": {
+    "hash": "906b6e6d21fd3e86555f61f8d85375ed987ea3c9700d8d003277a0488640f65b",
+    "mtime": 1770055041.905093,
+    "size": 16578,
+    "refined": true
+  },
+  "src/utils/validation.ts": {
+    "hash": "db777dc1d1529ec8063f9d4b8b56e7032f42709e8f04b203d5a3cac9aea2aba8",
+    "mtime": 1769989922.6164296,
+    "size": 25038,
+    "refined": true
+  },
+  "src/utils/bun-file.ts": {
+    "hash": "1bf635c0258c6ca635266de42d4490eb66f1d10e54200af920e0ba255f4b15eb",
+    "mtime": 1769960235.4423745,
+    "size": 11232,
+    "refined": true
+  },
+  "src/utils/file-utils.ts": {
+    "hash": "e01c9a0a46cb5c8e61fc4eee5c881210ade7f3cbf1da863aca3411d07d48fab8",
+    "mtime": 1769960235.4423745,
+    "size": 10533,
+    "refined": true
+  },
+  "src/utils/languageDetection.ts": {
+    "hash": "659961d01d1aa7aaad68eeb784cb49bb23144e102eddfc422b73a645ab7ce512",
+    "mtime": 1769960235.4423745,
+    "size": 8020,
+    "refined": true
+  },
+  "src/utils/response.ts": {
+    "hash": "b4a7e35e0a4436b193e3bc978d3ac6b9f3463e9a68922b3e2e9bb3c9e85c7763",
+    "mtime": 1769960235.4423745,
+    "size": 4691,
+    "refined": true
+  },
+  "src/utils/cache.ts": {
+    "hash": "72cdfd3b408b4d4c2949d332fe32904f9ed6b6e95c1edb426c07451a76f144a8",
+    "mtime": 1769960235.4423745,
+    "size": 7036,
+    "refined": true
+  },
+  "src/utils/logger.ts": {
+    "hash": "a4e24aa962a38c43677cc5ffcb6c213379621db38f39279fd4db3fcce77c4343",
+    "mtime": 1769960235.4423745,
+    "size": 16666,
+    "refined": true
+  },
+  "src/utils/async-exec.ts": {
+    "hash": "b51ed388e733546bfca00e593c75ad3b69107860aa556346bd0a6547613082c8",
+    "mtime": 1770001541.1988995,
+    "size": 1463,
+    "refined": true
+  },
+  "src/utils/async-file.ts": {
+    "hash": "c813e5b0e91fd0df3e57cd1bdc09ff3ea73864c1666cfaf873798ee7be3e9c30",
+    "mtime": 1769960235.4423745,
+    "size": 1255,
+    "refined": true
+  },
+  "src/utils/errors.ts": {
+    "hash": "f73a6235bf726a98bcc851767d40680f108b11a7bfb4e89a680457f0690d04e4",
+    "mtime": 1769961366.53191,
+    "size": 12204,
+    "refined": true
+  },
+  "src/utils/process-utils.ts": {
+    "hash": "9fb198763742ddc0d6ed66b3f7c1afad7956d2526b9c4e5e53ff558a8ad7d9b6",
+    "mtime": 1769960235.4423745,
+    "size": 10035,
+    "refined": true
+  },
+  "src/utils/edit-utils.ts": {
+    "hash": "8af1d39a88a367a92eca806545a1a96e2151053397fa1953173aec6ee27b0d11",
+    "mtime": 1769960235.4423745,
+    "size": 4668,
+    "refined": true
+  },
+  "src/utils/format-helpers.ts": {
+    "hash": "9a9cfb15b614a98352848f3703169d4ae671540d4a077a6a95f0b9d1f9cabda2",
+    "mtime": 1769960235.4463747,
+    "size": 2339,
+    "refined": true
+  },
+  "src/utils/redis-pipeline.ts": {
+    "hash": "da3d41e43c9e7c6eeb1e266c475c191680eea0f88e408e4afac976cf863f5116",
+    "mtime": 1769960235.4423745,
+    "size": 2619,
+    "refined": true
+  },
+  "src/utils/json-repair.ts": {
+    "hash": "dba23bc9c60a10204359452a4d7219a1ed342d2b101dde3822d6fbba08be6208",
+    "mtime": 1769975389.2124414,
+    "size": 4331,
+    "refined": true
+  },
+  "src/utils/commandExecutor.ts": {
+    "hash": "84f6c74f1708e8073743b02cafe859443e5b1c5d6e605a54b2f4ab7ae64eab63",
+    "mtime": 1769960235.4463747,
+    "size": 6676,
+    "refined": true
+  },
+  "src/utils/security.ts": {
+    "hash": "c7775bf7300a0a031a100018917bb26d2446106825759d8628e77d9df0d2f201",
+    "mtime": 1769960235.4463747,
+    "size": 11604,
+    "refined": true
+  },
+  "src/utils/git-utils.ts": {
+    "hash": "d866175083739cc1a2f0f713dcad7cea185532a7bf1ba6eed411842a14f855b4",
+    "mtime": 1769960235.4463747,
+    "size": 12339,
+    "refined": true
+  },
+  "src/utils/projectContext.enhanced.ts": {
+    "hash": "f6b73091ca205a3804ca3255e3a6fe781a7ca73a53c2dfec6b9aedc494375578",
+    "mtime": 1769960235.4463747,
+    "size": 28116,
+    "refined": true
+  },
+  "src/session/types.ts": {
+    "hash": "453907b828a9767314f1b585df7092a3f3d9bc17c3a9c1315a665eaae5620642",
+    "mtime": 1769960235.4463747,
+    "size": 5001,
+    "refined": true
+  },
+  "src/session/manager.ts": {
+    "hash": "779337afe5d87662db262ce6d69006cb510d99b76db4e02aa9716936c0edd2da",
+    "mtime": 1769970523.3953574,
+    "size": 21908,
+    "refined": true
+  },
+  "src/types/bun.d.ts": {
+    "hash": "259dd976336e276e944024e445cc9ae954017d6664dba3556780ffaad342e888",
+    "mtime": 1769960235.4503746,
+    "size": 2640,
+    "refined": true
+  },
+  "src/session/index.ts": {
+    "hash": "acb0505e7c5b4c70fc0898267dcbc6911dea49428d32ab75b73505bfb4117a2d",
+    "mtime": 1769960235.4503746,
+    "size": 1044,
+    "refined": true
+  },
+  "src/session/auto-recovery.ts": {
+    "hash": "ba10cb7b743884c8068c17331c213d05d91affa55025fced7120dd682c7f4c23",
+    "mtime": 1769960235.4503746,
+    "size": 2343,
+    "refined": true
+  },
+  "src/session/cwd-resolver.ts": {
+    "hash": "4d520ffd88b5e9b0aa4d0b553369bb723b0d517bad4c30181ca2338c592fda83",
+    "mtime": 1769960235.4503746,
+    "size": 24195,
+    "refined": true
+  },
+  "src/types/index.ts": {
+    "hash": "fd7b43a49e05a95466e46ced6a31839f8c16f56f80338d1ac5956d7bc6c7c495",
+    "mtime": 1769960235.4503746,
+    "size": 1431,
+    "refined": true
+  },
+  "src/types/file-types.ts": {
+    "hash": "eb3817f249625b974e842b146c1522330acf5acd32aaed86dc08ebb9f1d0ce54",
+    "mtime": 1769960235.4503746,
+    "size": 7549,
+    "refined": true
+  },
+  "src/mpc/types.ts": {
+    "hash": "1679059af490b39b668ca669de3459b1ff08714e15f75ff58af2a5cfa6ffd595",
+    "mtime": 1769960235.4503746,
+    "size": 6294,
+    "refined": true
+  },
+  "src/types/git-types.ts": {
+    "hash": "47b023c4f511e991561440d0e7f2cf3c3325f35256de1ee1ca81005bced9a3a4",
+    "mtime": 1769960235.4503746,
+    "size": 6478,
+    "refined": true
+  },
+  "src/types/tool-types.ts": {
+    "hash": "6c60df06cad81b07fe683bfb8d99f88d5627b6285ae6df4f9facfeed8ea33b84",
+    "mtime": 1769960235.4503746,
+    "size": 6263,
+    "refined": true
+  },
+  "src/mpc/crypto.ts": {
+    "hash": "fac199cb777278ee25962732a8894ecdc1d1de4404656af141f047f1e5c3dea7",
+    "mtime": 1769960235.4543748,
+    "size": 9918,
+    "refined": true
+  },
+  "src/mpc/auth.ts": {
+    "hash": "901d1afcc6a216e8464b940bebe3cdc1985cf3fb7f268e91161bebb0218e71ca",
+    "mtime": 1769960235.4543748,
+    "size": 6778,
+    "refined": true
+  },
+  "src/mpc/index.ts": {
+    "hash": "e8a71470ac97fddc96ae2f065cc32f1a81a6101e2cee670d88562b5f1c75edbe",
+    "mtime": 1769960235.4543748,
+    "size": 2169,
+    "refined": true
+  },
+  "src/mpc/share-manager.ts": {
+    "hash": "1d43544f8b700cc1c94faa6bf9abc5785948c69e9adc245b914e23cd980a04f5",
+    "mtime": 1770056884.290254,
+    "size": 8642,
+    "refined": true
+  },
+  "src/mpc/redis-store.ts": {
+    "hash": "beae15e124557eec2a6c605c1f303cd47ee23974448e9db4476a9c79fb8b0072",
+    "mtime": 1769960235.4543748,
+    "size": 11360,
+    "refined": true
+  },
+  "src/events/global-bus.ts": {
+    "hash": "a53612dc86b2222e278c44d58ba6335c179f7a3dbefd17e8f2563c4a4f2a5078",
+    "mtime": 1770067776.4570808,
+    "size": 10447,
+    "refined": true
+  },
+  "src/events/index.ts": {
+    "hash": "044c7a28c7a6a7f9ed4ddbec2e331cbc000e581038d1d925b5f4e5526cbd5ad1",
+    "mtime": 1769968948.5919423,
+    "size": 2001,
+    "refined": true
+  },
+  "src/events/types.ts": {
+    "hash": "c540053900c8a66fc260fbea431b05203006723912e0d6a3e0d324baf491fa9d",
+    "mtime": 1769996893.0870605,
+    "size": 3534,
+    "refined": true
+  },
+  "src/client/index.ts": {
+    "hash": "bc74391db94bd1d0e300446e1b38d3074e662ed70b4b41d5ea966627d27ef8a5",
+    "mtime": 1769973577.2094696,
+    "size": 959,
+    "refined": true
+  },
+  "src/events/redis-bridge.ts": {
+    "hash": "c28ad8cde9fa9398f4570a0b235758f57ab91fa10aa9bcf859dae23b041ff2bc",
+    "mtime": 1770057741.1995423,
+    "size": 6088,
+    "refined": true
+  },
+  "src/client/bridge.ts": {
+    "hash": "a835a224f1dcb7d6bb9c3541baf11330c789b4dc822a0f77961b2a31a18be2e8",
+    "mtime": 1769973574.9414232,
+    "size": 5275,
+    "refined": true
+  },
+  "src/rl/types.ts": {
+    "hash": "bb16a6b96a82fb2df4146c32db3d12d105ec76023308340fe5f8f0d6bd063c36",
+    "mtime": 1769960235.4543748,
+    "size": 9974,
+    "refined": true
+  },
+  "src/thinking/thinking-store.ts": {
+    "hash": "2b0d7882af6056a04561040c65036806ef95c8f750ff840f6ab4396330b3aa83",
+    "mtime": 1770057709.1828964,
+    "size": 11114,
+    "refined": true
+  },
+  "src/thinking/types.ts": {
+    "hash": "261e64e35ab53a553021b1c01caf485e92516ae595fc2cef7acb1ec117b03b9b",
+    "mtime": 1769960235.4543748,
+    "size": 2835,
+    "refined": true
+  },
+  "src/thinking/index.ts": {
+    "hash": "fd557c6cdd4b446b000eed72212cb02e4c97cbbd730249d896f4a27d5ad7c81b",
+    "mtime": 1769960235.4543748,
+    "size": 763,
+    "refined": true
+  },
+  "src/rl/rewards.ts": {
+    "hash": "da43db136789d6128d58b05642d299de61e1a4986cf9779c885807e82f0f2c29",
+    "mtime": 1769960235.4543748,
+    "size": 12041,
+    "refined": true
+  },
+  "src/rl/dopamine.ts": {
+    "hash": "1e6c8010d8a817a4c91b836a7027725aa696cc3a7b9826ebd220e0e020d875f1",
+    "mtime": 1769960235.4543748,
+    "size": 8538,
+    "refined": true
+  },
+  "src/rl/middleware.ts": {
+    "hash": "7515cc3848f37d13ea2b309b5356d96816259add67c33fca548f10884ab89fd4",
+    "mtime": 1770022457.0172143,
+    "size": 8328,
+    "refined": true
+  },
+  "src/rl/potential.ts": {
+    "hash": "7fe395b926278aca52df8965d9932db1a808f163bca7684b54da1eef1d09f6a4",
+    "mtime": 1769960235.4543748,
+    "size": 7234,
+    "refined": true
+  },
+  "src/rl/index.ts": {
+    "hash": "2374d32042cb63d67d4598e9703ec43b4f156aecb02562a3d11434b72e85c4be",
+    "mtime": 1769960235.4543748,
+    "size": 2127,
+    "refined": true
+  },
+  "src/rl/state-tracker.ts": {
+    "hash": "99420f0dc20454d9de4e30d4abcc9bf8aeda6a7b3bc7f0424a969b48a7c49995",
+    "mtime": 1769960235.4543748,
+    "size": 9967,
+    "refined": true
+  },
+  "src/cluster-bus/signal-flow.ts": {
+    "hash": "2c727ff9037b87bd496af89183076d63b809d8f72a94d6f1c63eb67404879d68",
+    "mtime": 1770053023.852423,
+    "size": 19307,
+    "refined": true
+  },
+  "src/cluster-bus/types.ts": {
+    "hash": "6eb2bd668d3921411e49fd4b0004bb15a9f544096917b1d3d523239c3c75032b",
+    "mtime": 1769996388.584666,
+    "size": 17289,
+    "refined": true
+  },
+  "src/cluster-bus/llm-magistrale.ts": {
+    "hash": "56538496ebff2fc028c39f02417bf9e263f97174f5e316f9f1e35ce9e4f7a4d9",
+    "mtime": 1770078462.1726828,
+    "size": 24625,
+    "refined": true
+  },
+  "src/cluster-bus/bridges.ts": {
+    "hash": "d38ec6c0f0d39ae4adb2df27068251cd439e56120a5be9aeba289ed6accdc299",
+    "mtime": 1770078827.5200653,
+    "size": 10697,
+    "refined": true
+  },
+  "src/cluster-bus/health-monitor.ts": {
+    "hash": "b89c928265d256427d212fb1bfbae742f007d9b97e91023c8b758e25a6afc3eb",
+    "mtime": 1770055015.204555,
+    "size": 8171,
+    "refined": true
+  },
+  "src/cluster-bus/meta-router.ts": {
+    "hash": "d51b17db1668f8441db4a6646f717ecf82b3840cbc83b1a296fd71dbb3e861da",
+    "mtime": 1770002049.0487065,
+    "size": 10640,
+    "refined": true
+  },
+  "src/cluster-bus/index.ts": {
+    "hash": "bc26c79a81880138316723e7d04a7d50091e3799fb965207c7669ed2b0aa3085",
+    "mtime": 1769991781.8336244,
+    "size": 2780,
+    "refined": true
+  },
+  "src/cluster-bus/init.ts": {
+    "hash": "92854d0dce9c8825a97d3906731befe204cdabb03535e58c2081fbe720e2729f",
+    "mtime": 1770078455.7085528,
+    "size": 11353,
+    "refined": true
+  },
+  "src/cluster-bus/pass-controller.ts": {
+    "hash": "53c64b776d95f3532307ad25637b49f907c23f0c8b72d4f820f2b77f874da593",
+    "mtime": 1770067752.7846215,
+    "size": 17768,
+    "refined": true
+  },
+  "src/cluster-bus/provider-pool.ts": {
+    "hash": "ddbdacfe863c93efcee65ab4a7442c102ad5bedbe80973bc86cf6f6727b3b8c7",
+    "mtime": 1769985731.0480852,
+    "size": 9073,
+    "refined": true
+  },
+  "src/cluster-bus/bus.ts": {
+    "hash": "e8a25dee5a0183433979e089e43e44066da50247f39c469c1155e1e3e830f1cf",
+    "mtime": 1770053207.5001268,
+    "size": 29233,
+    "refined": true
+  },
+  "src/cluster-bus/cluster-registry.ts": {
+    "hash": "019f15e92e5fb9f9096ee4ebef5131359873a1f2be2b91ac8c0e7ed0887c1d7e",
+    "mtime": 1770048405.5830257,
+    "size": 11811,
+    "refined": true
+  },
+  "src/config/types.ts": {
+    "hash": "4047a0bfa05d52c76119330bc46e892c116c01c568f78b765de5e03443eac256",
+    "mtime": 1769993558.6134396,
+    "size": 5375,
+    "refined": true
+  },
+  "src/config/defaults.ts": {
+    "hash": "6665a8849a030d08be00821543189748af6fa8a144c6554c8aee6dfc21a4073b",
+    "mtime": 1769993562.6695213,
+    "size": 3202,
+    "refined": true
+  },
+  "src/config/manager.ts": {
+    "hash": "7c4e329d287921d789b4d15ea5b200cf71afff03583c8054e2c0de5b5a448211",
+    "mtime": 1769960235.4543748,
+    "size": 10652,
+    "refined": true
+  },
+  "src/config/schema.ts": {
+    "hash": "bb508487e3f7e6e55c8f3cad3406e33cf422e3aaf307710d0c91f63a1f0d2a35",
+    "mtime": 1769980693.6904185,
+    "size": 6967,
+    "refined": true
+  },
+  "src/events/handlers/loop-handlers.ts": {
+    "hash": "548f05ca6391d748b62f1ab88e7c60d3203ee238a45315d6586f25785420be43",
+    "mtime": 1769968942.4518187,
+    "size": 2498,
+    "refined": true
+  },
+  "src/config/silent.ts": {
+    "hash": "eac06f1f7dbf90026b57a883d27b6d4adb589da3da58ee6641e4cb1b36460093",
+    "mtime": 1769960235.4543748,
+    "size": 2949,
+    "refined": true
+  },
+  "src/config/index.ts": {
+    "hash": "b93e54abc42ec228b9d0216abd1f3113ce54ca7c501f3e44f9eb51f76317b9ec",
+    "mtime": 1769960235.4543748,
+    "size": 1799,
+    "refined": true
+  },
+  "src/events/handlers/kanban-handlers.ts": {
+    "hash": "5d6eb93fd16550e032f8a9f8549146335e432b3b41f8057e02c79a4ebde79db6",
+    "mtime": 1769968931.2915938,
+    "size": 1417,
+    "refined": true
+  },
+  "src/infrastructure/redis/connection.ts": {
+    "hash": "0f2e4b868757be77a81f1cb73998d170d91b3b59f242bb260b530d569299c2a6",
+    "mtime": 1769960235.4503746,
+    "size": 7738,
+    "refined": true
+  },
+  "src/infrastructure/redis/redis-backed-service.ts": {
+    "hash": "6a041352ee3afb77d3999b989d25ed11d4d576735c4d61b25745684b8239395a",
+    "mtime": 1769982657.962047,
+    "size": 2386,
+    "refined": true
+  },
+  "src/ai/providers/types.ts": {
+    "hash": "98427bc324d296b168068a8818334da586b951fed96938959cd1854e036cb54b",
+    "mtime": 1769985572.8849006,
+    "size": 5186,
+    "refined": true
+  },
+  "src/infrastructure/redis/index.ts": {
+    "hash": "5345fc6d755a0f6f9f47997ae0877bcbe02cbd9c5e940be9623741f5895d752e",
+    "mtime": 1769960235.4503746,
+    "size": 396,
+    "refined": true
+  },
+  "src/ai/providers/openai.provider.ts": {
+    "hash": "b8da9b7e6bc0338ec5438b76c15ab55dadbb9f5d35199792caf59933b2a5901e",
+    "mtime": 1769967938.8795395,
+    "size": 3372,
+    "refined": true
+  },
+  "src/ai/providers/registry.ts": {
+    "hash": "bf58a345965e91e9b4bac8e3ca888a9e106606d5dd22bd23416269fcba676a98",
+    "mtime": 1770044868.647774,
+    "size": 12760,
+    "refined": true
+  },
+  "src/ai/providers/gemini.provider.ts": {
+    "hash": "a91ff33b060a3b820c66f0a60a87ae85c9a1d5a6def26b5440b91953680168b6",
+    "mtime": 1770044776.0539272,
+    "size": 3928,
+    "refined": true
+  },
+  "src/ai/providers/index.ts": {
+    "hash": "fa35b64d98471e4a8fa660679b7b89e3cf014770024ef65b7ec4b23285b21fda",
+    "mtime": 1769985644.2383375,
+    "size": 954,
+    "refined": true
+  },
+  "src/ai/providers/openai-shared.ts": {
+    "hash": "ab20439aa7d9fa0f76ae6392a25979438dbb7a80aa00af3ae2411168036b1f45",
+    "mtime": 1770001678.237521,
+    "size": 4736,
+    "refined": true
+  },
+  "src/ai/providers/anthropic.provider.ts": {
+    "hash": "3b76dd0921fb10c8b48e0edcc00b69201685c4ec2681f9059a1bbbc1902fb0e7",
+    "mtime": 1770044772.4098544,
+    "size": 8351,
+    "refined": true
+  },
+  "src/ai/providers/openai-compat.provider.ts": {
+    "hash": "50d531c6b471e0b4ee1c5b67f2ba0155d4040896dc650f668926757de3b949df",
+    "mtime": 1770044765.0857086,
+    "size": 6715,
+    "refined": true
+  },
+  "src/tools/context/index.ts": {
+    "hash": "de95bea4f1a0a507aa1403eeb945443e1a929ff1fa4e9118c7c082cf55889467",
+    "mtime": 1769960235.3903735,
+    "size": 1027,
+    "refined": true
+  },
+  "src/tools/context/feedback.tool.ts": {
+    "hash": "00e7ae86e6033814ede004ca14b4b7a48ee89ed024af8e45dd83da64f43106fe",
+    "mtime": 1769960235.3903735,
+    "size": 8276,
+    "refined": true
+  },
+  "src/tools/context/shared-thoughts.tool.ts": {
+    "hash": "e6a190d079015937530d395690ba8fea71ce120501d50d20244b87228ddafcdd",
+    "mtime": 1769960235.3903735,
+    "size": 9539,
+    "refined": true
+  },
+  "src/tools/context/get-shared-context.tool.ts": {
+    "hash": "7226c83364cf7ee7f511cc83b966eeebef5d79bf190d8d05da4b3031785eb18f",
+    "mtime": 1769960235.3903735,
+    "size": 3890,
+    "refined": true
+  },
+  "src/tools/code/index.ts": {
+    "hash": "496e8b84d07b711dcf4317f377ce99cf4d31393d6efa88aa08ce6f3d50d8d4cc",
+    "mtime": 1769960235.3943737,
+    "size": 1474,
+    "refined": true
+  },
+  "src/tools/code/find-symbols.tool.ts": {
+    "hash": "640ad7b42d82357c29cda1f5fef939e4c0f86604ca4ca576eb34ed0d9e789008",
+    "mtime": 1769998044.2827027,
+    "size": 13664,
+    "refined": true
+  },
+  "src/tools/code/find-references.tool.ts": {
+    "hash": "e115654009af43f5d886b211684b6fd408de88db949695e914eb71b7dd903435",
+    "mtime": 1770002101.3337274,
+    "size": 7848,
+    "refined": true
+  },
+  "src/tools/code/code-outline.tool.ts": {
+    "hash": "d2c33e6d8eb7cb32bf17389656f384688136f9b34a0c9492e16aa09d2d5a6c98",
+    "mtime": 1769998055.654936,
+    "size": 24413,
+    "refined": true
+  },
+  "src/tools/code/find-definition.tool.ts": {
+    "hash": "301064cec751c2e69c60cc5c920f577021f61427a9751c42440f0502765985e2",
+    "mtime": 1770002097.1936464,
+    "size": 8000,
+    "refined": true
+  },
+  "src/tools/code/symbol-search.ts": {
+    "hash": "6775d114b2a28e5fc718732cc290269c7c0b9fa024cb1e54bc653a23ff4fa310",
+    "mtime": 1769960235.3943737,
+    "size": 4203,
+    "refined": true
+  },
+  "src/tools/code/insert-after-symbol.tool.ts": {
+    "hash": "f3a510beae29c9e27ef30f2c653122914438b20885faebc1014676d3c52d62b2",
+    "mtime": 1769961825.1169846,
+    "size": 8805,
+    "refined": true
+  },
+  "src/tools/code/rename-symbol.tool.ts": {
+    "hash": "84bdd116e5572067520a55577fac0c18756db9a1fea3d56e46c60e5eb0d9ac7e",
+    "mtime": 1770001590.9518485,
+    "size": 9034,
+    "refined": true
+  },
+  "src/tools/code/insert-before-symbol.tool.ts": {
+    "hash": "8581754e2012b1ae56d04e2cc3c0f43bd609fbc7eec35b6a1c8cc97aaf76b7b5",
+    "mtime": 1769961782.6721423,
+    "size": 5513,
+    "refined": true
+  },
+  "src/tools/code/semantic-search.tool.ts": {
+    "hash": "141e258fa1267633d1b8d196c99c7ab97da0f438281c71e6afe106d1411f8ed7",
+    "mtime": 1770036130.020134,
+    "size": 6894,
+    "refined": true
+  },
+  "src/tools/project/index.ts": {
+    "hash": "b120b39aec1f0e220ef6c121479f4b4add64e24bec5a9bdb501c8bd672510818",
+    "mtime": 1769960235.3943737,
+    "size": 1356,
+    "refined": true
+  },
+  "src/tools/project/run-tests.tool.ts": {
+    "hash": "c284de379c285819667523060222df46efff60ecd7ba1e0ccfb4d0762a4fdb53",
+    "mtime": 1769960235.3943737,
+    "size": 13548,
+    "refined": true
+  },
+  "src/tools/project/run-script.tool.ts": {
+    "hash": "7400e4e0a4feaff1b044c3b680599fa95dbd894280aaab98595530ec2e7f2b44",
+    "mtime": 1769960235.3943737,
+    "size": 4938,
+    "refined": true
+  },
+  "src/tools/project/check-types.tool.ts": {
+    "hash": "9c47e5cae55473370ca21f9349288db9c0620dd8d2c6e3be4e0623683ad62dec",
+    "mtime": 1769960235.3943737,
+    "size": 9296,
+    "refined": true
+  },
+  "src/tools/project/project-info.tool.ts": {
+    "hash": "04e53fe0a24e604eee615a9e19fbab8c8186b0fe17628e29fc7bde150a4dfb4a",
+    "mtime": 1769960235.3943737,
+    "size": 15519,
+    "refined": true
+  },
+  "src/tools/loci/loci-recall.tool.ts": {
+    "hash": "d8b64f3c5f350716f407459546e5433be2e2fc1d8ddb2bb0d1dc442ef1c312e9",
+    "mtime": 1769960235.3943737,
+    "size": 14609,
+    "refined": true
+  },
+  "src/tools/loci/index.ts": {
+    "hash": "42726176ba06d210dacfb9935362f52d4c6c9a1ecd864fb077711d86cc97eb3b",
+    "mtime": 1769960235.3943737,
+    "size": 1073,
+    "refined": true
+  },
+  "src/tools/project/run-lint.tool.ts": {
+    "hash": "5f0dd98d6d361b8427becef838ee1d3035ba514813827321b1e297bbccc80c65",
+    "mtime": 1769960235.3943737,
+    "size": 9743,
+    "refined": true
+  },
+  "src/tools/loci/graph-query.tool.ts": {
+    "hash": "06d05f5ea9df750822cdcffad63fbd9d9322e6fc4e581cc8d82e418c357a9843",
+    "mtime": 1769960235.3943737,
+    "size": 4834,
+    "refined": true
+  },
+  "src/tools/loci/sequence-recommend.tool.ts": {
+    "hash": "576164e84a32e1eb071c926ddca2a10f416a6a5ae298413ae14e55e288c64b9f",
+    "mtime": 1769960235.3943737,
+    "size": 8312,
+    "refined": true
+  },
+  "src/tools/kanban/task-cluster.tool.ts": {
+    "hash": "e18692076dc4a4a7f7df445beebc539a3d71e3e4fba0e17e437614ab4615173e",
+    "mtime": 1769977516.00063,
+    "size": 10477,
+    "refined": true
+  },
+  "src/tools/kanban/task-push-multi.tool.ts": {
+    "hash": "a2b8a9e8148c3a32086ecd85bc568a3b3b821aece3d92bb275a91d9a1ce7c1be",
+    "mtime": 1769962356.3724597,
+    "size": 12600,
+    "refined": true
+  },
+  "src/tools/loci/graph-find-path.tool.ts": {
+    "hash": "826527f9b72b9781607015d7af5c25e45fc539d6a16577dc4ba32005d8688b83",
+    "mtime": 1769960235.3983736,
+    "size": 9526,
+    "refined": true
+  },
+  "src/tools/kanban/task-list.tool.ts": {
+    "hash": "a33e501fd24c1f0c72a887a0b07825e4ba6f65fced3e07cdfaeba3ab410110ad",
+    "mtime": 1769962356.3724597,
+    "size": 4470,
+    "refined": true
+  },
+  "src/tools/kanban/board-list.tool.ts": {
+    "hash": "6052998edc5890ca0f48aca77fcb0b1c6fad6d8d67e8f8bc20333b4147d96d25",
+    "mtime": 1769962356.3724597,
+    "size": 4046,
+    "refined": true
+  },
+  "src/tools/kanban/task-delete.tool.ts": {
+    "hash": "2e46696042529e80b5073be3a66d2aed7e8005035e8bad590f7e01a52ea999f2",
+    "mtime": 1769963037.7948136,
+    "size": 3841,
+    "refined": true
+  },
+  "src/tools/kanban/task-complexity.tool.ts": {
+    "hash": "4849bb39c0a57cd170b2153a4a0d0e76321bd9ef8497bd9b731411317d6caf21",
+    "mtime": 1769980957.579835,
+    "size": 7202,
+    "refined": true
+  },
+  "src/tools/kanban/workspace-leave.tool.ts": {
+    "hash": "1b9a75e57654dab0d59899dc35865985e745dc08f45c84a59fb92301f36b3133",
+    "mtime": 1769962356.3724597,
+    "size": 3009,
+    "refined": true
+  },
+  "src/tools/kanban/task-create.tool.ts": {
+    "hash": "0e39f7dc98733946e1346c8a97da21ee78f39c222535707f7e47b03c786c5cb1",
+    "mtime": 1769963037.7948136,
+    "size": 5765,
+    "refined": true
+  },
+  "src/tools/kanban/workspace-create.tool.ts": {
+    "hash": "8764552c7047472b78cb76344f7c62b163f2215eef5e7b85b92e865257b55664",
+    "mtime": 1769963037.7948136,
+    "size": 4491,
+    "refined": true
+  },
+  "src/tools/kanban/board-share.tool.ts": {
+    "hash": "49bc7158af353de05d2c368b1371fdc148c93d55b54ab98f068545f983e89eff",
+    "mtime": 1769963037.7948136,
+    "size": 4808,
+    "refined": true
+  },
+  "src/tools/kanban/board-members.tool.ts": {
+    "hash": "9512551a46d260fe8380661ae95fada4652954e3d310b71407bd3309ecc48fa2",
+    "mtime": 1769963037.7908134,
+    "size": 7866,
+    "refined": true
+  },
+  "src/tools/kanban/index.ts": {
+    "hash": "6bb48f3144b2fcb0fefb6f616b35eb4fe4b490924b12d06862c65b0fe6c083fe",
+    "mtime": 1769976626.0417538,
+    "size": 2430,
+    "refined": true
+  },
+  "src/tools/kanban/board-create.tool.ts": {
+    "hash": "3e8e628e3b6603f07f9db28db42f6b69b706c3238a423736757aaa33f7423734",
+    "mtime": 1769963037.7908134,
+    "size": 4897,
+    "refined": true
+  },
+  "src/tools/kanban/task-comment.tool.ts": {
+    "hash": "d0ce70a9a63cb8f7e1e9c02981dfe37b5d351d42e7b93a8a25abf11c3fdeb74b",
+    "mtime": 1769963037.7948136,
+    "size": 4683,
+    "refined": true
+  },
+  "src/tools/kanban/board-invite.tool.ts": {
+    "hash": "39c64a8f258b084ecf61b2dbdff0176b1c6387f08652fd3249371a8043255673",
+    "mtime": 1769963037.7908134,
+    "size": 5260,
+    "refined": true
+  },
+  "src/tools/kanban/workspace-delete.tool.ts": {
+    "hash": "050764bfc877173cca80b20cf9b4502ddd13e4acae6fdd82cbf60b3151a11cd4",
+    "mtime": 1769963037.7948136,
+    "size": 5900,
+    "refined": true
+  },
+  "src/tools/kanban/task-get.tool.ts": {
+    "hash": "3849df91ee6a43f7e9d98acf325edb1a599b1dbac9169cf191edc6ae186c7068",
+    "mtime": 1769962356.3724597,
+    "size": 3556,
+    "refined": true
+  },
+  "src/tools/kanban/task-update.tool.ts": {
+    "hash": "fbe48ad52c0aa83b4d14580ea05fe6759b0359f05f4f2ad0ba49f6094a62079d",
+    "mtime": 1769963037.7948136,
+    "size": 7547,
+    "refined": true
+  },
+  "src/tools/kanban/task-assign.tool.ts": {
+    "hash": "0a056c63a0aaae5b278fadc75e9847d457878ad5fc8f42f8cdb18c1877e79e8a",
+    "mtime": 1769963037.7948136,
+    "size": 4461,
+    "refined": true
+  },
+  "src/tools/kanban/board-status.tool.ts": {
+    "hash": "cdffada797e04cc3b073cf16a7e5407f8870ddbe3632c9136720d121a8fc1677",
+    "mtime": 1769962356.3724597,
+    "size": 3203,
+    "refined": true
+  },
+  "src/tools/kanban/board-delete.tool.ts": {
+    "hash": "02df3d731a36a10b80cf050550a1694e630620c3de25ba790a98472c4213573c",
+    "mtime": 1769963037.7908134,
+    "size": 5059,
+    "refined": true
+  },
+  "src/tools/kanban/workspace-list.tool.ts": {
+    "hash": "b185a1184205f69c79ce201d68bdca979020c20a8e0a12328845e0d0938e5ac6",
+    "mtime": 1769962356.3724597,
+    "size": 2880,
+    "refined": true
+  },
+  "src/tools/kanban/workspace-join.tool.ts": {
+    "hash": "c4629d182a865b619ffa17b6b7d9a3e540bdbc73864756c6dec618be4b663267",
+    "mtime": 1769962356.3724597,
+    "size": 3176,
+    "refined": true
+  },
+  "src/tools/kanban/task-claim.tool.ts": {
+    "hash": "545519941ea1749ef45fe64df8e1381a1cd366817e2b8b4aa87165524631c067",
+    "mtime": 1769962356.3724597,
+    "size": 3634,
+    "refined": true
+  },
+  "src/tools/edit/index.ts": {
+    "hash": "f2b1ff1900accb132d62e08fd50fd8a4efdb52348177054ced4fd3eac0712817",
+    "mtime": 1769960235.3983736,
+    "size": 1117,
+    "refined": true
+  },
+  "src/tools/edit/replace-lines.tool.ts": {
+    "hash": "ede6ca7ddddaae1c3e4e2178de24a1cf06928e7bb5b902fcc4700910df969c32",
+    "mtime": 1769960235.3983736,
+    "size": 4620,
+    "refined": true
+  },
+  "src/tools/edit/edit-shared.ts": {
+    "hash": "664d2bc61690a6424c94d1660956cbe36f801402ec0229bea13c55cfc5cc212d",
+    "mtime": 1769960770.8883054,
+    "size": 4439,
+    "refined": true
+  },
+  "src/tools/edit/insert-at-line.tool.ts": {
+    "hash": "c9f1a69aba391ff37718e78969de31adb689435f3a8e049c5f3e0fc953e735e6",
+    "mtime": 1769960235.3983736,
+    "size": 4059,
+    "refined": true
+  },
+  "src/tools/edit/delete-lines.tool.ts": {
+    "hash": "533f17199641b1abc4c5880f6abf59af6c9843194c231687097429dcc80441f1",
+    "mtime": 1769960235.4023738,
+    "size": 4085,
+    "refined": true
+  },
+  "src/tools/cognition/context-budget.tool.ts": {
+    "hash": "b4a5142b1c640c084042d2a34180874df5ef01c945e9b20f951aa6b7ecd65a46",
+    "mtime": 1769962272.9186409,
+    "size": 11956,
+    "refined": true
+  },
+  "src/tools/edit/replace-content.tool.ts": {
+    "hash": "39e1c9600c8fe636d9b8c307e83b5b9970a05b04963e284dccbb98f27a9a4b0e",
+    "mtime": 1769960235.4023738,
+    "size": 8555,
+    "refined": true
+  },
+  "src/tools/cognition/intent-tracker.tool.ts": {
+    "hash": "de0e99c3f77144592d110e2805481b99b9aedf6f442d0e2d3e02d6e9375b4316",
+    "mtime": 1769981017.3050506,
+    "size": 17469,
+    "refined": true
+  },
+  "src/tools/cognition/cognition-shared.ts": {
+    "hash": "487f7f4a753fcfa38372135b093a00c8f11217bf7ce76cdbc6a733652e5393fb",
+    "mtime": 1769994487.4521422,
+    "size": 2528,
+    "refined": true
+  },
+  "src/tools/cognition/confidence-tracker.tool.ts": {
+    "hash": "fa9b499e90f775ff865c8b8229855e60191bc2252839fa7bd23d5163b95242a3",
+    "mtime": 1769960235.4023738,
+    "size": 12493,
+    "refined": true
+  },
+  "src/tools/cognition/error-pattern.tool.ts": {
+    "hash": "6cd9fc64b0d1e416bc576ea39fd4f949f6ae118d1b1a65bbcf5e7d935e4f1e74",
+    "mtime": 1769960235.4023738,
+    "size": 14660,
+    "refined": true
+  },
+  "src/tools/cognition/smart-handoff.tool.ts": {
+    "hash": "bd8129cba5e8388f4dae8658e88eb39f23feb2a7ddfb4687740cfa72af441ba4",
+    "mtime": 1769962169.3403523,
+    "size": 18120,
+    "refined": true
+  },
+  "src/tools/cognition/index.ts": {
+    "hash": "29c1c846f34342053c6a5abe5b802488dfce0b8af2a9404ddb71b95fb880aace",
+    "mtime": 1769960235.4023738,
+    "size": 1254,
+    "refined": true
+  },
+  "src/tools/cognition/mental-model.tool.ts": {
+    "hash": "93347154ce62d1c6616294afbc5ceace88b344b889c9866c36db81f981fb0d2d",
+    "mtime": 1769962169.3363523,
+    "size": 30608,
+    "refined": true
+  },
+  "src/tools/cognition/self-critique.tool.ts": {
+    "hash": "08c76fccd64fd48bb1b34d466c03728f1f4a68644c716fdc9951d65568fe0177",
+    "mtime": 1769962169.3363523,
+    "size": 20058,
+    "refined": true
+  },
+  "src/tools/recursive/agent-orchestrate.tool.ts": {
+    "hash": "cf1b63b21860eaedeb7ec763bccf0dc7b71aaff43ada319d31f35615af0cf135",
+    "mtime": 1770022477.645642,
+    "size": 6640,
+    "refined": true
+  },
+  "src/tools/cognition/decision-journal.tool.ts": {
+    "hash": "fc537d2ddbc348fa15699fe961f9ad204bba7ba0ba84f54b3bb400d756eb23b6",
+    "mtime": 1769962146.8038492,
+    "size": 16064,
+    "refined": true
+  },
+  "src/tools/recursive/invoke-tool.tool.ts": {
+    "hash": "2b7da41ab3d8528760a0e610b1207ec9f7b96c6f72d13b4b5f091889257d5049",
+    "mtime": 1769962730.6164234,
+    "size": 3860,
+    "refined": true
+  },
+  "src/tools/recursive/index.ts": {
+    "hash": "bbf3e48419f3aa9e790a11aa9abed585dc99768cad79debc1844880f35f7a183",
+    "mtime": 1769963773.2858908,
+    "size": 1111,
+    "refined": true
+  },
+  "src/tools/recursive/invoke-batch.tool.ts": {
+    "hash": "783266ed082ab93cad66cb8ff0acca9f81889671efdb3a0c61cf717c9f4773d1",
+    "mtime": 1769962394.065275,
+    "size": 4230,
+    "refined": true
+  },
+  "src/tools/session/session-info.tool.ts": {
+    "hash": "8e54c1c48e3714d70b13ef6526a64975c06c0c135aab9e5e94fa93c77284ee05",
+    "mtime": 1769960235.4023738,
+    "size": 5754,
+    "refined": true
+  },
+  "src/tools/session/session-list.tool.ts": {
+    "hash": "06450f1938d816fb9ecbf72e34f61dda8b059c7bab68ed729cdeb6c9a0aa4144",
+    "mtime": 1769960235.4023738,
+    "size": 4803,
+    "refined": true
+  },
+  "src/tools/recursive/invocation-log.tool.ts": {
+    "hash": "cabddcdc8389390b05b09dcf55bf645693220dfdb4a15fea4386bdae070b5f5e",
+    "mtime": 1769962394.065275,
+    "size": 4345,
+    "refined": true
+  },
+  "src/tools/session/session-create.tool.ts": {
+    "hash": "9dd153925fdd2ee448dd7abaf1e39c17201508581f57d2c71e2c37409252e509",
+    "mtime": 1769960235.4023738,
+    "size": 3829,
+    "refined": true
+  },
+  "src/tools/session/index.ts": {
+    "hash": "6b98001ee743387ecd5adf89d84076becf60ff01e937ea682a3be7f3d160949e",
+    "mtime": 1769960235.4023738,
+    "size": 1155,
+    "refined": true
+  },
+  "src/tools/session/session-switch.tool.ts": {
+    "hash": "19cc511017daae87aaf2845d6228cb4e19fcf398db0259ac4f8c2c5c759643a6",
+    "mtime": 1769960235.406374,
+    "size": 4536,
+    "refined": true
+  },
+  "src/tools/session/session-recover.tool.ts": {
+    "hash": "7669725bc360c22d5efcbcbed91e8a127dca370cb2073bbc4a318f4bcecfb54a",
+    "mtime": 1769981064.9540184,
+    "size": 8757,
+    "refined": true
+  },
+  "src/tools/file/file-copy.tool.ts": {
+    "hash": "09b459f851807f3f653ff76f1ae0c459ec833310f250a2c47d116e4d0ac73b70",
+    "mtime": 1769961712.0427413,
+    "size": 7012,
+    "refined": true
+  },
+  "src/tools/session/session-delete.tool.ts": {
+    "hash": "2701d4ebcc28b86cd45c441f404d3e6d736d2fcc98b47c15bddd1e65cf6b249f",
+    "mtime": 1769960235.4023738,
+    "size": 4129,
+    "refined": true
+  },
+  "src/tools/file/file-delete.tool.ts": {
+    "hash": "fc2fc19db08508bcb74bfbb12f894353a872d752f393bffb728b437b16a3f27f",
+    "mtime": 1769961671.813944,
+    "size": 6289,
+    "refined": true
+  },
+  "src/tools/file/file-read.tool.ts": {
+    "hash": "f1fa94f6108370b8b716404e1cfc5d2ab07c6c3a439a6605404f74c4114022c7",
+    "mtime": 1769980977.2482355,
+    "size": 10063,
+    "refined": true
+  },
+  "src/tools/file/index.ts": {
+    "hash": "650815ca4caf88c6c44f076f842619fade0ee9abf051fdbfd6154bde713bbf38",
+    "mtime": 1769960235.406374,
+    "size": 1426,
+    "refined": true
+  },
+  "src/tools/file/file-tree.tool.ts": {
+    "hash": "a8f544e1edbf249721b7a77c93a21659f245687ef51247e6bba41eb49c2f82e8",
+    "mtime": 1769960235.406374,
+    "size": 13290,
+    "refined": true
+  },
+  "src/tools/file/file-search.tool.ts": {
+    "hash": "a2dfb0978c4a1abb09379d4b13b0cd4768a22849a4015d7dd5e3b315aa8a243f",
+    "mtime": 1769960747.1918519,
+    "size": 12536,
+    "refined": true
+  },
+  "src/tools/file/file-write.tool.ts": {
+    "hash": "5dcb3affbed5b03280641456881716143c4db4c7c704abe2b7a0c8684b1d1f0b",
+    "mtime": 1769961648.3814797,
+    "size": 7804,
+    "refined": true
+  },
+  "src/tools/file/file-move.tool.ts": {
+    "hash": "c68b3d73f97d75cf45913be8c18343a911160f7fd87ef783bcfb5731eea6951e",
+    "mtime": 1769961723.1789622,
+    "size": 7300,
+    "refined": true
+  },
+  "src/tools/system/memory-usage.tool.ts": {
+    "hash": "b099eb2961424a3bdbe42752aa6c221cde13b7ce65673fe7e667a418355449ce",
+    "mtime": 1770022469.4894729,
+    "size": 8875,
+    "refined": true
+  },
+  "src/tools/file/file-backup-restore.tool.ts": {
+    "hash": "12011a57e15c5640eb604933c9b9f70b44c520af66203baa1e24225dd460cef9",
+    "mtime": 1769961769.2358756,
+    "size": 9586,
+    "refined": true
+  },
+  "src/tools/file/file-diff.tool.ts": {
+    "hash": "8949479b0e859b32a9cc1e322ed6930befdc0093a435b7d788547d8b8595ea3a",
+    "mtime": 1769960235.406374,
+    "size": 13752,
+    "refined": true
+  },
+  "src/tools/system/tool-health.tool.ts": {
+    "hash": "9aded0fe92afb30595db2542ef0ff2b2b93145f8e474efd1e96db8f51665c803",
+    "mtime": 1769980946.4396076,
+    "size": 3640,
+    "refined": true
+  },
+  "src/tools/system/ai-models.tool.ts": {
+    "hash": "479f391c25bb375b270cd50cffb451a1dad11568edb1c4505d18c296276b81f0",
+    "mtime": 1769980948.9756594,
+    "size": 10009,
+    "refined": true
+  },
+  "src/tools/system/config.tool.ts": {
+    "hash": "173f1b5d6ac9eb897f9789e74440faebbd8de3e2cb003c31445d9bc40f36b81f",
+    "mtime": 1769960235.406374,
+    "size": 13709,
+    "refined": true
+  },
+  "src/tools/system/env-info.tool.ts": {
+    "hash": "c97413347d32a2e0a35ca1ab3c9a0047d53567363452cc725fd158fd2078a140",
+    "mtime": 1770022468.3254488,
+    "size": 10117,
+    "refined": true
+  },
+  "src/tools/system/index.ts": {
+    "hash": "b3f2c76fd56ecb56004d6585b28e4c19b3776f57b2036414568809b084575988",
+    "mtime": 1770022400.6040432,
+    "size": 1238,
+    "refined": true
+  },
+  "src/tools/system/ai-config.tool.ts": {
+    "hash": "92c5c3f85712223e89761291637a257bf8ca7db547793d64eaa34d03cd9cec71",
+    "mtime": 1769985947.0644317,
+    "size": 11950,
+    "refined": true
+  },
+  "src/tools/mpc/mpc-distribute.tool.ts": {
+    "hash": "23f9d564e2e77c4b7eec64a9d3a03fe3bc087b32e1e807e4ed193f80a6b20121",
+    "mtime": 1769960235.410374,
+    "size": 6778,
+    "refined": true
+  },
+  "src/tools/mpc/mpc-reconstruct.tool.ts": {
+    "hash": "82f803fdaee55bb2f1d817e49069b4f3296d89fb62bcafaade1fcde1632f405e",
+    "mtime": 1769960235.410374,
+    "size": 7253,
+    "refined": true
+  },
+  "src/tools/mpc/mpc-status.tool.ts": {
+    "hash": "8fd7489010b7a312ecf3ea89c7f0916ee4a3b4a451602ece0176ebd39420a920",
+    "mtime": 1769960235.406374,
+    "size": 7821,
+    "refined": true
+  },
+  "src/tools/mpc/index.ts": {
+    "hash": "eaecd4ca1d84cd79af6c2f52a610ddc20a8007136d7aca2dca63b3f898bed092",
+    "mtime": 1769960235.406374,
+    "size": 1052,
+    "refined": true
+  },
+  "src/tools/mpc/mpc-split.tool.ts": {
+    "hash": "ab14045c67bc1463af69bc4ae55d169dad4197112ce3504d941e9b359254aca1",
+    "mtime": 1769960235.410374,
+    "size": 6358,
+    "refined": true
+  },
+  "src/tools/git/git-branch.tool.ts": {
+    "hash": "6c1ef154807162c33c487374329f8ec0c3263c7a4f1fdcf65cea0aa0369225b3",
+    "mtime": 1769980955.8678,
+    "size": 6130,
+    "refined": true
+  },
+  "src/tools/git/index.ts": {
+    "hash": "2757d78a414cc34a436b233e565cc10b7344bf56c8f9bce16844497273b8acae",
+    "mtime": 1769960235.410374,
+    "size": 1499,
+    "refined": true
+  },
+  "src/tools/git/git-add.tool.ts": {
+    "hash": "17dab9e2679adb174756d71ef1d08e617084ad80f9a1fa92b66dd36e897420c4",
+    "mtime": 1769960400.989357,
+    "size": 2728,
+    "refined": true
+  },
+  "src/tools/git/git-log.tool.ts": {
+    "hash": "ac2e4a7e6d8c8e31f9e1c676d1b334b097d591c5abd71195ecc1ca28e7571e01",
+    "mtime": 1769960392.0571935,
+    "size": 4684,
+    "refined": true
+  },
+  "src/tools/git/git-blame.tool.ts": {
+    "hash": "0fcafb92ec3c0644fc8420d272646d991e478ad0a8943ab290d0b4402fe56139",
+    "mtime": 1769980950.7396953,
+    "size": 4089,
+    "refined": true
+  },
+  "src/tools/git/git-commit.tool.ts": {
+    "hash": "4a00c051dee50b00ae3ebfb6721b59a3b652297e79c6dabab45e5ae05c358b2a",
+    "mtime": 1769960406.9214656,
+    "size": 2777,
+    "refined": true
+  },
+  "src/tools/git/git-diff.tool.ts": {
+    "hash": "aba9330ae9e63445c2607f4ffeb1233b00487ecd46ba7730f036a7a914dc0232",
+    "mtime": 1769960235.410374,
+    "size": 4058,
+    "refined": true
+  },
+  "src/tools/git/git-stash.tool.ts": {
+    "hash": "d5b0c7c9e2f8267820e0cf0a4ba71d48ed833a53e81dfa87e232d906de0dc5ba",
+    "mtime": 1769960415.9256308,
+    "size": 3425,
+    "refined": true
+  },
+  "src/tools/git/git-status.tool.ts": {
+    "hash": "c943168dde1d9990b2b485a61b8f8557eee2ec93462024a40710e8dc745519c6",
+    "mtime": 1769960235.410374,
+    "size": 3380,
+    "refined": true
+  },
+  "src/tools/client/client-roots.tool.ts": {
+    "hash": "6ba36106141aca940a2d303a1f6c99d2a705aae2fb23ed45cb0a118e835f4e13",
+    "mtime": 1769974187.6098664,
+    "size": 2476,
+    "refined": true
+  },
+  "src/tools/client/client-elicit.tool.ts": {
+    "hash": "80a210eaecd1f775f0b316c7c7ccb4635e36c7872f4adde0784fafa9300836a1",
+    "mtime": 1770057797.204672,
+    "size": 3430,
+    "refined": true
+  },
+  "src/tools/client/client-sampling.tool.ts": {
+    "hash": "bb3380b4b43d60e8567c92373475ed9afa26b9dc7de2917bba1901e2fa47cc6f",
+    "mtime": 1770057791.008547,
+    "size": 4328,
+    "refined": true
+  },
+  "src/tools/client/index.ts": {
+    "hash": "f971180406c0d71aaf0b8fa894b972c38177f352ad40c2916446f64802fcffa5",
+    "mtime": 1769973617.3782876,
+    "size": 938,
+    "refined": true
+  },
+  "src/tools/thinking/index.ts": {
+    "hash": "4c248e4235ef02d1f48c5c5d7bf3418485171f7a7d719c99396d19150df7a7a7",
+    "mtime": 1769960235.410374,
+    "size": 425,
+    "refined": true
+  },
+  "src/tools/thinking/thinking-chain.tool.ts": {
+    "hash": "ebfc8478b6224e4dd77a6f929daa2ff400f71e1212503ca4ec71f8560e0e6fa2",
+    "mtime": 1769962394.065275,
+    "size": 14578,
+    "refined": true
+  },
+  "src/tools/agents/agent-watch.tool.ts": {
+    "hash": "6f8f28bcbb943f1506461d67d5cc1d9d0b7821886ab33bd16a75c2601e6a2849",
+    "mtime": 1769960235.410374,
+    "size": 2397,
+    "refined": true
+  },
+  "src/tools/agents/agent-rank.tool.ts": {
+    "hash": "d25895590cc5077114bc74087cb037ef69d1cf709ecbad3fec9b272a30f7ee8e",
+    "mtime": 1769960235.410374,
+    "size": 4791,
+    "refined": true
+  },
+  "src/tools/agents/agent-history.tool.ts": {
+    "hash": "4e6b237a349dec3d38f48278ce31f0190b253c5041c48e9c52d8ec40699cf5a8",
+    "mtime": 1769960235.410374,
+    "size": 6801,
+    "refined": true
+  },
+  "src/tools/agents/agent-register.tool.ts": {
+    "hash": "9329e6c82ef2443e8dcb1abf9663543da4347426ed52838da87ef7d4a63c1d4f",
+    "mtime": 1769960235.410374,
+    "size": 5203,
+    "refined": true
+  },
+  "src/tools/agents/agent-alert.tool.ts": {
+    "hash": "a7a823e3fd5692a3db441143ca0406092483b53e4609b17c83682ce23de0e6ac",
+    "mtime": 1769960235.410374,
+    "size": 5175,
+    "refined": true
+  },
+  "src/tools/agents/index.ts": {
+    "hash": "fe7bea8625652f17330ce03ba3b2b87982eabf9b0729b872e2c7fcd42ca99c54",
+    "mtime": 1769960235.410374,
+    "size": 1792,
+    "refined": true
+  },
+  "src/tools/agents/agent-inject.tool.ts": {
+    "hash": "333052b3024629888dbbbb9d3fd8f0e8d28e8677283a9b1410c78b89fd6e2b87",
+    "mtime": 1769960235.414374,
+    "size": 6061,
+    "refined": true
+  },
+  "src/tools/agents/queue-message.tool.ts": {
+    "hash": "51cb3fa7bee2aa236ae9f03344027efa1f3f899f5f8b9d77943a5272532b46ba",
+    "mtime": 1769960235.410374,
+    "size": 8292,
+    "refined": true
+  },
+  "src/tools/agents/monitor.tool.ts": {
+    "hash": "d990eb732b8c3f1bcc76883133f95e54a62dd612e54d02a7506b6bc71d4b3362",
+    "mtime": 1769960235.414374,
+    "size": 17839,
+    "refined": true
+  },
+  "src/tools/agents/agent-summary.tool.ts": {
+    "hash": "4e5480c24d3c3382fa199270b3de4cff0ab5c101b70ad078087d7927e178f34e",
+    "mtime": 1769960235.414374,
+    "size": 4367,
+    "refined": true
+  },
+  "src/tools/memory/index.ts": {
+    "hash": "7a94574ad6f06e6c135ff5aa2bd19f67a49bb0f43d9d5cc171fdfb600d53319d",
+    "mtime": 1769960235.414374,
+    "size": 1443,
+    "refined": true
+  },
+  "src/tools/memory/edit-memory.tool.ts": {
+    "hash": "e3ed2465ab000c4fb1fbc754b90cb4d70f7aaaf5adb0f264cd38f534de0cb93f",
+    "mtime": 1769963091.7719283,
+    "size": 6513,
+    "refined": true
+  },
+  "src/tools/agents/agent-list.tool.ts": {
+    "hash": "db171b0c9a7060cd48d27f2cca53547e91471c89fd51445dafe6362bf225b0b3",
+    "mtime": 1769960235.414374,
+    "size": 4655,
+    "refined": true
+  },
+  "src/tools/memory/list-memories.tool.ts": {
+    "hash": "facb75b7e88880d8e39654dfc3409b80380b008a4986bfc69fe591bcda441d47",
+    "mtime": 1769962558.4167914,
+    "size": 5943,
+    "refined": true
+  },
+  "src/tools/memory/write-memory.tool.ts": {
+    "hash": "470babf1584fb42e33f6e20e733593c08e326aa4d810519b0db1291f6396de23",
+    "mtime": 1769963078.423653,
+    "size": 5969,
+    "refined": true
+  },
+  "src/tools/memory/shared.ts": {
+    "hash": "7aa95c0bb8ff3db4197a68ebc3e2ab82e32fbaa339c55b8b9535ac83b8cc09a0",
+    "mtime": 1769960235.414374,
+    "size": 2711,
+    "refined": true
+  },
+  "src/tools/memory/checkpoint-diff.tool.ts": {
+    "hash": "86993d91c5066e22744807f98bddc3ebaf437526c9914639ba39008d91647ba9",
+    "mtime": 1769962728.4323776,
+    "size": 8673,
+    "refined": true
+  },
+  "src/tools/memory/delete-memory.tool.ts": {
+    "hash": "109df86414055de01b3d17d90c0ffb48df3861d3d6aae6805ed081b678e5a3ca",
+    "mtime": 1769962561.5328577,
+    "size": 3846,
+    "refined": true
+  },
+  "src/tools/memory/read-memory.tool.ts": {
+    "hash": "820929e4863eda654e1013f9dbd315aaddddb6b61bdccd77b06b0f6654cfe061",
+    "mtime": 1769962556.6247532,
+    "size": 4312,
+    "refined": true
+  },
+  "src/tools/memory/checkpoint-save.tool.ts": {
+    "hash": "98a1dcdfb16f7d9c255ebfba0f034969c6b235f2dc52b99bca42e7b53ba95254",
+    "mtime": 1769962665.0590458,
+    "size": 4593,
+    "refined": true
+  },
+  "src/tools/rl/index.ts": {
+    "hash": "0d1ec6ede8d69c4cccea3fe94676c30c2302624480102504615eb5f0fa74ee88",
+    "mtime": 1769960235.414374,
+    "size": 944,
+    "refined": true
+  },
+  "src/tools/rl/rl-dopamine-log.tool.ts": {
+    "hash": "1ab4ecf025e7f1804012f50e9218b105868c2d501a0d6d2cefc16382fdb82c98",
+    "mtime": 1769960235.414374,
+    "size": 6888,
+    "refined": true
+  },
+  "src/tools/memory/checkpoint-restore.tool.ts": {
+    "hash": "656b8fe9de3eaaf46b1ca4d983084f366306b9a462e5d9ff06797388cf42004e",
+    "mtime": 1769962729.5884018,
+    "size": 3141,
+    "refined": true
+  },
+  "src/tools/rl/rl-reward-stats.tool.ts": {
+    "hash": "d916729e5b9be48a1a3be3a1b31e346f97980352887eec2861c131f28f4d5327",
+    "mtime": 1769960235.414374,
+    "size": 9830,
+    "refined": true
+  },
+  "src/tools/multi-llm/consensus-prompt.tool.ts": {
+    "hash": "7584daadbca9ca2a33c21644bb8d84d6c882ba4d267c48b6e57d09bb72d4b56c",
+    "mtime": 1769960235.418374,
+    "size": 7550,
+    "refined": true
+  },
+  "src/tools/specialized/auto-fix.tool.ts": {
+    "hash": "d03d72e46a3caf25d64302ce207c2985a48793cf8b06befddbebab431e5bd5cc",
+    "mtime": 1770036124.2960193,
+    "size": 11115,
+    "refined": true
+  },
+  "src/tools/multi-llm/multi-prompt.tool.ts": {
+    "hash": "3b448af051ffb7d1d0bb93f8dc6f4c9a1e806db103de69eeafbbbcbe912a84f5",
+    "mtime": 1769960235.418374,
+    "size": 4193,
+    "refined": true
+  },
+  "src/tools/multi-llm/index.ts": {
+    "hash": "1aca478a4536343d18a7e52c56cb8f70611345028eb67113db6d5d9064c8ab2d",
+    "mtime": 1770035881.055157,
+    "size": 260,
+    "refined": true
+  },
+  "src/tools/multi-llm/enhance-prompt.tool.ts": {
+    "hash": "322218ed55ffae1221c20f6006dc67571994fca4a3b5c7beb9385d0987df8762",
+    "mtime": 1770035854.0506184,
+    "size": 3640,
+    "refined": true
+  },
+  "src/tools/specialized/code-review.tool.ts": {
+    "hash": "84349a7c46761b062db5c24b3b9015a7237cd217465bdb080cd26f2230caaf76",
+    "mtime": 1770036120.787949,
+    "size": 6482,
+    "refined": true
+  },
+  "src/tools/specialized/explain-code.tool.ts": {
+    "hash": "46768b9f43c1b9f19b67fa08b59aa6a71dedc7586a613c154e8ab07f112e5fb9",
+    "mtime": 1770036116.9998732,
+    "size": 4272,
+    "refined": true
+  },
+  "src/tools/specialized/index.ts": {
+    "hash": "11eb954a866171a08778b83f023a1f9b7e1201bd9737a1339296159511cb8327",
+    "mtime": 1769960235.418374,
+    "size": 1194,
+    "refined": true
+  },
+  "src/tools/specialized/auto-fix-agent.tool.ts": {
+    "hash": "cc59202b0ba3583867f255938330af37d2303e5bb6da778d58caafda7c822308",
+    "mtime": 1769960235.418374,
+    "size": 7455,
+    "refined": true
+  },
+  "src/tools/specialized/analyze-deps.tool.ts": {
+    "hash": "83f0ba580f460a38746a8ffc6100704f9c10bda70a0b94e1b6b13df74cafb2a5",
+    "mtime": 1770036113.591805,
+    "size": 4454,
+    "refined": true
+  },
+  "src/tools/specialized/refactor.tool.ts": {
+    "hash": "9c553ef6c36daf95ce3a1138412148f96c35228221799e831ad436ff044508fd",
+    "mtime": 1770036109.9197314,
+    "size": 5235,
+    "refined": true
+  },
+  "src/tools/specialized/write-tests.tool.ts": {
+    "hash": "804db1b90f731b75a02880a06cf0ae356c0047c43fdf85f55b655b203f73b9be",
+    "mtime": 1770036106.4236615,
+    "size": 5442,
+    "refined": true
+  },
+  "src/tools/specialized/fix-bug.tool.ts": {
+    "hash": "7a08a67994477ca99676c70179acb8a601addb76bbf02369e0e7312ac81147a7",
+    "mtime": 1770036102.85959,
+    "size": 4726,
+    "refined": true
+  },
+  "src/tools/cluster-bus/cluster-magistrale.tool.ts": {
+    "hash": "8828cf1a0c25285f9953858e350124b32166d02fe4161f922104d40b6c83486e",
+    "mtime": 1770036697.211526,
+    "size": 6925,
+    "refined": true
+  },
+  "src/tools/cluster-bus/cluster-inspect.tool.ts": {
+    "hash": "72beda8d8fa7ceb2591d48f72d8403868bf0462ec0baa7e4c2021abc9565e652",
+    "mtime": 1770067754.568656,
+    "size": 11971,
+    "refined": true
+  },
+  "src/tools/cluster-bus/cluster-routing.tool.ts": {
+    "hash": "c7afcfeaee38c80de6327c332cee99e2b28857f6c861a306574516778a6492c8",
+    "mtime": 1770040184.0016353,
+    "size": 12433,
+    "refined": true
+  },
+  "src/tools/cluster-bus/index.ts": {
+    "hash": "a70e614df6d2e7527c73eb57bba40405d4aed1db17f85d5e37cf6a12d00b8ff4",
+    "mtime": 1770040308.3401415,
+    "size": 688,
+    "refined": true
+  },
+  "src/tools/cluster-bus/cluster-status.tool.ts": {
+    "hash": "9ddad15ad0d38281b5ce2e53d132f830b10f8ba3a22c05668b713c79e74beac8",
+    "mtime": 1770040259.2751527,
+    "size": 7526,
+    "refined": true
+  },
+  "src/tools/cluster-bus/cluster-send.tool.ts": {
+    "hash": "6a4c6df7f4d319ba4c234c6c73941453510de58071ee067cafca3e3764f592ad",
+    "mtime": 1769987755.0927029,
+    "size": 3935,
+    "refined": true
+  },
+  "src/tools/cluster-bus/cluster-flow.tool.ts": {
+    "hash": "f64cfd9a1902893105983e052390c7a67e7327f53b75dbbfabed3c4b18e9e310",
+    "mtime": 1770040134.6326404,
+    "size": 9470,
+    "refined": true
+  },
+  "src/tools/cluster-bus/cluster-topology.tool.ts": {
+    "hash": "6119e9da707588511c9b76ad323156898607cd3d968990bda28e86c0c5291574",
+    "mtime": 1770040298.5319438,
+    "size": 8729,
+    "refined": true
+  },
+  "__tests__/regression/known-issues.test.ts": {
+    "hash": "9e21016623975b616750e7bcbddf20cd15083850045cb5efa1f05f00ba1369d3",
+    "mtime": 1770051605.111832,
+    "size": 11642,
+    "refined": true
+  },
+  "__tests__/performance/data-volume.test.ts": {
+    "hash": "46ca01e811c412735621e06b47c6a77b2a1ee639648dd2b657f0f2faa3d34536",
+    "mtime": 1769517044.3364723,
+    "size": 9461,
+    "refined": true
+  },
+  "__tests__/regression/api-contracts.test.ts": {
+    "hash": "275f7de8284a7d5bb18a1849f43da7e27b4a665db21bc2d1f12b5089cda3cfb1",
+    "mtime": 1770051603.123792,
+    "size": 14075,
+    "refined": true
+  },
+  "__tests__/performance/agent-stress.test.ts": {
+    "hash": "7a80fdf458a733c60e99ed5c892834bf37942e2331c3ae2d098c1ba15cf8cc4f",
+    "mtime": 1769724659.6357627,
+    "size": 11622,
+    "refined": true
+  },
+  "__tests__/performance/fixtures.ts": {
+    "hash": "a72717a975b8d39a13790a971159ccfcd70351abcb026bf22f986af96f6ff323",
+    "mtime": 1769517044.3404725,
+    "size": 13337,
+    "refined": true
+  },
+  "__tests__/performance/cluster-bus-bench.test.ts": {
+    "hash": "8526ec470d7f008237bac51e45c737566441405939d650fe54bfedc888380e82",
+    "mtime": 1770052285.1575503,
+    "size": 11482,
+    "refined": true
+  },
+  "__tests__/performance/scalability.test.ts": {
+    "hash": "500ef348be980ab7f416de1d1cc9441130281d21f1cb111e9bbe14d793b7828d",
+    "mtime": 1769517044.3444724,
+    "size": 11753,
+    "refined": true
+  },
+  "__tests__/resilience/edge-cases.test.ts": {
+    "hash": "0c7cc9d4e129ea763aa34f1945bd70fe65d02d5291fe090f88b2158ff5902c3e",
+    "mtime": 1769517044.3484726,
+    "size": 16131,
+    "refined": true
+  },
+  "__tests__/resilience/error-handling.test.ts": {
+    "hash": "9940b6d05d93e59c3344aa35c3c89c606a0c3063d95047889ba7ca31131af0dc",
+    "mtime": 1770051431.1643155,
+    "size": 14077,
+    "refined": true
+  },
+  "__tests__/unit/bun-file.test.ts": {
+    "hash": "c600934a81c72c00ecd68a02e4a9cc23b74ef646ee787d51175ff4227a057f49",
+    "mtime": 1769517044.3524725,
+    "size": 7269,
+    "refined": true
+  },
+  "__tests__/unit/security.test.ts": {
+    "hash": "95ad49e92661a61b1fed30f81f8567b1b81e0632b1e2413ae1763d044994187f",
+    "mtime": 1769723951.8455377,
+    "size": 11960,
+    "refined": true
+  },
+  "__tests__/unit/response-formatter.test.ts": {
+    "hash": "ce8f84d06ca176e9250d6e76bad990c9203b7f6f3fb011ab9be9f6fced2cc981",
+    "mtime": 1769883611.214731,
+    "size": 7716,
+    "refined": true
+  },
+  "__tests__/unit/ai-execute.guard.test.ts": {
+    "hash": "aae36ba5ec1cff17396e2ef01a51a430d818189b60725a99764aa0626e209d76",
+    "mtime": 1769723537.1052253,
+    "size": 1379,
+    "refined": true
+  },
+  "__tests__/unit/ai-models.tool.test.ts": {
+    "hash": "49d88e05a860dc996d9498f831341f3188a1468ddbbf72e2b6fbc3264abdb444",
+    "mtime": 1769722936.4932013,
+    "size": 2748,
+    "refined": true
+  },
+  "__tests__/unit/hardening.test.ts": {
+    "hash": "12201e07d00839e4655bf86a3773e4f5d5d5a95fe52b9ec02f066b78079d1d25",
+    "mtime": 1770051380.5592923,
+    "size": 9823,
+    "refined": true
+  },
+  "__tests__/unit/silent-config.test.ts": {
+    "hash": "a2adadd6deb8302312a114b22c0c06f0c2b7d5ed001087331b26a8f1f102dbf2",
+    "mtime": 1769883563.7497818,
+    "size": 4955,
+    "refined": true
+  },
+  "__tests__/integration/multi-agent-communication.test.ts": {
+    "hash": "eccf62451c7e5870809eb7087bd72ac016082e0fc7c9723c5400928c18b74784",
+    "mtime": 1769517044.3604727,
+    "size": 28169,
+    "refined": true
+  },
+  "__tests__/integration/cluster-bus-diagnostics.test.ts": {
+    "hash": "5663e8b541edff500a0fae1818e87f6f7c463d98b13ee4464c802e0c550e9c15",
+    "mtime": 1770048655.2641075,
+    "size": 34971,
+    "refined": true
+  },
+  "__tests__/integration/fixtures.ts": {
+    "hash": "e41d6958797f430ffe8a48260d9a339ae2ada000cf4773cd6959238c665c06b9",
+    "mtime": 1769517044.3644729,
+    "size": 10243,
+    "refined": true
+  },
+  "__tests__/integration/shared-context.test.ts": {
+    "hash": "a41c376ee11591cde13c47aec3536c61787c79c74699e36c81e6cb9f01ce893f",
+    "mtime": 1769517044.3644729,
+    "size": 25057,
+    "refined": true
+  },
+  "__tests__/fixtures/test-helpers.ts": {
+    "hash": "bd513be29cc9f0d04fe30fea05e00ca4cae4c71833358695a7e8286f2eb89520",
+    "mtime": 1769517044.3764732,
+    "size": 5974,
+    "refined": true
+  },
+  "__tests__/fixtures/index.ts": {
+    "hash": "f5122d28f578cd24b1e0bdfe7ae60b00489a3da561076f54b747fb3f0cb36401",
+    "mtime": 1769517044.3764732,
+    "size": 171,
+    "refined": true
+  },
+  "__tests__/integration/tool-chain.test.ts": {
+    "hash": "82d3f8eb0aaf9a865a78e42eb04293aed04f9589efb06bc229c776c40deeb878",
+    "mtime": 1769517044.372473,
+    "size": 27832,
+    "refined": true
+  },
+  "__tests__/integration/session-sharing.test.ts": {
+    "hash": "ed376868c56199bc8a50bbbf3ae2edb77ca318e4b7c3b12748281588b0d90523",
+    "mtime": 1769517044.368473,
+    "size": 25184,
+    "refined": true
+  },
+  "__tests__/fixtures/redis-mock.ts": {
+    "hash": "b19f3113b1093fffd7b6edcd711d0adfdea7eed4c523ef27b2a34055ce5c9efc",
+    "mtime": 1769517044.3804731,
+    "size": 4462,
+    "refined": true
+  },
+  "__tests__/unit/cluster-bus/fuzzing.test.ts": {
+    "hash": "121cfc14ae9583968fc3ac565c27c954d7730f2944d7de37eeef3f9345dace2e",
+    "mtime": 1770052288.2936134,
+    "size": 15849,
+    "refined": true
+  },
+  "__tests__/unit/cluster-bus/types.test.ts": {
+    "hash": "e899a2c1f8baf6cae28a69f42132fe9ecbc9932b319f68755801fe9dae5c6bf4",
+    "mtime": 1770051240.3924577,
+    "size": 9393,
+    "refined": true
+  },
+  "__tests__/unit/cluster-bus/pass-controller.test.ts": {
+    "hash": "099cae913c2be6bf3b309e9be11c1e6f62415348fde7e6f5930e7a8d87d44e8d",
+    "mtime": 1770051165.3269396,
+    "size": 9105,
+    "refined": true
+  },
+  "__tests__/unit/cluster-bus/property-based.test.ts": {
+    "hash": "f0b29a5ad237616ab3ece1bd274913e3d4c1d0f0c67cd375a5bd877cc4726b5a",
+    "mtime": 1770052145.3467445,
+    "size": 11066,
+    "refined": true
+  },
+  "__tests__/unit/cluster-bus/signal-flow.test.ts": {
+    "hash": "d12417802a3d0f94559abea69166113fcbd8940c3424ac27e361ad4a44a2e315",
+    "mtime": 1770051209.259828,
+    "size": 15867,
+    "refined": true
+  },
+  "__tests__/unit/cluster-bus/chaos.test.ts": {
+    "hash": "684dfab4cb79632b728900bd801b9395336e826b64277213651a14b762325f11",
+    "mtime": 1770051982.459459,
+    "size": 11933,
+    "refined": true
+  },
+  "CLAUDE.md": {
+    "hash": "c402d8783696e8424e0fdd892242eed6ffe619dde22a64c4bbefb856097134bb",
+    "mtime": 1770080590.963725,
+    "size": 17498,
+    "refined": true
+  },
+  "__tests__/unit/cluster-bus/concurrency.test.ts": {
+    "hash": "5ce0b6313e51fa12a618beb7c3635578916a5292f22fb40d8a674086cca3761d",
+    "mtime": 1770052348.2668183,
+    "size": 10463,
+    "refined": true
+  },
+  "README.md": {
+    "hash": "d2285d73be17a2279d02cb26e225ebd8f78b7033dade861ef087c6a8e077e307",
+    "mtime": 1770080589.9597049,
+    "size": 33231,
+    "refined": true
+  },
+  "examples/07-recursive-tool-invocation.md": {
+    "hash": "d47add9a46c737d69515b320273e57a735f4b5fcacf461ccd6044547a7c09d42",
+    "mtime": 1769693437.0356464,
+    "size": 1606,
+    "refined": true
+  },
+  "examples/08-cluster-bus-magistrale.md": {
+    "hash": "ee24b5b4d84573b749cb95f498d69269bd9881c08ca2765a43ec3dc814d4c919",
+    "mtime": 1770055780.1839795,
+    "size": 6681,
+    "refined": true
+  },
+  "examples/09-dataflow-bus.md": {
+    "hash": "83420aa9e1d2b77c98cb794d1a0424f592b355bbdc60eb5da183287599bf6f8f",
+    "mtime": 1770021179.357918,
+    "size": 5553,
+    "refined": true
+  },
+  "examples/11-session-recovery-mpc-rl.md": {
+    "hash": "c9a651549b5a1d2259509ba01dbee3e703d97f952db46289dfac7e3ec08c5be3",
+    "mtime": 1770021179.357918,
+    "size": 3671,
+    "refined": true
+  },
+  "examples/03-multi-agent-coordination.md": {
+    "hash": "8f8186a72cacb78c96f393af694086b2706a63f909096184262e0d08cfcac417",
+    "mtime": 1769693430.8035197,
+    "size": 1663,
+    "refined": true
+  },
+  "examples/10-cognition-deep-dive.md": {
+    "hash": "c9d3b2874acb8ff2cca113a0c783448ef14f2ed96885e7631a89a6b2088b42bd",
+    "mtime": 1770021179.357918,
+    "size": 6192,
+    "refined": true
+  },
+  "examples/12-knowledge-graph-loci.md": {
+    "hash": "f456a155e1700bc152b8b35ccc261df98f2751cbf48a2fe2ab59a99e436906e4",
+    "mtime": 1770021179.357918,
+    "size": 2208,
+    "refined": true
+  },
+  "examples/02-kanban-sprint.md": {
+    "hash": "d3110c9b23db586ba99ca2a08065620a985d2aa8c976e19fb1372505fd6b1d6b",
+    "mtime": 1769693429.2954893,
+    "size": 2627,
+    "refined": true
+  },
+  "examples/05-code-analysis-workflow.md": {
+    "hash": "e8e48ee7e63a079c9d739338ac52af891af780a73ac3430ab7a57e1a07951a71",
+    "mtime": 1769693433.8795824,
+    "size": 1597,
+    "refined": true
+  },
+  "examples/06-project-memory.md": {
+    "hash": "d84bf85c27fced9618dfef84a8aee7f7d21ea10284da36099fb374676f6fe094",
+    "mtime": 1769693435.4676147,
+    "size": 1523,
+    "refined": true
+  },
+  "examples/04-multi-llm-consensus.md": {
+    "hash": "f936b2af7a4a406f2d3680874dfffa3febb16dad07f145bdff39cb7a1ec295c2",
+    "mtime": 1769693432.3555512,
+    "size": 1628,
+    "refined": true
+  },
+  "docs/architecture-3-layer-bus.md": {
+    "hash": "4e0cc54b8981e552f9f98ce77db6506569534ea6117c3a360b47a020a8d7ee73",
+    "mtime": 1770055639.4251406,
+    "size": 15664,
+    "refined": true
+  },
+  "examples/patterns.md": {
+    "hash": "34d7559b550d7e7c24d5fbe9fc307b766d404ccd5abeedf1626695de560b1a05",
+    "mtime": 1770055807.0925221,
+    "size": 15236,
+    "refined": true
+  },
+  "docs/README.md": {
+    "hash": "2dfb6a727772dabd4d2c648b01449ceb7074d7e7b4717d2859694182be7605ef",
+    "mtime": 1770067332.7005472,
+    "size": 1963,
+    "refined": true
+  },
+  "examples/01-hot-reload-config.md": {
+    "hash": "50ee9c178f43b0c2757b0b09a0aa0b88784cf488c8bb342fb6f17c68238fb249",
+    "mtime": 1769693427.8074589,
+    "size": 1338,
+    "refined": true
+  },
+  "docs/architecture-overview.md": {
+    "hash": "899caf2f55180f4cbd82a9abf269d20db3c00de65861d5fd125827d0ac5a5784",
+    "mtime": 1770067322.4923534,
+    "size": 11576,
+    "refined": true
+  },
+  "package.json": {
+    "hash": "e576c9b94bcac3c95536f0daa5752f8baa2be2d74c747e6cbf728deb4150c8c4",
+    "mtime": 1770080585.943624,
+    "size": 3572,
+    "refined": true
+  },
+  "mcp-settings.json": {
+    "hash": "ee6233c0f631c46f853e6d71b251698c373d59406cd965ebfdcde4594e72a81c",
+    "mtime": 1769725832.324263,
+    "size": 118,
+    "refined": true
+  },
+  "tsconfig.json": {
+    "hash": "0c2ffb9cb3053807cea2cbdac2f9f510d46385dc83f6cdece341b06c73edb0c0",
+    "mtime": 1769513906.996898,
+    "size": 608,
+    "refined": true
+  },
+  "config/README.md": {
+    "hash": "10b715f24196714a543440c5487604d18e581ec787d4cead374244aad4ebc6f8",
+    "mtime": 1769693504.3690124,
+    "size": 1551,
+    "refined": true
+  },
+  "package-lock.json": {
+    "hash": "0f2052a0d536e3745a0ed2d089c1084c704892351725ec05c967cdca4097831d",
+    "mtime": 1770080585.9516242,
+    "size": 182183,
+    "refined": true
+  },
+  "config/mcp-settings.roocode.example.json": {
+    "hash": "17fc9e90311a2aa941ea3b01a17114c9b7210f8d035cbf134be41deda26b54f1",
+    "mtime": 1769693352.6739314,
+    "size": 263,
+    "refined": true
+  },
+  "config/kemdicode-mcp.example.json": {
+    "hash": "d8b2e299237d244a8b726397d33b509dd2f279f05162224893ad4fee535d409b",
+    "mtime": 1769693352.6659312,
+    "size": 366,
+    "refined": true
+  },
+  "config/mcp-settings.kirocode.example.json": {
+    "hash": "17fc9e90311a2aa941ea3b01a17114c9b7210f8d035cbf134be41deda26b54f1",
+    "mtime": 1769693352.6739314,
+    "size": 263,
+    "refined": true
+  },
+  "config/cursor.json": {
+    "hash": "3d7f139f5cc09f8850ae687e85e54fcb329704579ee5e0281fbcf205c8c1c65d",
+    "mtime": 1769517013.4798765,
+    "size": 105,
+    "refined": true
+  },
+  "config/claude-code.json": {
+    "hash": "205fcac20ed71430e7bbc1b6c3bd7700e92c1b8b01c5e876b0b1a4e7d9a98054",
+    "mtime": 1769517013.187871,
+    "size": 135,
+    "refined": true
+  },
+  "eslint.config.js": {
+    "hash": "b5bc50f283bd92874f81cb5513a3470189f9fe6225c66109218f2ac9822b11f4",
+    "mtime": 1769252720.0502489,
+    "size": 1382,
+    "refined": true
+  },
+  "config/mcp-settings.claude-code.example.json": {
+    "hash": "1ccb17e73a82bf79537cafa3f8ec1cfd6c5a9a731252bc781cde56edd5199abe",
+    "mtime": 1769693352.6699312,
+    "size": 273,
+    "refined": true
+  },
+  "config/mcp-settings.cursor.example.json": {
+    "hash": "06c78c3eaa05e48661a72ad742558cea676be78248d78139fbd2e60b85fa50e5",
+    "mtime": 1769693352.6699312,
+    "size": 260,
+    "refined": true
+  },
+  "bunfig.toml": {
+    "hash": "74489dd845b47bd16f7be8e6003c3e0e57da230e294b98f80e2fe941d1a53f24",
+    "mtime": 1769513862.000002,
+    "size": 1238,
+    "refined": true
+  }
+}

@@ -11,10 +11,15 @@ import type {
   ChatCompletionMessageParam,
   ChatCompletionChunk,
 } from 'openai/resources/chat/completions';
+import type { FunctionTool, ToolCallResult } from './providers/types.js';
 import { Logger } from '../utils/logger.js';
 import { parseModelSpec, hasProviderPrefix } from './model-spec.js';
-import { getProvider, isProviderAvailable, registerBuiltinProviders, recordTokenUsage } from './providers/registry.js';
-import type { FunctionTool, ToolCallResult } from './providers/types.js';
+import {
+  getProvider,
+  isProviderAvailable,
+  registerBuiltinProviders,
+  recordTokenUsage,
+} from './providers/registry.js';
 
 /**
  * Extended types for reasoning models (DeepSeek, Kimi, etc.)
@@ -48,8 +53,8 @@ export interface AIClientConfig {
 export interface Message {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
-  toolCalls?: ToolCallResult[];   // assistant response with tool calls
-  toolCallId?: string;            // tool response referencing call ID
+  toolCalls?: ToolCallResult[]; // assistant response with tool calls
+  toolCallId?: string; // tool response referencing call ID
 }
 
 export interface CompletionRequest {
@@ -60,7 +65,8 @@ export interface CompletionRequest {
   temperature?: number;
   onProgress?: (chunk: string) => void;
   tools?: FunctionTool[];
-  toolChoice?: 'auto' | 'none' | 'required' | { type: 'function'; function: { name: string } };
+  toolChoice?: 'none' | 'auto' | 'required' | { type: 'function'; function: { name: string } };
+  _fallbackAttempt?: boolean;
 }
 
 export interface CompletionResponse {
@@ -146,7 +152,11 @@ export function updateClientConfig(updates: Partial<AIClientConfig>): void {
 
   // Dispose old client to prevent socket leaks
   if (client) {
-    try { (client as any).httpAgent?.destroy?.(); } catch { /* ignore disposal errors */ }
+    try {
+      (client as { httpAgent?: { destroy?: () => void } }).httpAgent?.destroy?.();
+    } catch {
+      /* ignore disposal errors */
+    }
   }
   const newConfig = { ...currentConfig, ...updates };
   initAIClient(newConfig);
@@ -192,9 +202,11 @@ export async function complete(request: CompletionRequest): Promise<CompletionRe
         if (
           currentConfig?.fallbackModel &&
           request.model !== currentConfig.fallbackModel &&
-          !(request as any)._fallbackAttempt
+          !(request as CompletionRequest)._fallbackAttempt
         ) {
-          Logger.warn(`Provider ${spec.provider} failed, trying fallback: ${currentConfig.fallbackModel}`);
+          Logger.warn(
+            `Provider ${spec.provider} failed, trying fallback: ${currentConfig.fallbackModel}`
+          );
           return complete({
             ...request,
             model: currentConfig.fallbackModel,
@@ -241,8 +253,8 @@ export async function complete(request: CompletionRequest): Promise<CompletionRe
         max_tokens: request.maxTokens ?? 8192,
         temperature: request.temperature ?? 0.7,
         stream: true,
-        tools: request.tools as any,
-        tool_choice: request.toolChoice as any,
+        tools: request.tools,
+        tool_choice: request.toolChoice,
       });
 
       let content = '';
@@ -281,7 +293,8 @@ export async function complete(request: CompletionRequest): Promise<CompletionRe
 
     if (request.tools?.length) {
       (createParams as unknown as Record<string, unknown>).tools = request.tools;
-      if (request.toolChoice) (createParams as unknown as Record<string, unknown>).tool_choice = request.toolChoice;
+      if (request.toolChoice)
+        (createParams as unknown as Record<string, unknown>).tool_choice = request.toolChoice;
     }
 
     const response: ChatCompletion = await openai.chat.completions.create(createParams);
@@ -292,7 +305,9 @@ export async function complete(request: CompletionRequest): Promise<CompletionRe
     const content = message?.content || message?.reasoning_content || '';
 
     // Extract tool calls from response
-    const rawToolCalls = choice?.message?.tool_calls as Array<{ id: string; type: string; function: { name: string; arguments: string } }> | undefined;
+    const rawToolCalls = choice?.message?.tool_calls as
+      | Array<{ id: string; type: string; function: { name: string; arguments: string } }>
+      | undefined;
     const toolCalls: ToolCallResult[] | undefined = rawToolCalls
       ?.filter((tc) => tc.type === 'function' && tc.function)
       .map((tc) => ({
@@ -321,7 +336,7 @@ export async function complete(request: CompletionRequest): Promise<CompletionRe
   } catch (error) {
     // Try fallback model if primary fails (max 1 attempt to prevent infinite recursion)
     if (currentConfig?.fallbackModel && request.model !== currentConfig.fallbackModel) {
-      if ((request as any)._fallbackAttempt) {
+      if ((request as CompletionRequest)._fallbackAttempt) {
         // Already tried fallback once — don't recurse further
         if (error instanceof OpenAI.APIError) {
           throw new AIError(`API error: ${error.status} ${error.message}`, error.status);

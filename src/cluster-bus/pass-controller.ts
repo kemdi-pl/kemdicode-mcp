@@ -26,7 +26,7 @@
 import { Logger } from '../utils/logger.js';
 import { complete } from '../ai/client.js';
 import type { z } from 'zod';
-import type { PassConfigSchema, PassReportSchema } from './types.js';
+import type { PassConfigSchema } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -107,7 +107,8 @@ Please provide an improved version addressing the quality gaps. Focus on complet
 const CODE_BLOCK_PATTERN = /```|^\s{4,}\S/m;
 
 /** Simple query prefixes that rarely need multi-pass */
-const SIMPLE_PREFIXES = /^(explain|what\s+is|how\s+to|describe|list|show|tell\s+me|define|summarize)/i;
+const SIMPLE_PREFIXES =
+  /^(explain|what\s+is|how\s+to|describe|list|show|tell\s+me|define|summarize)/i;
 
 /**
  * Determine if a prompt is simple enough to skip the assessment pass.
@@ -145,8 +146,16 @@ const TASK_TYPE_PATTERNS: Array<{ pattern: RegExp; type: string; budget: number 
   { pattern: /\b(explain|what\s+is|how\s+does|describe|summarize)\b/i, type: 'explain', budget: 1 },
   { pattern: /\b(fix|bug|error|issue|broken|crash|fail)\b/i, type: 'fix', budget: 2 },
   { pattern: /\b(review|audit|check|inspect|analyze|assess)\b/i, type: 'review', budget: 3 },
-  { pattern: /\b(refactor|restructure|reorganize|clean\s*up|simplify)\b/i, type: 'refactor', budget: 3 },
-  { pattern: /\b(generate|create|write|implement|build|add|develop)\b/i, type: 'generate', budget: 4 },
+  {
+    pattern: /\b(refactor|restructure|reorganize|clean\s*up|simplify)\b/i,
+    type: 'refactor',
+    budget: 3,
+  },
+  {
+    pattern: /\b(generate|create|write|implement|build|add|develop)\b/i,
+    type: 'generate',
+    budget: 4,
+  },
   { pattern: /\b(design|architect|plan|strategy)\b/i, type: 'design', budget: 4 },
 ];
 
@@ -194,9 +203,13 @@ export class PassController {
       const { type, budget } = detectTaskBudget(prompt);
       this.minPassesDeclared = Math.min(budget, this.config.maxPasses);
       Logger.info(
-        `[PassController] Assessment bypassed: type=${type}, budget=${this.minPassesDeclared}`,
+        `[PassController] Assessment bypassed: type=${type}, budget=${this.minPassesDeclared}`
       );
-      return { minPasses: this.minPassesDeclared, reasoning: `Heuristic bypass (${type})`, complexity: type };
+      return {
+        minPasses: this.minPassesDeclared,
+        reasoning: `Heuristic bypass (${type})`,
+        complexity: type,
+      };
     }
 
     this.status = 'assessing';
@@ -214,7 +227,8 @@ export class PassController {
       });
 
       const latencyMs = Date.now() - startTime;
-      const tokensUsed = (response.usage?.promptTokens ?? 0) + (response.usage?.completionTokens ?? 0);
+      const tokensUsed =
+        (response.usage?.promptTokens ?? 0) + (response.usage?.completionTokens ?? 0);
 
       // Parse assessment JSON from response
       const assessment = this.parseAssessment(response.content);
@@ -232,14 +246,20 @@ export class PassController {
       });
 
       Logger.info(
-        `[PassController] Assessment: minPasses=${this.minPassesDeclared}, complexity=${assessment.complexity}`,
+        `[PassController] Assessment: minPasses=${this.minPassesDeclared}, complexity=${assessment.complexity}`
       );
 
       return assessment;
     } catch (err) {
-      Logger.warn(`[PassController] Assessment failed, defaulting to 1 pass: ${err instanceof Error ? err.message : String(err)}`);
+      Logger.warn(
+        `[PassController] Assessment failed, defaulting to 1 pass: ${err instanceof Error ? err.message : String(err)}`
+      );
       this.minPassesDeclared = 1;
-      return { minPasses: 1, reasoning: 'Assessment failed, using single pass', complexity: 'unknown' };
+      return {
+        minPasses: 1,
+        reasoning: 'Assessment failed, using single pass',
+        complexity: 'unknown',
+      };
     }
   }
 
@@ -250,7 +270,7 @@ export class PassController {
   async execute(
     prompt: string,
     systemPrompt?: string,
-    previousContent?: string,
+    previousContent?: string
   ): Promise<PassRecord> {
     this.status = 'executing';
     const passNumber = this.history.filter((h) => h.pass > 0).length + 1;
@@ -259,7 +279,8 @@ export class PassController {
     // Build the user message: first pass = original prompt, subsequent = refinement
     let userMessage: string;
     if (previousContent && passNumber > 1) {
-      userMessage = REFINEMENT_PREFIX + previousContent + REFINEMENT_SUFFIX + '\n\nOriginal task:\n' + prompt;
+      userMessage =
+        REFINEMENT_PREFIX + previousContent + REFINEMENT_SUFFIX + '\n\nOriginal task:\n' + prompt;
     } else {
       userMessage = prompt;
     }
@@ -279,7 +300,8 @@ export class PassController {
       });
 
       const latencyMs = Date.now() - startTime;
-      const tokensUsed = (response.usage?.promptTokens ?? 0) + (response.usage?.completionTokens ?? 0);
+      const tokensUsed =
+        (response.usage?.promptTokens ?? 0) + (response.usage?.completionTokens ?? 0);
 
       // Extract quality assessment from last line
       const { content, qualityData } = this.extractQualityAssessment(response.content);
@@ -297,7 +319,7 @@ export class PassController {
       this.history.push(record);
 
       Logger.info(
-        `[PassController] Pass ${passNumber}: quality=${qualityData.quality.toFixed(2)}, sufficient=${qualityData.sufficient}`,
+        `[PassController] Pass ${passNumber}: quality=${qualityData.quality.toFixed(2)}, sufficient=${qualityData.sufficient}`
       );
 
       return record;
@@ -365,7 +387,7 @@ export class PassController {
           // further passes are unlikely to reach threshold — stop early
           if (qualityDelta < 0.03 && qualityGap > 0.15) {
             Logger.info(
-              `[PassController] Adaptive early-stop: delta=${qualityDelta.toFixed(3)}, gap=${qualityGap.toFixed(3)} — diminishing returns`,
+              `[PassController] Adaptive early-stop: delta=${qualityDelta.toFixed(3)}, gap=${qualityGap.toFixed(3)} — diminishing returns`
             );
             this.status = 'complete';
             return false;
@@ -374,7 +396,7 @@ export class PassController {
           // If quality decreased between passes, stop (model is oscillating)
           if (qualityDelta < -0.05) {
             Logger.info(
-              `[PassController] Adaptive early-stop: quality decreased by ${(-qualityDelta).toFixed(3)} — oscillation detected`,
+              `[PassController] Adaptive early-stop: quality decreased by ${(-qualityDelta).toFixed(3)} — oscillation detected`
             );
             this.status = 'complete';
             return false;
@@ -479,12 +501,18 @@ export class PassController {
           complexity: String(parsed.complexity || 'unknown'),
         };
       }
-    } catch { /* ignore parse errors */ }
+    } catch {
+      /* ignore parse errors */
+    }
 
     // Fallback: try to extract a number
     const numMatch = raw.match(/(\d+)\s*pass/i);
     if (numMatch) {
-      return { minPasses: parseInt(numMatch[1], 10), reasoning: 'Extracted from text', complexity: 'unknown' };
+      return {
+        minPasses: parseInt(numMatch[1], 10),
+        reasoning: 'Extracted from text',
+        complexity: 'unknown',
+      };
     }
 
     return { minPasses: 1, reasoning: 'Could not parse assessment', complexity: 'unknown' };
@@ -511,14 +539,20 @@ export class PassController {
               refinementNeeded: String(parsed.refinementNeeded || ''),
             },
           };
-        } catch { /* ignore parse errors */ }
+        } catch {
+          /* ignore parse errors */
+        }
       }
     }
 
     // Fallback: no quality data found, assume moderate quality
     return {
       content: raw,
-      qualityData: { quality: 0.5, sufficient: false, refinementNeeded: 'No self-assessment provided' },
+      qualityData: {
+        quality: 0.5,
+        sufficient: false,
+        refinementNeeded: 'No self-assessment provided',
+      },
     };
   }
 }
