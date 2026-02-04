@@ -140,7 +140,7 @@ export class MetaTagRouter {
 
     // Filter to only applicable rules for this signal type
     const applicableRules = this.rules.filter(
-      (r) => r.enabled && (r.signalTypes.length === 0 || r.signalTypes.includes(signal.type)),
+      (r) => r.enabled && (r.signalTypes.length === 0 || r.signalTypes.includes(signal.type))
     );
 
     for (const cluster of clusters) {
@@ -160,7 +160,7 @@ export class MetaTagRouter {
     }
 
     Logger.debug(
-      `[MetaRouter] Routed ${signal.type} → ${targets.size} targets via ${matchedRules.length} rules (evaluated ${evaluated} clusters)`,
+      `[MetaRouter] Routed ${signal.type} → ${targets.size} targets via ${matchedRules.length} rules (evaluated ${evaluated} clusters)`
     );
 
     return { targets: [...targets], matchedRules, evaluated };
@@ -178,7 +178,7 @@ export class MetaTagRouter {
     let evaluated = 0;
 
     const applicableRules = this.rules.filter(
-      (r) => r.enabled && (r.signalTypes.length === 0 || r.signalTypes.includes(signal.type)),
+      (r) => r.enabled && (r.signalTypes.length === 0 || r.signalTypes.includes(signal.type))
     );
 
     for (const cluster of clusters) {
@@ -206,7 +206,7 @@ export class MetaTagRouter {
     this.ensureSorted();
 
     const applicableRules = this.rules.filter(
-      (r) => r.enabled && (r.signalTypes.length === 0 || r.signalTypes.includes(signalType)),
+      (r) => r.enabled && (r.signalTypes.length === 0 || r.signalTypes.includes(signalType))
     );
 
     return applicableRules.some((rule) => this.matchesRule(rule, cluster.metaTags));
@@ -246,7 +246,9 @@ export class MetaTagRouter {
 
       case 'regex': {
         if (predicate.value.length > MAX_REGEX_LENGTH) {
-          Logger.warn(`[MetaRouter] Regex too long (${predicate.value.length} > ${MAX_REGEX_LENGTH}), rejecting`);
+          Logger.warn(
+            `[MetaRouter] Regex too long (${predicate.value.length} > ${MAX_REGEX_LENGTH}), rejecting`
+          );
           return false;
         }
         let re = this.regexCache.get(predicate.value);
@@ -335,6 +337,62 @@ export function routeToAnyLLM(): RouteRule {
     predicates: [{ key: 'capability', value: 'llm', mode: 'exact' }],
     logic: 'and',
     priority: 1,
+    terminal: false,
+    enabled: true,
+  };
+}
+
+/** Create a rule that routes CI signals to build clusters. */
+export function routeToCIBuild(): RouteRule {
+  return {
+    id: `route-ci-build-${++ruleCounter}`,
+    label: 'Route CI build signals',
+    signalTypes: ['ci:build', 'ci:multicast'],
+    predicates: [{ key: 'capability', value: 'ci-build', mode: 'exact' }],
+    logic: 'and',
+    priority: 10,
+    terminal: false,
+    enabled: true,
+  };
+}
+
+/** Create a rule that routes CI signals to test clusters. */
+export function routeToCITest(): RouteRule {
+  return {
+    id: `route-ci-test-${++ruleCounter}`,
+    label: 'Route CI test signals',
+    signalTypes: ['ci:test', 'ci:multicast'],
+    predicates: [{ key: 'capability', value: 'ci-test', mode: 'exact' }],
+    logic: 'and',
+    priority: 10,
+    terminal: false,
+    enabled: true,
+  };
+}
+
+/** Create a rule that routes CI signals to deploy clusters. */
+export function routeToCIDeploy(): RouteRule {
+  return {
+    id: `route-ci-deploy-${++ruleCounter}`,
+    label: 'Route CI deploy signals',
+    signalTypes: ['ci:deploy', 'ci:multicast'],
+    predicates: [{ key: 'capability', value: 'ci-deploy', mode: 'exact' }],
+    logic: 'and',
+    priority: 10,
+    terminal: false,
+    enabled: true,
+  };
+}
+
+/** Create a rule that routes any CI signal to CI-capable clusters. */
+export function routeToAnyCI(): RouteRule {
+  return {
+    id: `route-any-ci-${++ruleCounter}`,
+    label: 'Route to any CI cluster',
+    signalTypes: ['ci:build', 'ci:test', 'ci:deploy', 'ci:result', 'ci:pipeline', 'ci:multicast'],
+    predicates: [{ key: 'capability', value: 'ci', mode: 'exact' }],
+    logic: 'and',
+    priority: 5,
     terminal: false,
     enabled: true,
   };

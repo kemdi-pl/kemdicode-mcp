@@ -62,7 +62,10 @@ class BloomFilter {
 
   constructor(expectedItems = 20000, falsePositiveRate = 0.01) {
     // Optimal size: m = -n*ln(p) / (ln2)^2
-    this.size = Math.max(1024, Math.ceil(-expectedItems * Math.log(falsePositiveRate) / (Math.LN2 * Math.LN2)));
+    this.size = Math.max(
+      1024,
+      Math.ceil((-expectedItems * Math.log(falsePositiveRate)) / (Math.LN2 * Math.LN2))
+    );
     // Optimal hash count: k = (m/n) * ln2
     this.hashCount = Math.max(2, Math.min(8, Math.round((this.size / expectedItems) * Math.LN2)));
     this.bits = new Uint32Array(Math.ceil(this.size / 32));
@@ -92,10 +95,14 @@ class BloomFilter {
     return true;
   }
 
-  get count(): number { return this._count; }
+  get count(): number {
+    return this._count;
+  }
 
   /** Memory usage in bytes */
-  get memoryBytes(): number { return this.bits.byteLength; }
+  get memoryBytes(): number {
+    return this.bits.byteLength;
+  }
 
   /** Reset the filter */
   clear(): void {
@@ -158,15 +165,14 @@ export class ClusterBus {
     // Signal authentication: shared secret for HMAC signing
     this.hmacSecret = process.env.MCP_CLUSTER_SECRET || null;
     this.enforceAuth =
-      process.env.MCP_CLUSTER_ENFORCE_AUTH === '1' ||
-      process.env.MCP_CLUSTER_AUTH_REQUIRED === '1';
+      process.env.MCP_CLUSTER_ENFORCE_AUTH === '1' || process.env.MCP_CLUSTER_AUTH_REQUIRED === '1';
     if (this.hmacSecret) {
       Logger.info(
-        `[ClusterBus] Signal authentication enabled (HMAC-SHA256)${this.enforceAuth ? ' [STRICT MODE — unsigned messages rejected]' : ''}`,
+        `[ClusterBus] Signal authentication enabled (HMAC-SHA256)${this.enforceAuth ? ' [STRICT MODE — unsigned messages rejected]' : ''}`
       );
     } else if (this.enforceAuth) {
       Logger.warn(
-        '[ClusterBus] MCP_CLUSTER_AUTH_REQUIRED=1 but MCP_CLUSTER_SECRET not set — enforcement disabled',
+        '[ClusterBus] MCP_CLUSTER_AUTH_REQUIRED=1 but MCP_CLUSTER_SECRET not set — enforcement disabled'
       );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (this as any).enforceAuth = false;
@@ -271,7 +277,9 @@ export class ClusterBus {
         this.cleanupIdleSubscriptions();
       }, this.subscriptionCleanupIntervalMs);
 
-      Logger.info(`[ClusterBus] Connected as ${this.config.clusterId} (${this.config.clusterName})`);
+      Logger.info(
+        `[ClusterBus] Connected as ${this.config.clusterId} (${this.config.clusterName})`
+      );
     } catch (err) {
       Logger.error(`[ClusterBus] Connection failed:`, err);
       throw err;
@@ -371,7 +379,7 @@ export class ClusterBus {
       correlationId?: string;
       sessionId?: string;
       agentId?: string;
-    } = {},
+    } = {}
   ): Promise<string> {
     const signal = this.buildSignal(targetCluster, signalType, payload, options);
 
@@ -380,7 +388,9 @@ export class ClusterBus {
       this.markSeen(signal.id);
       this.addToHistory(signal);
       this.deliverToSubscriptions(signal as ClusterSignal);
-      Logger.debug(`[ClusterBus] Loopback ${signal.type} → ${targetCluster} (${signal.id.slice(0, 8)})`);
+      Logger.debug(
+        `[ClusterBus] Loopback ${signal.type} → ${targetCluster} (${signal.id.slice(0, 8)})`
+      );
       return signal.id;
     }
 
@@ -402,7 +412,7 @@ export class ClusterBus {
       correlationId?: string;
       sessionId?: string;
       agentId?: string;
-    } = {},
+    } = {}
   ): Promise<string> {
     const signal = this.buildSignal('', signalType, payload, options);
     const channel = CLUSTER_KEYS.channelBroadcast();
@@ -424,7 +434,7 @@ export class ClusterBus {
       correlationId?: string;
       sessionId?: string;
       agentId?: string;
-    } = {},
+    } = {}
   ): Promise<{ signalId: string; targets: string[] }> {
     const signal = this.buildSignal('', signalType, payload, options);
 
@@ -439,10 +449,76 @@ export class ClusterBus {
     }
 
     Logger.debug(
-      `[ClusterBus] Routed ${signalType} → ${result.targets.length} targets (rules: ${result.matchedRules.join(', ')})`,
+      `[ClusterBus] Routed ${signalType} → ${result.targets.length} targets (rules: ${result.matchedRules.join(', ')})`
     );
 
     return { signalId: signal.id, targets: result.targets };
+  }
+
+  /**
+   * Multicast a signal to multiple target clusters simultaneously.
+   * Returns the signal ID and list of target cluster IDs.
+   * CI pipelines use this for fan-out to build/test/deploy clusters.
+   */
+  async multicast<T = unknown>(
+    targets: string[],
+    signalType: SignalType,
+    payload: T,
+    options: {
+      direction?: SignalDirection;
+      priority?: SignalPriority;
+      ttl?: number;
+      correlationId?: string;
+      sessionId?: string;
+      agentId?: string;
+      multicastId?: string;
+    } = {}
+  ): Promise<{ signalId: string; multicastId: string; targets: string[] }> {
+    const multicastId =
+      options.multicastId || `mc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const signal = this.buildSignal('', signalType, payload, {
+      ...options,
+      correlationId: options.correlationId || multicastId,
+    });
+
+    const channel = CLUSTER_KEYS.channelMulticast(multicastId);
+
+    for (const targetId of targets) {
+      const targetSignal = { ...signal, targetCluster: targetId };
+      const unicastChannel = CLUSTER_KEYS.channelUnicast(this.config.clusterId, targetId);
+      await this.publishSignal(unicastChannel, targetSignal);
+    }
+
+    Logger.debug(
+      `[ClusterBus] Multicast ${signalType} → ${targets.length} targets (multicastId: ${multicastId})`
+    );
+
+    return { signalId: signal.id, multicastId, targets };
+  }
+
+  /**
+   * Subscribe to multicast channel for a specific pipeline.
+   * Used by CI workers to receive pipeline tasks.
+   */
+  async subscribeToMulticast(multicastId: string): Promise<void> {
+    if (!this.subscriber || !this._connected) {
+      throw new Error('[ClusterBus] Not connected — call connect() first');
+    }
+
+    const pattern = CLUSTER_KEYS.channelMulticast(multicastId);
+    await this.subscriber.psubscribe(pattern);
+    Logger.info(`[ClusterBus] Subscribed to multicast channel: ${multicastId}`);
+  }
+
+  /**
+   * Unsubscribe from a multicast channel.
+   */
+  async unsubscribeFromMulticast(multicastId: string): Promise<void> {
+    if (!this.subscriber || !this._connected) return;
+
+    const pattern = CLUSTER_KEYS.channelMulticast(multicastId);
+    await this.subscriber.punsubscribe(pattern);
+    Logger.info(`[ClusterBus] Unsubscribed from multicast channel: ${multicastId}`);
   }
 
   // -------------------------------------------------------------------------
@@ -456,7 +532,7 @@ export class ClusterBus {
     signalType: SignalType | '*',
     handler: ClusterSignalHandler<T>,
     sourceFilter?: string[],
-    options?: { ttlMs?: number },
+    options?: { ttlMs?: number }
   ): ClusterSubscription {
     const now = Date.now();
     const sub: Subscription = {
@@ -555,7 +631,7 @@ export class ClusterBus {
       correlationId?: string;
       sessionId?: string;
       agentId?: string;
-    },
+    }
   ): ClusterSignal<T> {
     return {
       id: uuidv4(),
@@ -595,16 +671,22 @@ export class ClusterBus {
       await this.publisher.publish(channel, wireMessage);
       if (!this._publisherHealthy) {
         this._publisherHealthy = true;
-        Logger.info(`[ClusterBus] Publisher recovered — draining ${this.outboundBuffer.length} buffered signals`);
+        Logger.info(
+          `[ClusterBus] Publisher recovered — draining ${this.outboundBuffer.length} buffered signals`
+        );
         await this.drainOutboundBuffer();
       }
     } catch (pubErr) {
       this._publisherHealthy = false;
       if (this.outboundBuffer.length < this.maxOutboundBuffer) {
         this.outboundBuffer.push({ channel, signal: signal as ClusterSignal });
-        Logger.warn(`[ClusterBus] Publisher failed, buffered signal (${this.outboundBuffer.length}/${this.maxOutboundBuffer}): ${pubErr instanceof Error ? pubErr.message : String(pubErr)}`);
+        Logger.warn(
+          `[ClusterBus] Publisher failed, buffered signal (${this.outboundBuffer.length}/${this.maxOutboundBuffer}): ${pubErr instanceof Error ? pubErr.message : String(pubErr)}`
+        );
       } else {
-        Logger.warn(`[ClusterBus] Outbound buffer full (${this.maxOutboundBuffer}), dropping signal ${signal.id.slice(0, 8)}`);
+        Logger.warn(
+          `[ClusterBus] Outbound buffer full (${this.maxOutboundBuffer}), dropping signal ${signal.id.slice(0, 8)}`
+        );
       }
       return;
     }
@@ -623,10 +705,14 @@ export class ClusterBus {
       }
       await pipeline.exec();
     } catch (err) {
-      Logger.warn(`[ClusterBus] Failed to persist signal history: ${err instanceof Error ? err.message : String(err)}`);
+      Logger.warn(
+        `[ClusterBus] Failed to persist signal history: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
 
-    Logger.debug(`[ClusterBus] Sent ${signal.type} → ${signal.targetCluster || 'broadcast'} (${signal.id.slice(0, 8)})`);
+    Logger.debug(
+      `[ClusterBus] Sent ${signal.type} → ${signal.targetCluster || 'broadcast'} (${signal.id.slice(0, 8)})`
+    );
   }
 
   /**
@@ -643,7 +729,9 @@ export class ClusterBus {
         await this.publisher!.publish(channel, wireMessage);
         sent++;
       } catch (err) {
-        Logger.warn(`[ClusterBus] Failed to drain buffered signal: ${err instanceof Error ? err.message : String(err)}`);
+        Logger.warn(
+          `[ClusterBus] Failed to drain buffered signal: ${err instanceof Error ? err.message : String(err)}`
+        );
         // Re-buffer ALL remaining signals (current + rest) to prevent signal loss
         for (let j = i; j < buffered.length; j++) {
           this.outboundBuffer.push(buffered[j]);
@@ -652,7 +740,9 @@ export class ClusterBus {
       }
     }
     if (sent > 0) {
-      Logger.info(`[ClusterBus] Drained ${sent} buffered signals, ${this.outboundBuffer.length} remaining`);
+      Logger.info(
+        `[ClusterBus] Drained ${sent} buffered signals, ${this.outboundBuffer.length} remaining`
+      );
     }
   }
 
@@ -661,7 +751,9 @@ export class ClusterBus {
 
   private handleIncoming(message: string): void {
     if (message.length > this.maxMessageSize) {
-      Logger.warn(`[ClusterBus] Dropping oversized message (${message.length} bytes > ${this.maxMessageSize})`);
+      Logger.warn(
+        `[ClusterBus] Dropping oversized message (${message.length} bytes > ${this.maxMessageSize})`
+      );
       return;
     }
     try {
@@ -682,7 +774,9 @@ export class ClusterBus {
       if (signal.ttl > 0) {
         const ageMs = Date.now() - signal.timestamp;
         if (ageMs > signal.ttl * 1000) {
-          Logger.debug(`[ClusterBus] Dropping expired signal ${signal.id.slice(0, 8)} (age=${Math.round(ageMs / 1000)}s, ttl=${signal.ttl}s)`);
+          Logger.debug(
+            `[ClusterBus] Dropping expired signal ${signal.id.slice(0, 8)} (age=${Math.round(ageMs / 1000)}s, ttl=${signal.ttl}s)`
+          );
           return;
         }
       }
@@ -701,9 +795,13 @@ export class ClusterBus {
       // Deliver to matching subscriptions
       this.deliverToSubscriptions(signal);
 
-      Logger.debug(`[ClusterBus] Received ${signal.type} from ${signal.sourceCluster} (${signal.id.slice(0, 8)})`);
+      Logger.debug(
+        `[ClusterBus] Received ${signal.type} from ${signal.sourceCluster} (${signal.id.slice(0, 8)})`
+      );
     } catch (err) {
-      Logger.warn(`[ClusterBus] Failed to parse incoming signal: ${err instanceof Error ? err.message : String(err)}`);
+      Logger.warn(
+        `[ClusterBus] Failed to parse incoming signal: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 
@@ -719,18 +817,38 @@ export class ClusterBus {
         if (result instanceof Promise) {
           result
             .then(() => {
-              this.flowController.recordSuccess(signal.type, signal.sourceCluster, signal.targetCluster || '*');
+              this.flowController.recordSuccess(
+                signal.type,
+                signal.sourceCluster,
+                signal.targetCluster || '*'
+              );
             })
             .catch((err) => {
-              this.flowController.recordFailure(signal.type, signal.sourceCluster, signal.targetCluster || '*');
-              Logger.error(`[ClusterBus] Handler error for ${signal.type}: ${err instanceof Error ? err.message : String(err)}`);
+              this.flowController.recordFailure(
+                signal.type,
+                signal.sourceCluster,
+                signal.targetCluster || '*'
+              );
+              Logger.error(
+                `[ClusterBus] Handler error for ${signal.type}: ${err instanceof Error ? err.message : String(err)}`
+              );
             });
         } else {
-          this.flowController.recordSuccess(signal.type, signal.sourceCluster, signal.targetCluster || '*');
+          this.flowController.recordSuccess(
+            signal.type,
+            signal.sourceCluster,
+            signal.targetCluster || '*'
+          );
         }
       } catch (err) {
-        this.flowController.recordFailure(signal.type, signal.sourceCluster, signal.targetCluster || '*');
-        Logger.error(`[ClusterBus] Sync handler error for ${signal.type}: ${err instanceof Error ? err.message : String(err)}`);
+        this.flowController.recordFailure(
+          signal.type,
+          signal.sourceCluster,
+          signal.targetCluster || '*'
+        );
+        Logger.error(
+          `[ClusterBus] Sync handler error for ${signal.type}: ${err instanceof Error ? err.message : String(err)}`
+        );
       }
     }
   }
@@ -763,7 +881,9 @@ export class ClusterBus {
       for (const id of this.recentSignals) {
         this.bloomFilter.add(id);
       }
-      Logger.info(`[ClusterBus] Bloom filter reset (generation ${this.bloomGeneration}), re-added ${this.recentSignals.size} recent signals`);
+      Logger.info(
+        `[ClusterBus] Bloom filter reset (generation ${this.bloomGeneration}), re-added ${this.recentSignals.size} recent signals`
+      );
     }
   }
 
@@ -778,13 +898,17 @@ export class ClusterBus {
       if (sub.ttlMs === 0) continue; // No TTL = permanent
       const idleMs = now - sub.lastInvokedAt;
       if (idleMs > sub.ttlMs) {
-        Logger.info(`[ClusterBus] Cleaned up idle subscription ${id} (type=${sub.signalType}, idle=${Math.round(idleMs / 1000)}s)`);
+        Logger.info(
+          `[ClusterBus] Cleaned up idle subscription ${id} (type=${sub.signalType}, idle=${Math.round(idleMs / 1000)}s)`
+        );
         this.subscriptions.delete(id);
       }
     }
     const cleaned = before - this.subscriptions.size;
     if (cleaned > 0) {
-      Logger.info(`[ClusterBus] Subscription cleanup: removed ${cleaned} idle subscriptions, ${this.subscriptions.size} active`);
+      Logger.info(
+        `[ClusterBus] Subscription cleanup: removed ${cleaned} idle subscriptions, ${this.subscriptions.size} active`
+      );
     }
   }
 

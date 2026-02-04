@@ -34,9 +34,16 @@ export type SignalType =
   | 'cluster:heartbeat'
   | 'data:broadcast'
   | 'data:unicast'
+  | 'data:multicast'
   | 'control:pause'
   | 'control:resume'
-  | 'control:config';
+  | 'control:config'
+  | 'ci:build'
+  | 'ci:test'
+  | 'ci:deploy'
+  | 'ci:result'
+  | 'ci:pipeline'
+  | 'ci:multicast';
 
 /** Signal flow direction */
 export type SignalDirection = 'upstream' | 'downstream' | 'duplex';
@@ -198,9 +205,18 @@ export interface ClusterTopology {
 
 export const PassConfigSchema = z.object({
   maxPasses: z.number().min(1).max(20).default(5).describe('Hard limit on total LLM passes'),
-  qualityThreshold: z.number().min(0).max(1).default(0.8).describe('Quality score threshold for early stop (0-1)'),
-  strategy: z.enum(['min-passes', 'quality-target', 'fixed']).default('min-passes')
-    .describe('min-passes: LLM declares minimum then executes; quality-target: iterate until quality met; fixed: exactly maxPasses runs'),
+  qualityThreshold: z
+    .number()
+    .min(0)
+    .max(1)
+    .default(0.8)
+    .describe('Quality score threshold for early stop (0-1)'),
+  strategy: z
+    .enum(['min-passes', 'quality-target', 'fixed'])
+    .default('min-passes')
+    .describe(
+      'min-passes: LLM declares minimum then executes; quality-target: iterate until quality met; fixed: exactly maxPasses runs'
+    ),
 });
 
 export const PassRecordSchema = z.object({
@@ -220,16 +236,24 @@ export const PassReportSchema = z.object({
 
 export const LLMRequestPayload = z.object({
   prompt: z.string().describe('LLM prompt text'),
-  model: z.string().optional().describe('Target model spec (provider:model:thinking or custom:name:model)'),
+  model: z
+    .string()
+    .optional()
+    .describe('Target model spec (provider:model:thinking or custom:name:model)'),
   systemPrompt: z.string().optional().describe('System prompt override'),
   maxTokens: z.number().optional().describe('Max completion tokens'),
   temperature: z.number().optional().describe('Sampling temperature'),
   files: z.array(z.string()).optional().describe('Attached file paths'),
-  customEndpoint: z.object({
-    baseURL: z.string().describe('OpenAI-compatible base URL'),
-    apiKey: z.string().optional().describe('API key (omit if not needed)'),
-  }).optional().describe('Custom endpoint override for cross-cluster dispatch'),
-  passConfig: PassConfigSchema.optional().describe('Pass budget config — enables multi-pass self-regulating execution'),
+  customEndpoint: z
+    .object({
+      baseURL: z.string().describe('OpenAI-compatible base URL'),
+      apiKey: z.string().optional().describe('API key (omit if not needed)'),
+    })
+    .optional()
+    .describe('Custom endpoint override for cross-cluster dispatch'),
+  passConfig: PassConfigSchema.optional().describe(
+    'Pass budget config — enables multi-pass self-regulating execution'
+  ),
 });
 
 export const LLMResultPayload = z.object({
@@ -241,8 +265,60 @@ export const LLMResultPayload = z.object({
   completionTokens: z.number().optional().describe('Output token count'),
   finishReason: z.string().optional().describe('Why the completion ended'),
   latencyMs: z.number().optional().describe('End-to-end latency in milliseconds'),
-  passReport: PassReportSchema.optional().describe('Pass budget execution report (present when passConfig was used)'),
+  passReport: PassReportSchema.optional().describe(
+    'Pass budget execution report (present when passConfig was used)'
+  ),
 });
+
+export type CIStage = 'build' | 'test' | 'deploy' | 'validate';
+export type CITrigger = 'push' | 'pr' | 'manual' | 'schedule' | 'webhook';
+export type CIPriority = 'low' | 'normal' | 'high' | 'critical';
+
+export interface CIMulticastPayload {
+  pipelineId: string;
+  stage: CIStage;
+  targets: string[];
+  aggregationMode: 'all' | 'first' | 'majority' | 'custom';
+  customAggregationRule?: string;
+  payload: Record<string, unknown>;
+  timeoutMs: number;
+  retryCount: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CIArtifact {
+  name: string;
+  path: string;
+  size: number;
+  checksum: string;
+}
+
+export interface CIResultPayload {
+  pipelineId: string;
+  stage: CIStage;
+  targetCluster: string;
+  success: boolean;
+  output?: Record<string, unknown>;
+  artifacts?: CIArtifact[];
+  metrics?: Record<string, number>;
+  error?: string;
+  durationMs: number;
+  timestamp: number;
+}
+
+export interface CIPipelinePayload {
+  pipelineId: string;
+  name: string;
+  commit: string;
+  branch: string;
+  trigger: CITrigger;
+  stages: CIStage[];
+  parallelStages?: CIStage[][];
+  configuration?: Record<string, unknown>;
+  env?: Record<string, string>;
+  secrets?: string[];
+  priority: CIPriority;
+}
 
 export const HeartbeatPayload = z.object({
   clusterId: z.string().describe('Reporting cluster ID'),
@@ -250,6 +326,68 @@ export const HeartbeatPayload = z.object({
   providers: z.array(z.string()).optional().describe('Currently available provider IDs'),
   load: z.number().min(0).max(1).optional().describe('Current load factor (0-1)'),
   queueDepth: z.number().optional().describe('Pending signal queue depth'),
+});
+
+export const CIMulticastPayload = z.object({
+  pipelineId: z.string().describe('Unique pipeline execution ID'),
+  stage: z.enum(['build', 'test', 'deploy', 'validate']).describe('CI pipeline stage'),
+  targets: z.array(z.string()).describe('Target cluster IDs for fan-out'),
+  aggregationMode: z
+    .enum(['all', 'first', 'majority', 'custom'])
+    .default('all')
+    .describe('How to aggregate results'),
+  customAggregationRule: z.string().optional().describe('Custom aggregation rule name'),
+  payload: z.record(z.string(), z.unknown()).describe('Stage-specific payload'),
+  timeoutMs: z.number().default(300000).describe('Timeout for stage execution'),
+  retryCount: z.number().default(0).describe('Number of retries attempted'),
+  metadata: z.record(z.string(), z.unknown()).optional().describe('Additional pipeline metadata'),
+});
+
+export const CIResultPayload = z.object({
+  pipelineId: z.string().describe('Correlation to original pipeline ID'),
+  stage: z.enum(['build', 'test', 'deploy', 'validate']).describe('Completed stage'),
+  targetCluster: z.string().describe('Cluster that produced this result'),
+  success: z.boolean().describe('Whether the stage succeeded'),
+  output: z.record(z.string(), z.unknown()).optional().describe('Stage-specific output'),
+  artifacts: z
+    .array(
+      z.object({
+        name: z.string(),
+        path: z.string(),
+        size: z.number(),
+        checksum: z.string(),
+      })
+    )
+    .optional()
+    .describe('Generated artifacts'),
+  metrics: z.record(z.string(), z.number()).optional().describe('Execution metrics'),
+  error: z.string().optional().describe('Error message if failed'),
+  durationMs: z.number().describe('Execution duration in milliseconds'),
+  timestamp: z.number().describe('Result timestamp'),
+});
+
+export const CIPipelinePayload = z.object({
+  pipelineId: z.string().describe('Unique pipeline execution ID'),
+  name: z.string().describe('Pipeline name'),
+  commit: z.string().describe('Git commit SHA'),
+  branch: z.string().describe('Git branch'),
+  trigger: z
+    .enum(['push', 'pr', 'manual', 'schedule', 'webhook'])
+    .describe('Pipeline trigger type'),
+  stages: z
+    .array(z.enum(['build', 'test', 'deploy', 'validate']))
+    .describe('Pipeline stages in order'),
+  parallelStages: z
+    .array(z.array(z.enum(['build', 'test', 'deploy', 'validate'])))
+    .optional()
+    .describe('Stages that run in parallel'),
+  configuration: z.record(z.string(), z.unknown()).optional().describe('Pipeline configuration'),
+  env: z.record(z.string(), z.string()).optional().describe('Environment variables'),
+  secrets: z.array(z.string()).optional().describe('Secret names (not values) required'),
+  priority: z
+    .enum(['low', 'normal', 'high', 'critical'])
+    .default('normal')
+    .describe('Pipeline priority'),
 });
 
 // ---------------------------------------------------------------------------
@@ -266,9 +404,15 @@ export type SignalPayloadMap = {
   'cluster:heartbeat': z.infer<typeof HeartbeatPayload>;
   'data:broadcast': Record<string, unknown>;
   'data:unicast': Record<string, unknown>;
+  'data:multicast': z.infer<typeof CIMulticastPayload>;
   'control:pause': { reason?: string };
   'control:resume': { reason?: string };
   'control:config': { key: string; value: unknown };
+  'ci:build': z.infer<typeof CIMulticastPayload>;
+  'ci:test': z.infer<typeof CIMulticastPayload>;
+  'ci:deploy': z.infer<typeof CIMulticastPayload>;
+  'ci:result': z.infer<typeof CIResultPayload>;
+  'ci:pipeline': z.infer<typeof CIPipelinePayload>;
 };
 
 // ---------------------------------------------------------------------------
@@ -288,7 +432,8 @@ export const CLUSTER_KEYS = {
   /** Sorted set of active clusters (score = heartbeat timestamp) */
   active: () => 'mcp:clusters:active',
   /** Capped signal history between two clusters */
-  signals: (src: string, tgt: string) => `mcp:cluster:signals:${sanitizeKeyPart(src)}:${sanitizeKeyPart(tgt)}`,
+  signals: (src: string, tgt: string) =>
+    `mcp:cluster:signals:${sanitizeKeyPart(src)}:${sanitizeKeyPart(tgt)}`,
   /** Broadcast signal history */
   broadcastHistory: () => 'mcp:cluster:signals:broadcast',
   /** Metrics hash per cluster */
@@ -298,9 +443,14 @@ export const CLUSTER_KEYS = {
   /** Topology adjacency hash */
   topology: () => 'mcp:cluster:topology',
   /** Pub/Sub channel: unicast */
-  channelUnicast: (src: string, tgt: string) => `mcp:cluster:${sanitizeKeyPart(src)}:${sanitizeKeyPart(tgt)}`,
+  channelUnicast: (src: string, tgt: string) =>
+    `mcp:cluster:${sanitizeKeyPart(src)}:${sanitizeKeyPart(tgt)}`,
   /** Pub/Sub channel: broadcast */
   channelBroadcast: () => 'mcp:cluster:broadcast',
+  /** Pub/Sub channel: multicast for CI */
+  channelMulticast: (pipelineId: string) => `mcp:cluster:multicast:${sanitizeKeyPart(pipelineId)}`,
+  /** Pub/Sub channel pattern for multicast subscriptions */
+  channelMulticastPattern: () => 'mcp:cluster:multicast:*',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -352,14 +502,16 @@ function parseCustomEndpoints(raw: string): ClusterCustomEndpoint[] {
     try {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parsed.map((ep: Record<string, unknown>) => ({
-          name: String(ep.name || ''),
-          displayName: ep.displayName ? String(ep.displayName) : undefined,
-          baseURL: String(ep.baseURL || ''),
-          requiresApiKey: Boolean(ep.apiKey),
-          defaultModel: ep.defaultModel ? String(ep.defaultModel) : undefined,
-          models: Array.isArray(ep.models) ? ep.models.map(String) : undefined,
-        })).filter((ep) => ep.name && ep.baseURL);
+        return parsed
+          .map((ep: Record<string, unknown>) => ({
+            name: String(ep.name || ''),
+            displayName: ep.displayName ? String(ep.displayName) : undefined,
+            baseURL: String(ep.baseURL || ''),
+            requiresApiKey: Boolean(ep.apiKey),
+            defaultModel: ep.defaultModel ? String(ep.defaultModel) : undefined,
+            models: Array.isArray(ep.models) ? ep.models.map(String) : undefined,
+          }))
+          .filter((ep) => ep.name && ep.baseURL);
       }
     } catch {
       // Fall through to short syntax
@@ -408,8 +560,10 @@ function parseCustomEndpoints(raw: string): ClusterCustomEndpoint[] {
 
 /** Load cluster bus config from environment */
 export function loadClusterBusConfig(): ClusterBusConfig {
-  const enabled = process.env.MCP_CLUSTER_ENABLED !== '0' && process.env.MCP_CLUSTER_ENABLED !== 'false';
-  const clusterId = process.env.MCP_CLUSTER_ID || `cluster_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const enabled =
+    process.env.MCP_CLUSTER_ENABLED !== '0' && process.env.MCP_CLUSTER_ENABLED !== 'false';
+  const clusterId =
+    process.env.MCP_CLUSTER_ID || `cluster_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   const clusterName = process.env.MCP_CLUSTER_NAME || clusterId;
   const tagsRaw = process.env.MCP_CLUSTER_TAGS || '';
   const metaTags = tagsRaw
@@ -422,7 +576,10 @@ export function loadClusterBusConfig(): ClusterBusConfig {
 
   const envInt = (key: string, def: number): number => {
     const v = process.env[key];
-    if (v) { const n = parseInt(v, 10); if (!isNaN(n) && n > 0) return n; }
+    if (v) {
+      const n = parseInt(v, 10);
+      if (!isNaN(n) && n > 0) return n;
+    }
     return def;
   };
 
@@ -444,9 +601,7 @@ export function loadClusterBusConfig(): ClusterBusConfig {
 // ---------------------------------------------------------------------------
 
 /** Handler for incoming cluster signals */
-export type ClusterSignalHandler<T = unknown> = (
-  signal: ClusterSignal<T>,
-) => void | Promise<void>;
+export type ClusterSignalHandler<T = unknown> = (signal: ClusterSignal<T>) => void | Promise<void>;
 
 /** Subscription to cluster signals */
 export interface ClusterSubscription {
