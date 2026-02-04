@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/kemdicode-mcp"><img src="https://img.shields.io/badge/npm-kemdicode--mcp-CB3837?style=flat-square&logo=npm&logoColor=white" alt="npm" /></a>
-  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.25.5-blue?style=flat-square" alt="Version" /></a>
+  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-1.26.0-blue?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License" /></a>
 </p>
 
@@ -27,6 +27,10 @@
 
 **kemdiCode MCP** is a [Model Context Protocol](https://modelcontextprotocol.io/) server that gives AI agents and IDE assistants access to **142 specialized tools** for code analysis, generation, git operations, file management, AST-aware editing, project memory, cognition & self-improvement, multi-board kanban, multi-agent coordination, cluster bus with distributed LLM magistrale, typed data flow bus, structured output, and LLM-driven task management.
 
+### New in 1.26
+
+> **CI/CD Multicast & Fan-In Aggregation** &mdash; new multicast signal delivery for CI/CD pipelines with 6 CI signal types, fan-out to multiple clusters, and fan-in result aggregation (all/first/majority/custom modes). Meta-router CI routing rules. Improved agent orchestration with higher iteration limits. Code quality fixes across cluster-bus types.
+
 ### New in 1.25
 
 > **Cluster Bus & LLM Magistrale** &mdash; full-duplex inter-cluster communication with 12 signal types, HMAC auth, bloom filter dedup, and distributed prompt dispatch across nodes (4 aggregation strategies). Self-regulating Pass Controller for quality-driven multi-pass execution. Prompt enhancer for iterative refinement. 559 unit tests. [Read the full whitepaper &rarr;](docs/whitepaper-kemdicode-mcp-v1.25.pdf)
@@ -34,6 +38,7 @@
 <details>
 <summary><strong>Table of Contents</strong></summary>
 
+- [What's New in 1.26](#whats-new-in-126)
 - [What's New in 1.25](#whats-new-in-125)
 - [Cognition Layer: How AI Remembers](#cognition-layer-how-ai-remembers)
 - [Usage Examples](#usage-examples)
@@ -55,6 +60,37 @@
 - [License](#license)
 
 </details>
+
+---
+
+## What's New in 1.26
+
+### CI/CD Multicast &mdash; Fan-Out & Fan-In Aggregation
+
+- 6 new CI signal types: `ci:build`, `ci:test`, `ci:deploy`, `ci:result`, `ci:pipeline`, `ci:multicast`
+- `ClusterBus.multicast()` method for fan-out to multiple target clusters simultaneously
+- **Fan-In Aggregator** with 4 aggregation modes:
+  - `all` &mdash; wait for all targets to respond
+  - `first` &mdash; complete on first successful response
+  - `majority` &mdash; complete when strict majority succeeds
+  - `custom` &mdash; pluggable aggregation rules
+- Auto-start cleanup scheduler prevents memory leaks in long-running servers
+- Meta-router CI routing rules: `routeToCIBuild()`, `routeToCITest()`, `routeToCIDeploy()`, `routeToAnyCI()`
+- CI payload schemas with Zod: `CIMulticastPayload`, `CIResultPayload`, `CIPipelinePayload`
+- Integration tests covering all aggregation modes and multicast signals
+
+### Agent Orchestration Improvements
+
+- `agent-orchestrate` default iterations raised from 10 to 20, max from 20 to 50
+- 5 new tool examples covering large-scale execution, scoped review, and cognitive tools
+- `auto-fix-agent` gains 3 full-parameter examples (dry-run, multi-file, security focus)
+
+### Code Quality Fixes
+
+- Eliminated duplicate TypeScript interfaces — types now derived from Zod schemas (single source of truth)
+- Removed dead code and redundant conditions in fan-in aggregation logic
+- Fixed `SignalPayloadMap`: added missing `ci:multicast`, corrected `data:multicast` type
+- Simplified majority aggregation to single clear condition
 
 ---
 

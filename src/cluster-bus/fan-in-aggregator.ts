@@ -19,8 +19,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../utils/logger.js';
-import type { ClusterSignal } from './types.js';
-import type { CIMulticastPayload, CIResultPayload } from './types.js';
+import type { ClusterSignal, CIMulticastPayloadType, CIResultPayloadType } from './types.js';
 
 export type AggregationMode = 'all' | 'first' | 'majority' | 'custom';
 export type AggregationState = 'pending' | 'collecting' | 'completed' | 'failed';
@@ -33,19 +32,19 @@ export interface AggregationResult {
   receivedCount: number;
   successCount: number;
   failureCount: number;
-  results: CIResultPayload[];
+  results: CIResultPayloadType[];
   aggregatedAt: number;
   durationMs: number;
 }
 
 export interface CustomAggregationRule {
   name: string;
-  handler: (results: CIResultPayload[]) => AggregationResult;
+  handler: (results: CIResultPayloadType[]) => AggregationResult;
 }
 
 interface PendingAggregation {
-  payload: CIMulticastPayload;
-  results: CIResultPayload[];
+  payload: CIMulticastPayloadType;
+  results: CIResultPayloadType[];
   startedAt: number;
   timeoutMs: number;
 }
@@ -68,7 +67,12 @@ export function unregisterCustomRule(name: string): boolean {
   return customRules.delete(name);
 }
 
-export function startAggregation(payload: CIMulticastPayload): AggregationResult {
+export function startAggregation(payload: CIMulticastPayloadType): AggregationResult {
+  // Lazy-start cleanup scheduler on first aggregation
+  if (!cleanupInterval) {
+    startCleanupScheduler();
+  }
+
   const aggregationId = payload.pipelineId;
 
   const existing = aggregations.get(aggregationId);
@@ -107,7 +111,7 @@ export function startAggregation(payload: CIMulticastPayload): AggregationResult
   return result;
 }
 
-export function addResult(payload: CIResultPayload): AggregationResult | null {
+export function addResult(payload: CIResultPayloadType): AggregationResult | null {
   const aggregationId = payload.pipelineId;
   const aggregation = aggregations.get(aggregationId);
 
@@ -131,35 +135,24 @@ export function addResult(payload: CIResultPayload): AggregationResult | null {
   const elapsed = Date.now() - aggregation.startedAt;
   const timedOut = elapsed > aggregation.timeoutMs;
   const allReceived = result.receivedCount >= result.totalExpected;
-  const majorityReached =
-    aggregation.payload.aggregationMode === 'majority' &&
-    result.successCount >= Math.ceil(result.totalExpected / 2);
 
+  // Mode: first — complete as soon as any target succeeds
   if (aggregation.payload.aggregationMode === 'first' && payload.success) {
     completeAggregation(aggregationId, 'completed');
     return aggregationResults.get(aggregationId)!;
   }
 
-  if (allReceived || timedOut) {
-    completeAggregation(aggregationId, timedOut ? 'failed' : 'completed');
-    return aggregationResults.get(aggregationId)!;
-  }
-
+  // Mode: majority — complete when strict majority of targets succeeded
   if (
     aggregation.payload.aggregationMode === 'majority' &&
-    majorityReached &&
-    result.successCount > result.totalExpected / 2 &&
-    result.receivedCount >= Math.ceil(result.totalExpected / 2)
+    result.successCount > result.totalExpected / 2
   ) {
     completeAggregation(aggregationId, 'completed');
     return aggregationResults.get(aggregationId)!;
   }
 
-  if (
-    allReceived ||
-    timedOut ||
-    (majorityReached && aggregation.payload.aggregationMode !== 'majority')
-  ) {
+  // All modes: complete when all results received or timeout
+  if (allReceived || timedOut) {
     completeAggregation(aggregationId, timedOut ? 'failed' : 'completed');
     return aggregationResults.get(aggregationId)!;
   }

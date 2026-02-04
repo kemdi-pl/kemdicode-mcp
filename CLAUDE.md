@@ -1,4 +1,4 @@
-# KemdiCode MCP Server v1.25.5
+# KemdiCode MCP Server v1.26.0
 
 ## Session Recovery
 
@@ -32,11 +32,12 @@ src/
 │   └── providers/           # Native LLM provider adapters (8 providers)
 ├── client/                  # MCP client capabilities bridge
 ├── cluster-bus/             # Distributed inter-cluster communication
-│   ├── bus.ts               # ClusterBus: Redis Pub/Sub signal routing
+│   ├── bus.ts               # ClusterBus: Redis Pub/Sub signal routing + multicast
+│   ├── fan-in-aggregator.ts # CI fan-in result aggregation (all/first/majority/custom)
 │   ├── llm-magistrale.ts    # LLM dispatch across clusters (4 strategies)
 │   ├── pass-controller.ts   # Self-regulating multi-pass execution
 │   ├── signal-flow.ts       # Backpressure, rate limiting, flow control
-│   ├── meta-router.ts       # Meta-tag based signal routing
+│   ├── meta-router.ts       # Meta-tag based signal routing + CI routing rules
 │   ├── health-monitor.ts    # Heartbeat tracking, stale detection
 │   ├── cluster-registry.ts  # Node registration and discovery
 │   ├── provider-pool.ts     # LLM provider pool for clusters
@@ -170,7 +171,7 @@ mcp:events:*      — Event history
 ```
 
 ### 3-Layer Bus Architecture
-- **L3: ClusterBus** (`cluster-bus/`) — inter-cluster via Redis Pub/Sub (`mcp:cluster:*`). 12 signal types, 3 send modes (unicast/broadcast/routed). SignalFlowController (backpressure, rate limiting, circuit breaker, bloom filter, HMAC auth), MetaRouter (tag-based routing with AND/OR logic), HealthMonitor (heartbeat, stale pruning).
+- **L3: ClusterBus** (`cluster-bus/`) — inter-cluster via Redis Pub/Sub (`mcp:cluster:*`). 18 signal types (incl. 6 CI types), 4 send modes (unicast/broadcast/routed/multicast). SignalFlowController (backpressure, rate limiting, circuit breaker, bloom filter, HMAC auth), MetaRouter (tag-based routing with AND/OR logic, CI routing rules), HealthMonitor (heartbeat, stale pruning), FanInAggregator (all/first/majority/custom).
 - **L2: DataFlowBus** (`dataflow/`) — inter-module typed channels (`mcp:dataflow:{channel}`). 12 channels with Zod payloads, correlation tracking, priority 0-3, TTL, O(1) unsubscribe.
 - **L1: GlobalEventBus** (`events/`) — in-process events (`mcp:events:{type}`). Namespaced events, async handlers, max chain depth 8, Redis bridge with retry.
 - **Bridges** (`cluster-bus/bridges.ts`) — L3↔L2 (DataFlowBridge) and L3↔L1 (EventBridge) with anti-amplification: hop limit 5, source prefix guard, dedup via seen-set.
@@ -180,6 +181,13 @@ mcp:events:*      — Event history
 - 4 aggregation strategies: `first-wins`, `best-of-n`, `consensus` (Jaccard similarity), `fallback-chain`
 - PassController (`cluster-bus/pass-controller.ts`): 3 strategies — `min-passes` (LLM self-assesses), `quality-target` (iterate to threshold), `fixed` (exact N)
 - Budget capping: PassController caps `minPasses` to `maxPasses` instead of rejecting
+
+### CI/CD Multicast (v1.26.0)
+- 6 CI signal types: `ci:build`, `ci:test`, `ci:deploy`, `ci:result`, `ci:pipeline`, `ci:multicast`
+- `ClusterBus.multicast()` for fan-out to multiple targets
+- `FanInAggregator` (`cluster-bus/fan-in-aggregator.ts`): 4 modes (all/first/majority/custom), auto-cleanup
+- CI routing rules in MetaRouter: `routeToCIBuild()`, `routeToCITest()`, `routeToCIDeploy()`, `routeToAnyCI()`
+- CI payload Zod schemas: `CIMulticastPayload`, `CIResultPayload`, `CIPipelinePayload`
 
 ### Security Hardening (v1.25.1)
 - Prototype pollution protection in Redis JSON parsing (`events/redis-bridge.ts`)

@@ -274,52 +274,6 @@ export type CIStage = 'build' | 'test' | 'deploy' | 'validate';
 export type CITrigger = 'push' | 'pr' | 'manual' | 'schedule' | 'webhook';
 export type CIPriority = 'low' | 'normal' | 'high' | 'critical';
 
-export interface CIMulticastPayload {
-  pipelineId: string;
-  stage: CIStage;
-  targets: string[];
-  aggregationMode: 'all' | 'first' | 'majority' | 'custom';
-  customAggregationRule?: string;
-  payload: Record<string, unknown>;
-  timeoutMs: number;
-  retryCount: number;
-  metadata?: Record<string, unknown>;
-}
-
-export interface CIArtifact {
-  name: string;
-  path: string;
-  size: number;
-  checksum: string;
-}
-
-export interface CIResultPayload {
-  pipelineId: string;
-  stage: CIStage;
-  targetCluster: string;
-  success: boolean;
-  output?: Record<string, unknown>;
-  artifacts?: CIArtifact[];
-  metrics?: Record<string, number>;
-  error?: string;
-  durationMs: number;
-  timestamp: number;
-}
-
-export interface CIPipelinePayload {
-  pipelineId: string;
-  name: string;
-  commit: string;
-  branch: string;
-  trigger: CITrigger;
-  stages: CIStage[];
-  parallelStages?: CIStage[][];
-  configuration?: Record<string, unknown>;
-  env?: Record<string, string>;
-  secrets?: string[];
-  priority: CIPriority;
-}
-
 export const HeartbeatPayload = z.object({
   clusterId: z.string().describe('Reporting cluster ID'),
   status: z.enum(['online', 'degraded', 'offline']).describe('Cluster health status'),
@@ -391,6 +345,23 @@ export const CIPipelinePayload = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Inferred Types (derived from Zod schemas — single source of truth)
+// ---------------------------------------------------------------------------
+
+/** Inferred type for CI multicast payload */
+export type CIMulticastPayloadType = z.infer<typeof CIMulticastPayload>;
+/** Inferred type for CI result payload */
+export type CIResultPayloadType = z.infer<typeof CIResultPayload>;
+/** Inferred type for CI pipeline payload */
+export type CIPipelinePayloadType = z.infer<typeof CIPipelinePayload>;
+/** Inferred type for CI artifact */
+export type CIArtifact = z.infer<typeof CIResultPayload>['artifacts'] extends
+  | (infer T)[]
+  | undefined
+  ? T
+  : never;
+
+// ---------------------------------------------------------------------------
 // Signal Payload Map
 // ---------------------------------------------------------------------------
 
@@ -404,15 +375,16 @@ export type SignalPayloadMap = {
   'cluster:heartbeat': z.infer<typeof HeartbeatPayload>;
   'data:broadcast': Record<string, unknown>;
   'data:unicast': Record<string, unknown>;
-  'data:multicast': z.infer<typeof CIMulticastPayload>;
+  'data:multicast': Record<string, unknown>;
   'control:pause': { reason?: string };
   'control:resume': { reason?: string };
   'control:config': { key: string; value: unknown };
-  'ci:build': z.infer<typeof CIMulticastPayload>;
-  'ci:test': z.infer<typeof CIMulticastPayload>;
-  'ci:deploy': z.infer<typeof CIMulticastPayload>;
-  'ci:result': z.infer<typeof CIResultPayload>;
-  'ci:pipeline': z.infer<typeof CIPipelinePayload>;
+  'ci:build': CIMulticastPayloadType;
+  'ci:test': CIMulticastPayloadType;
+  'ci:deploy': CIMulticastPayloadType;
+  'ci:result': CIResultPayloadType;
+  'ci:pipeline': CIPipelinePayloadType;
+  'ci:multicast': CIMulticastPayloadType;
 };
 
 // ---------------------------------------------------------------------------

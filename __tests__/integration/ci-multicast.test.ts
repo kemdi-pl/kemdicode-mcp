@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi, beforeAll, afterAll } from 'vitest';
 import { ClusterBus, initClusterBus, shutdownClusterBus } from '../../src/cluster-bus/index.js';
 import { ClusterBusConfig, loadClusterBusConfig } from '../../src/cluster-bus/types.js';
-import { CIMulticastPayload, CIResultPayload } from '../../src/cluster-bus/types.js';
+import type { CIMulticastPayloadType, CIResultPayloadType } from '../../src/cluster-bus/types.js';
 import {
   startAggregation,
   addResult,
@@ -60,7 +60,7 @@ describe('CI Multicast Integration', () => {
 
   describe('Fan-In Aggregation', () => {
     it('should start aggregation for multicast payload', () => {
-      const payload: CIMulticastPayload = {
+      const payload: CIMulticastPayloadType = {
         pipelineId: 'test-pipeline-123',
         stage: 'build',
         targets: ['cluster-a', 'cluster-b', 'cluster-c'],
@@ -79,7 +79,7 @@ describe('CI Multicast Integration', () => {
     });
 
     it('should collect results from multiple clusters', () => {
-      const payload: CIMulticastPayload = {
+      const payload: CIMulticastPayloadType = {
         pipelineId: 'test-pipeline-456',
         stage: 'test',
         targets: ['cluster-a', 'cluster-b'],
@@ -91,7 +91,7 @@ describe('CI Multicast Integration', () => {
 
       startAggregation(payload);
 
-      const result1: CIResultPayload = {
+      const result1: CIResultPayloadType = {
         pipelineId: 'test-pipeline-456',
         stage: 'test',
         targetCluster: 'cluster-a',
@@ -101,7 +101,7 @@ describe('CI Multicast Integration', () => {
         timestamp: Date.now(),
       };
 
-      const result2: CIResultPayload = {
+      const result2: CIResultPayloadType = {
         pipelineId: 'test-pipeline-456',
         stage: 'test',
         targetCluster: 'cluster-b',
@@ -123,7 +123,7 @@ describe('CI Multicast Integration', () => {
     });
 
     it('should handle partial failures', () => {
-      const payload: CIMulticastPayload = {
+      const payload: CIMulticastPayloadType = {
         pipelineId: 'test-pipeline-789',
         stage: 'deploy',
         targets: ['cluster-a', 'cluster-b', 'cluster-c'],
@@ -135,7 +135,7 @@ describe('CI Multicast Integration', () => {
 
       startAggregation(payload);
 
-      const successResult: CIResultPayload = {
+      const successResult: CIResultPayloadType = {
         pipelineId: 'test-pipeline-789',
         stage: 'deploy',
         targetCluster: 'cluster-a',
@@ -144,7 +144,7 @@ describe('CI Multicast Integration', () => {
         timestamp: Date.now(),
       };
 
-      const failureResult: CIResultPayload = {
+      const failureResult: CIResultPayloadType = {
         pipelineId: 'test-pipeline-789',
         stage: 'deploy',
         targetCluster: 'cluster-b',
@@ -166,7 +166,7 @@ describe('CI Multicast Integration', () => {
     });
 
     it('should complete on first success for first mode', () => {
-      const payload: CIMulticastPayload = {
+      const payload: CIMulticastPayloadType = {
         pipelineId: 'test-pipeline-first',
         stage: 'build',
         targets: ['cluster-a', 'cluster-b', 'cluster-c'],
@@ -178,7 +178,7 @@ describe('CI Multicast Integration', () => {
 
       startAggregation(payload);
 
-      const result1: CIResultPayload = {
+      const result1: CIResultPayloadType = {
         pipelineId: 'test-pipeline-first',
         stage: 'build',
         targetCluster: 'cluster-a',
@@ -187,7 +187,7 @@ describe('CI Multicast Integration', () => {
         timestamp: Date.now(),
       };
 
-      const result2: CIResultPayload = {
+      const result2: CIResultPayloadType = {
         pipelineId: 'test-pipeline-first',
         stage: 'build',
         targetCluster: 'cluster-b',
@@ -207,7 +207,7 @@ describe('CI Multicast Integration', () => {
     });
 
     it('should aggregate all results with mixed successes and failures', () => {
-      const payload: CIMulticastPayload = {
+      const payload: CIMulticastPayloadType = {
         pipelineId: 'test-pipeline-all-mixed',
         stage: 'validate',
         targets: ['cluster-a', 'cluster-b', 'cluster-c'],
@@ -219,7 +219,7 @@ describe('CI Multicast Integration', () => {
 
       startAggregation(payload);
 
-      const results: CIResultPayload[] = [
+      const results: CIResultPayloadType[] = [
         {
           pipelineId: 'test-pipeline-all-mixed',
           stage: 'validate',

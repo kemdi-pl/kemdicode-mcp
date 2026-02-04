@@ -750,7 +750,7 @@ describe('Code Flow Tests - KemdiCode MCP', () => {
 
   describe('20. Version & System Info Flows', () => {
     it('Version Resolution: should read from package.json', () => {
-      const version = '1.25.5';
+      const version = '1.26.0';
       expect(version.split('.').length).toBe(3);
     });
 
