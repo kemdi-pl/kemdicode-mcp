@@ -40,30 +40,21 @@ const schema = z.object({
     .describe('Agent type (plan=analysis, build=implementation, explore=search, general=balanced)'),
   model: z.string().optional().describe('Model override (provider:model syntax)'),
   sessionId: z.string().min(1).describe('Session ID for conversation tracking'),
-  maxIterations: z
-    .number()
-    .min(1)
-    .max(20)
-    .default(10)
-    .describe('Maximum loop iterations (1-20)'),
+  maxIterations: z.number().min(1).max(50).default(20).describe('Maximum loop iterations (1-50)'),
   maxSubAgentDepth: z
     .number()
     .min(0)
     .max(3)
     .default(2)
     .describe('Maximum sub-agent nesting depth (0=no sub-agents)'),
-  allowedTools: z
-    .array(z.string())
-    .optional()
-    .describe('Whitelist of allowed tools (empty=all)'),
-  blockedTools: z
-    .array(z.string())
-    .optional()
-    .describe('Blacklist of blocked tools'),
+  allowedTools: z.array(z.string()).optional().describe('Whitelist of allowed tools (empty=all)'),
+  blockedTools: z.array(z.string()).optional().describe('Blacklist of blocked tools'),
   enableCognition: z
     .boolean()
     .default(false)
-    .describe('Enable cognitive tools (decision-journal, confidence-tracker, thinking-chain, shared-thoughts, error-pattern, self-critique)'),
+    .describe(
+      'Enable cognitive tools (decision-journal, confidence-tracker, thinking-chain, shared-thoughts, error-pattern, self-critique)'
+    ),
   useFunctionCalling: z
     .boolean()
     .default(true)
@@ -73,13 +64,17 @@ const schema = z.object({
     .min(1024)
     .max(32768)
     .optional()
-    .describe('Override max tokens for AI responses (default: from agent config — plan=16384, build=8192, explore=4096, general=8192)'),
+    .describe(
+      'Override max tokens for AI responses (default: from agent config — plan=16384, build=8192, explore=4096, general=8192)'
+    ),
   temperature: z
     .number()
     .min(0)
     .max(2)
     .optional()
-    .describe('Override temperature for AI responses (default: from agent config — plan=0.7, build=0.3, explore=0.5, general=0.5)'),
+    .describe(
+      'Override temperature for AI responses (default: from agent config — plan=0.7, build=0.3, explore=0.5, general=0.5)'
+    ),
 });
 
 export const agentOrchestrateTool: UnifiedTool = {
@@ -100,6 +95,16 @@ export const agentOrchestrateTool: UnifiedTool = {
           maxIterations: 5,
         },
         description: 'Autonomous exploration task',
+      },
+      {
+        args: {
+          task: 'Execute 100 test tasks and update progress in kanban',
+          agent: 'build',
+          sessionId: 'sess-abc123',
+          maxIterations: 30,
+          enableCognition: true,
+        },
+        description: 'Large-scale task execution with cognition tracking',
       },
       {
         args: {
@@ -140,51 +145,57 @@ export const agentOrchestrateTool: UnifiedTool = {
   execute: async (args, onProgress): Promise<string> => {
     const input = schema.parse(args);
 
-    return executeWithGuard('agent-orchestrate', 'recursive-operations', async () => {
-      const result = await executeAgenticLoop({
-        task: input.task,
-        agent: input.agent,
-        model: input.model,
-        sessionId: input.sessionId,
-        maxIterations: input.maxIterations,
-        maxSubAgentDepth: input.maxSubAgentDepth,
-        allowedTools: input.allowedTools,
-        blockedTools: input.blockedTools,
-        enableCognition: input.enableCognition,
-        useFunctionCalling: input.useFunctionCalling,
-        maxTokens: input.maxTokens,
-        temperature: input.temperature,
-        onProgress: onProgress
-          ? (msg) => onProgress(msg)
-          : undefined,
-      });
+    return executeWithGuard(
+      'agent-orchestrate',
+      'recursive-operations',
+      async () => {
+        const result = await executeAgenticLoop({
+          task: input.task,
+          agent: input.agent,
+          model: input.model,
+          sessionId: input.sessionId,
+          maxIterations: input.maxIterations,
+          maxSubAgentDepth: input.maxSubAgentDepth,
+          allowedTools: input.allowedTools,
+          blockedTools: input.blockedTools,
+          enableCognition: input.enableCognition,
+          useFunctionCalling: input.useFunctionCalling,
+          maxTokens: input.maxTokens,
+          temperature: input.temperature,
+          onProgress: onProgress ? (msg) => onProgress(msg) : undefined,
+        });
 
-      if (isSilent()) {
-        return result.answer || JSON.stringify({
-          completed: result.completed,
+        if (isSilent()) {
+          return (
+            result.answer ||
+            JSON.stringify({
+              completed: result.completed,
+              iterations: result.iterations,
+              stopReason: result.stopReason,
+            })
+          );
+        }
+
+        return JSON.stringify({
+          success: result.completed,
+          answer: result.answer,
           iterations: result.iterations,
           stopReason: result.stopReason,
-        });
-      }
-
-      return JSON.stringify({
-        success: result.completed,
-        answer: result.answer,
-        iterations: result.iterations,
-        stopReason: result.stopReason,
-        duration: result.duration,
-        toolCallsTotal: result.log.reduce((sum, i) => sum + i.toolCalls.length, 0),
-        subAgents: result.subAgentResults?.length ?? 0,
-        log: result.log.map((i) => ({
-          iteration: i.iteration,
-          toolCalls: i.toolCalls.map((tc) => ({
-            tool: tc.tool,
-            success: tc.success,
-            duration: tc.duration,
-            resultPreview: tc.result.slice(0, 200),
+          duration: result.duration,
+          toolCallsTotal: result.log.reduce((sum, i) => sum + i.toolCalls.length, 0),
+          subAgents: result.subAgentResults?.length ?? 0,
+          log: result.log.map((i) => ({
+            iteration: i.iteration,
+            toolCalls: i.toolCalls.map((tc) => ({
+              tool: tc.tool,
+              success: tc.success,
+              duration: tc.duration,
+              resultPreview: tc.result.slice(0, 200),
+            })),
           })),
-        })),
-      });
-    }, { maxRequests: 10, windowMs: 60000 });
+        });
+      },
+      { maxRequests: 10, windowMs: 60000 }
+    );
   },
 };

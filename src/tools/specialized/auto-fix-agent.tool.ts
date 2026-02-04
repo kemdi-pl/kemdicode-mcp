@@ -60,8 +60,36 @@ export const autoFixAgentTool: UnifiedTool = {
     aiRequired: { fallbackTools: ['auto-fix', 'replace-content'] },
     aiRouting: 'external',
     examples: [
-      { args: { files: '@src/auth.ts', focus: 'security' }, description: 'Fix security issues using AI agent' },
-      { args: { files: '@src/api.ts', focus: 'all', dryRun: true }, description: 'Preview all fixes without applying' },
+      {
+        args: {
+          files: '@src/auth.ts',
+          focus: 'security',
+          severity: 'critical',
+          dryRun: false,
+          approve: true,
+        },
+        description: 'Fix critical security issues in auth.ts',
+      },
+      {
+        args: {
+          files: '@src/api.ts @src/service.ts',
+          focus: 'all',
+          severity: 'all',
+          dryRun: true,
+          approve: false,
+        },
+        description: 'Preview all potential fixes (dry-run mode)',
+      },
+      {
+        args: {
+          files: '@src/**/*.ts',
+          focus: 'performance',
+          severity: 'critical',
+          dryRun: false,
+          approve: true,
+        },
+        description: 'Fix critical performance issues in all TypeScript files',
+      },
     ],
     relatedTools: ['auto-fix', 'fix-bug', 'code-review'],
   },
