@@ -40,59 +40,24 @@ const schema = z.object({
   agentId: z.string().default('default-agent').describe('Agent ID'),
 
   // For record
-  question: z
-    .string()
-    .optional()
-    .describe('What decision is being made? (action=record)'),
-  chosen: z
-    .string()
-    .optional()
-    .describe('What was chosen? (action=record)'),
-  alternatives: z
-    .array(z.string())
-    .optional()
-    .describe('Alternatives considered (action=record)'),
-  reasoning: z
-    .string()
-    .optional()
-    .describe('Why this choice? (action=record)'),
-  confidence: z
-    .number()
-    .min(0)
-    .max(1)
-    .optional()
-    .describe('Confidence 0-1 (action=record)'),
-  context: z
-    .string()
-    .optional()
-    .describe('Decision context (action=record)'),
-  tags: z
-    .array(z.string())
-    .optional()
-    .describe('Tags (action=record)'),
-  relatedFiles: z
-    .array(z.string())
-    .optional()
-    .describe('Related files (action=record)'),
+  question: z.string().optional().describe('What decision is being made? (action=record)'),
+  chosen: z.string().optional().describe('What was chosen? (action=record)'),
+  alternatives: z.array(z.string()).optional().describe('Alternatives considered (action=record)'),
+  reasoning: z.string().optional().describe('Why this choice? (action=record)'),
+  confidence: z.number().min(0).max(1).optional().describe('Confidence 0-1 (action=record)'),
+  context: z.string().optional().describe('Decision context (action=record)'),
+  tags: z.array(z.string()).optional().describe('Tags (action=record)'),
+  relatedFiles: z.array(z.string()).optional().describe('Related files (action=record)'),
 
   // For get / update-outcome
-  decisionId: z
-    .string()
-    .optional()
-    .describe('Decision ID (action=get, update-outcome)'),
-  outcome: z
-    .string()
-    .optional()
-    .describe('What happened (action=update-outcome)'),
+  decisionId: z.string().optional().describe('Decision ID (action=get, update-outcome)'),
+  outcome: z.string().optional().describe('What happened (action=update-outcome)'),
 
   // For list
   limit: z.number().default(10).describe('Max results (action=list, search)'),
 
   // For search
-  query: z
-    .string()
-    .optional()
-    .describe('Search query (action=search)'),
+  query: z.string().optional().describe('Search query (action=search)'),
 });
 
 type DecisionJournalArgs = z.infer<typeof schema>;
@@ -183,22 +148,27 @@ export const decisionJournalTool: UnifiedTool<typeof schema> = {
       switch (input.action) {
         // ─────────────────────────── RECORD ───────────────────────────
         case 'record': {
-          if (!input.question || !input.chosen || !input.reasoning) {
+          const missing: string[] = [];
+          if (!input.question) missing.push('question');
+          if (!input.chosen) missing.push('chosen');
+          if (!input.reasoning) missing.push('reasoning');
+
+          if (missing.length > 0) {
             return JSON.stringify({
               success: false,
-              error:
-                'Missing required fields for record: question, chosen, reasoning',
+              error: `Missing required fields for record: ${missing.join(', ')}`,
               code: 'VALIDATION_ERROR',
+              missingFields: missing,
             });
           }
 
           const decision = await store.record({
             sessionId: input.sessionId,
             agentId: input.agentId,
-            question: input.question,
-            chosen: input.chosen,
+            question: input.question!,
+            chosen: input.chosen!,
             alternatives: input.alternatives || [],
-            reasoning: input.reasoning,
+            reasoning: input.reasoning!,
             confidence: input.confidence ?? 0.5,
             context: input.context || '',
             tags: input.tags || [],
@@ -246,12 +216,12 @@ export const decisionJournalTool: UnifiedTool<typeof schema> = {
           }
 
           if (decision.tags.length > 0) {
-            lines.push(`**Tags:** ${decision.tags.map(t => `\`${t}\``).join(', ')}`, '');
+            lines.push(`**Tags:** ${decision.tags.map((t) => `\`${t}\``).join(', ')}`, '');
           }
 
           if (decision.relatedFiles && decision.relatedFiles.length > 0) {
             lines.push(
-              `**Related files:** ${decision.relatedFiles.map(f => `\`${f}\``).join(', ')}`,
+              `**Related files:** ${decision.relatedFiles.map((f) => `\`${f}\``).join(', ')}`,
               ''
             );
           }
@@ -314,15 +284,12 @@ export const decisionJournalTool: UnifiedTool<typeof schema> = {
           }
 
           if (decision.tags.length > 0) {
-            lines.push(
-              `**Tags:** ${decision.tags.map(t => `\`${t}\``).join(', ')}`,
-              ''
-            );
+            lines.push(`**Tags:** ${decision.tags.map((t) => `\`${t}\``).join(', ')}`, '');
           }
 
           if (decision.relatedFiles && decision.relatedFiles.length > 0) {
             lines.push(
-              `**Related files:** ${decision.relatedFiles.map(f => `\`${f}\``).join(', ')}`,
+              `**Related files:** ${decision.relatedFiles.map((f) => `\`${f}\``).join(', ')}`,
               ''
             );
           }
@@ -336,10 +303,7 @@ export const decisionJournalTool: UnifiedTool<typeof schema> = {
 
         // ─────────────────────────── LIST ─────────────────────────────
         case 'list': {
-          const decisions = await store.listBySession(
-            input.sessionId,
-            input.limit
-          );
+          const decisions = await store.listBySession(input.sessionId, input.limit);
 
           if (decisions.length === 0) {
             return [
@@ -363,23 +327,14 @@ export const decisionJournalTool: UnifiedTool<typeof schema> = {
             const ts = formatTimestamp(d.timestamp).substring(0, 19);
             const conf = formatConfidence(d.confidence);
             const question =
-              d.question.length > 40
-                ? d.question.substring(0, 37) + '...'
-                : d.question;
-            const chosen =
-              d.chosen.length > 30
-                ? d.chosen.substring(0, 27) + '...'
-                : d.chosen;
+              d.question.length > 40 ? d.question.substring(0, 37) + '...' : d.question;
+            const chosen = d.chosen.length > 30 ? d.chosen.substring(0, 27) + '...' : d.chosen;
             const tags = d.tags.join(', ');
-            lines.push(
-              `| ${i + 1} | ${ts} | ${conf} | ${question} | ${chosen} | ${tags} |`
-            );
+            lines.push(`| ${i + 1} | ${ts} | ${conf} | ${question} | ${chosen} | ${tags} |`);
           }
 
           lines.push('');
-          lines.push(
-            '*Use `action: "get"` with a specific `decisionId` for full details.*'
-          );
+          lines.push('*Use `action: "get"` with a specific `decisionId` for full details.*');
 
           // Append the IDs for reference
           lines.push('', '### Decision IDs');
@@ -392,19 +347,20 @@ export const decisionJournalTool: UnifiedTool<typeof schema> = {
 
         // ─────────────────────── UPDATE-OUTCOME ──────────────────────
         case 'update-outcome': {
-          if (!input.decisionId || !input.outcome) {
+          const missing: string[] = [];
+          if (!input.decisionId) missing.push('decisionId');
+          if (!input.outcome) missing.push('outcome');
+
+          if (missing.length > 0) {
             return JSON.stringify({
               success: false,
-              error:
-                'Missing required fields for update-outcome: decisionId, outcome',
+              error: `Missing required fields for update-outcome: ${missing.join(', ')}`,
               code: 'VALIDATION_ERROR',
+              missingFields: missing,
             });
           }
 
-          const updated = await store.updateOutcome(
-            input.decisionId,
-            input.outcome
-          );
+          const updated = await store.updateOutcome(input.decisionId!, input.outcome!);
 
           if (!updated) {
             return JSON.stringify({
@@ -414,9 +370,7 @@ export const decisionJournalTool: UnifiedTool<typeof schema> = {
             });
           }
 
-          Logger.debug(
-            `decision-journal: updated outcome for ${input.decisionId}`
-          );
+          Logger.debug(`decision-journal: updated outcome for ${input.decisionId}`);
 
           return [
             '## Outcome Updated',
@@ -476,10 +430,7 @@ export const decisionJournalTool: UnifiedTool<typeof schema> = {
             }
 
             if (d.tags.length > 0) {
-              lines.push(
-                `Tags: ${d.tags.map(t => `\`${t}\``).join(', ')}`,
-                ''
-              );
+              lines.push(`Tags: ${d.tags.map((t) => `\`${t}\``).join(', ')}`, '');
             }
 
             lines.push('---', '');

@@ -48,51 +48,26 @@ import { Logger } from '../../utils/logger.js';
 import { executeCognitionTool } from './cognition-shared.js';
 
 const schema = z.object({
-  action: z
-    .enum(['create', 'get', 'latest', 'list'])
-    .describe('Action to perform'),
+  action: z.enum(['create', 'get', 'latest', 'list']).describe('Action to perform'),
   sessionId: z.string().describe('Session ID'),
   agentId: z.string().default('default-agent').describe('Agent ID'),
 
   // create
-  intent: z
-    .string()
-    .optional()
-    .describe("The human's original intent (action=create)"),
-  approach: z
-    .string()
-    .optional()
-    .describe('Approach that was taken (action=create)'),
-  reasoning: z
-    .string()
-    .optional()
-    .describe('Why this approach (action=create)'),
-  completed: z
-    .array(z.string())
-    .optional()
-    .describe('What is done (action=create)'),
-  inProgress: z
-    .array(z.string())
-    .optional()
-    .describe('What is in progress (action=create)'),
-  blocked: z
-    .array(z.string())
-    .optional()
-    .describe('What is blocked and why (action=create)'),
+  intent: z.string().optional().describe("The human's original intent (action=create)"),
+  approach: z.string().optional().describe('Approach that was taken (action=create)'),
+  reasoning: z.string().optional().describe('Why this approach (action=create)'),
+  completed: z.array(z.string()).optional().describe('What is done (action=create)'),
+  inProgress: z.array(z.string()).optional().describe('What is in progress (action=create)'),
+  blocked: z.array(z.string()).optional().describe('What is blocked and why (action=create)'),
   knownUnknowns: z
     .array(z.string())
     .optional()
     .describe("Things we know we don't know (action=create)"),
-  warnings: z
-    .array(z.string())
-    .optional()
-    .describe('Warnings for next agent (action=create)'),
+  warnings: z.array(z.string()).optional().describe('Warnings for next agent (action=create)'),
   firstAction: z
     .string()
     .optional()
-    .describe(
-      'Single most important first action for next agent (action=create)'
-    ),
+    .describe('Single most important first action for next agent (action=create)'),
   confidence: z
     .number()
     .min(0)
@@ -101,10 +76,7 @@ const schema = z.object({
     .describe('Confidence in overall state 0-1 (action=create)'),
 
   // get
-  handoffId: z
-    .string()
-    .optional()
-    .describe('Handoff ID (action=get)'),
+  handoffId: z.string().optional().describe('Handoff ID (action=get)'),
 
   // list
   limit: z.number().default(5).describe('Max results'),
@@ -131,7 +103,7 @@ function formatTimestamp(ts: number): string {
  */
 function formatBulletList(items: string[], emptyMessage: string): string[] {
   if (items.length === 0) return [`_${emptyMessage}_`];
-  return items.map(item => `- ${item}`);
+  return items.map((item) => `- ${item}`);
 }
 
 /**
@@ -209,8 +181,7 @@ export const smartHandoffTool: UnifiedTool<typeof schema> = {
           sessionId: 'session-abc',
           agentId: 'backend-dev',
           intent: 'Implement JWT authentication for the user service',
-          approach:
-            'Added passport-jwt strategy with RS256 signing, refresh token rotation',
+          approach: 'Added passport-jwt strategy with RS256 signing, refresh token rotation',
           reasoning:
             'RS256 allows key rotation without redeploying; refresh tokens improve UX without compromising security',
           completed: [
@@ -219,9 +190,7 @@ export const smartHandoffTool: UnifiedTool<typeof schema> = {
             'Unit tests for token validation',
           ],
           inProgress: ['Integration tests with the API gateway'],
-          blocked: [
-            'CORS configuration needs DevOps input -- ticket INFRA-342 opened',
-          ],
+          blocked: ['CORS configuration needs DevOps input -- ticket INFRA-342 opened'],
           knownUnknowns: [
             'Token revocation strategy not decided -- blacklist vs short-lived tokens',
             'Rate limiting on auth endpoints not scoped yet',
@@ -230,12 +199,10 @@ export const smartHandoffTool: UnifiedTool<typeof schema> = {
             'Do NOT change the JWT secret in .env.production -- it will invalidate all existing tokens',
             'The refresh token table has no index on expires_at yet -- add before production',
           ],
-          firstAction:
-            'Run integration tests: npm run test:integration -- --grep auth',
+          firstAction: 'Run integration tests: npm run test:integration -- --grep auth',
           confidence: 0.8,
         },
-        description:
-          'Create a detailed handoff report for JWT authentication work',
+        description: 'Create a detailed handoff report for JWT authentication work',
       },
       {
         args: {
@@ -262,12 +229,7 @@ export const smartHandoffTool: UnifiedTool<typeof schema> = {
         description: 'List the 3 most recent handoff reports for a session',
       },
     ],
-    relatedTools: [
-      'decision-journal',
-      'intent-tracker',
-      'thinking-chain',
-      'session-info',
-    ],
+    relatedTools: ['decision-journal', 'intent-tracker', 'thinking-chain', 'session-info'],
   },
 
   execute: async (args): Promise<string> => {
@@ -277,19 +239,23 @@ export const smartHandoffTool: UnifiedTool<typeof schema> = {
       switch (input.action) {
         // ─────────────────────────── CREATE ──────────────────────────────
         case 'create': {
-          if (!input.intent || !input.firstAction) {
+          const missing: string[] = [];
+          if (!input.intent) missing.push('intent');
+          if (!input.firstAction) missing.push('firstAction');
+
+          if (missing.length > 0) {
             return JSON.stringify({
               success: false,
-              error:
-                'Missing required fields for create: intent and firstAction are mandatory',
+              error: `Missing required fields for create: ${missing.join(', ')}`,
               code: 'VALIDATION_ERROR',
+              missingFields: missing,
             });
           }
 
           const report = await store.create({
             sessionId: input.sessionId,
             agentId: input.agentId,
-            intent: input.intent,
+            intent: input.intent!,
             approach: input.approach || '',
             reasoning: input.reasoning || '',
             completed: input.completed || [],
@@ -297,7 +263,7 @@ export const smartHandoffTool: UnifiedTool<typeof schema> = {
             blocked: input.blocked || [],
             knownUnknowns: input.knownUnknowns || [],
             warnings: input.warnings || [],
-            firstAction: input.firstAction,
+            firstAction: input.firstAction!,
             confidence: input.confidence ?? 0.5,
           });
 
@@ -322,14 +288,14 @@ export const smartHandoffTool: UnifiedTool<typeof schema> = {
               enrichmentSections.push('### Active Intent Hierarchy');
               for (const intent of hierarchy) {
                 const indent = '  '.repeat(
-                  ['mission', 'goal', 'sub-goal', 'task'].indexOf(intent.level),
+                  ['mission', 'goal', 'sub-goal', 'task'].indexOf(intent.level)
                 );
                 const drift =
                   intent.driftAlerts.length > 0
                     ? ` (${intent.driftAlerts.length} drift alerts)`
                     : '';
                 enrichmentSections.push(
-                  `${indent}- [${intent.level.toUpperCase()}] ${intent.description}${drift}`,
+                  `${indent}- [${intent.level.toUpperCase()}] ${intent.description}${drift}`
                 );
               }
               enrichmentSections.push('');
@@ -341,11 +307,9 @@ export const smartHandoffTool: UnifiedTool<typeof schema> = {
             if (decisions.length > 0) {
               enrichmentSections.push('### Recent Decisions');
               for (const d of decisions) {
-                const outcome = d.outcome
-                  ? ` -> Outcome: ${d.outcome}`
-                  : ' -> (pending outcome)';
+                const outcome = d.outcome ? ` -> Outcome: ${d.outcome}` : ' -> (pending outcome)';
                 enrichmentSections.push(
-                  `- **${d.question}**: ${d.chosen} (conf=${d.confidence})${outcome}`,
+                  `- **${d.question}**: ${d.chosen} (conf=${d.confidence})${outcome}`
                 );
               }
               enrichmentSections.push('');
@@ -359,7 +323,7 @@ export const smartHandoffTool: UnifiedTool<typeof schema> = {
               enrichmentSections.push('### Recurring Error Patterns');
               for (const p of recurring) {
                 enrichmentSections.push(
-                  `- [${p.errorType}] ${p.context} (${p.occurrences}x) -- Fix: ${p.fix.substring(0, 100)}`,
+                  `- [${p.errorType}] ${p.context} (${p.occurrences}x) -- Fix: ${p.fix.substring(0, 100)}`
                 );
               }
               enrichmentSections.push('');
@@ -384,13 +348,15 @@ export const smartHandoffTool: UnifiedTool<typeof schema> = {
               enrichmentSections.push('### Stale Mental Models');
               for (const m of staleModels) {
                 enrichmentSections.push(
-                  `- "${m.name}" stale since ${new Date(m.staleSince!).toISOString()}`,
+                  `- "${m.name}" stale since ${new Date(m.staleSince!).toISOString()}`
                 );
               }
               enrichmentSections.push('');
             }
           } catch (enrichErr) {
-            Logger.warn(`[smart-handoff] Non-critical enrichment error: ${enrichErr instanceof Error ? enrichErr.message : String(enrichErr)}`);
+            Logger.warn(
+              `[smart-handoff] Non-critical enrichment error: ${enrichErr instanceof Error ? enrichErr.message : String(enrichErr)}`
+            );
           }
 
           const baseReport = formatHandoffReport(report);
@@ -437,7 +403,7 @@ export const smartHandoffTool: UnifiedTool<typeof schema> = {
               `No handoff reports found for session \`${input.sessionId}\`.`,
               '',
               'This is either a fresh session or no previous agent created a handoff.',
-              'Proceed by understanding the human\'s intent directly.',
+              "Proceed by understanding the human's intent directly.",
             ].join('\n');
           }
 
@@ -456,10 +422,7 @@ export const smartHandoffTool: UnifiedTool<typeof schema> = {
 
         // ─────────────────────────── LIST ────────────────────────────────
         case 'list': {
-          const reports = await store.listBySession(
-            input.sessionId,
-            input.limit
-          );
+          const reports = await store.listBySession(input.sessionId, input.limit);
 
           if (reports.length === 0) {
             return [
@@ -481,14 +444,9 @@ export const smartHandoffTool: UnifiedTool<typeof schema> = {
           for (let i = 0; i < reports.length; i++) {
             const r = reports[i];
             const ts = formatTimestamp(r.timestamp).substring(0, 19);
-            const intent =
-              r.intent.length > 40
-                ? r.intent.substring(0, 37) + '...'
-                : r.intent;
+            const intent = r.intent.length > 40 ? r.intent.substring(0, 37) + '...' : r.intent;
             const firstAction =
-              r.firstAction.length > 35
-                ? r.firstAction.substring(0, 32) + '...'
-                : r.firstAction;
+              r.firstAction.length > 35 ? r.firstAction.substring(0, 32) + '...' : r.firstAction;
             const conf = formatConfidence(r.confidence);
 
             lines.push(
@@ -497,9 +455,7 @@ export const smartHandoffTool: UnifiedTool<typeof schema> = {
           }
 
           lines.push('');
-          lines.push(
-            '*Use `action: "get"` with a specific `handoffId` for the full briefing.*'
-          );
+          lines.push('*Use `action: "get"` with a specific `handoffId` for the full briefing.*');
 
           // Append IDs for reference
           lines.push('', '### Handoff IDs');
