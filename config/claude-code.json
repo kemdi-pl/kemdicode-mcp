@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "kemdicode-mcp": {
+      "command": "node",
+      "args": ["/path/to/kemdicode-mcp/dist/index.js"]
+    }
+  }
+}

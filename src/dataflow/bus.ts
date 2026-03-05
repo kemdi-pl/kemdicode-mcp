@@ -1,0 +1,393 @@
+/**
+ * KemdiCode MCP Server - Data Flow Bus
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
+ *
+ * Typed, Redis-backed message bus for inter-module communication.
+ * Provides publish/subscribe with schema validation, correlation tracking,
+ * and cross-process messaging via Redis Pub/Sub.
+ *
+ * @license GPL-3.0
+ * @module dataflow/bus
+ */
+
+import { v4 as uuidv4 } from 'uuid';
+import { Logger } from '../utils/logger.js';
+import { safeJsonParseNoProto } from '../utils/security.js';
+import type {
+  DataFlowChannel,
+  DataFlowEnvelope,
+  DataFlowHandler,
+  SubscriptionOptions,
+  ChannelPayloadMap,
+} from './types.js';
+
+/**
+ * Internal subscription record.
+ */
+interface Subscription {
+  id: string;
+  channel: DataFlowChannel;
+  handler: DataFlowHandler;
+  options: SubscriptionOptions;
+  createdAt: number;
+  lastInvokedAt: number;
+}
+
+/**
+ * DataFlowBus - Typed message bus for inter-module communication.
+ *
+ * Features:
+ * - Strongly typed channels with Zod-validated payloads
+ * - Correlation IDs for request-response tracing
+ * - Priority-based filtering
+ * - Source module filtering
+ * - In-process pub/sub (Redis bridge optional via global event bus)
+ * - Message history for debugging
+ */
+class DataFlowBus {
+  private subscriptions = new Map<DataFlowChannel, Map<string, Subscription>>();
+  private messageHistory: DataFlowEnvelope[] = [];
+  private historyWriteIndex = 0;
+  private historyFull = false;
+  private messageIds = new Set<string>();
+  private readonly maxHistory = 200;
+  private redisPublisher: ((channel: string, message: string) => Promise<void>) | null = null;
+  /** Idle subscription TTL: 60 minutes */
+  private readonly subscriptionIdleTtlMs = 60 * 60 * 1000;
+  /** Cleanup interval handle */
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+  constructor() {
+    // Periodic idle subscription cleanup (every 10 minutes)
+    this.cleanupInterval = setInterval(() => this.cleanupIdleSubscriptions(), 10 * 60 * 1000);
+  }
+
+  /**
+   * Publish a typed message to a channel.
+   */
+  async publish<C extends DataFlowChannel>(
+    channel: C,
+    payload: C extends keyof ChannelPayloadMap ? ChannelPayloadMap[C] : unknown,
+    meta: {
+      source: string;
+      target?: string;
+      sessionId?: string;
+      agentId?: string;
+      correlationId?: string;
+      priority?: 0 | 1 | 2 | 3;
+      ttl?: number;
+    }
+  ): Promise<string> {
+    const envelope: DataFlowEnvelope = {
+      id: uuidv4(),
+      channel,
+      payload,
+      source: meta.source,
+      target: meta.target,
+      sessionId: meta.sessionId,
+      agentId: meta.agentId,
+      timestamp: Date.now(),
+      correlationId: meta.correlationId,
+      schemaVersion: 1,
+      priority: meta.priority ?? 1,
+      ttl: meta.ttl ?? 0,
+    };
+
+    // Store in history
+    this.addToHistory(envelope);
+
+    // Deliver to local subscribers (skip expired messages)
+    if (envelope.ttl && envelope.ttl > 0 && Date.now() - envelope.timestamp > envelope.ttl) {
+      Logger.debug(`dataflow: message expired (ttl=${envelope.ttl}ms), skipping delivery`);
+      return envelope.id;
+    }
+
+    const subsMap = this.subscriptions.get(channel);
+    const subs = subsMap ? [...subsMap.values()] : [];
+    const matchingSubs = subs.filter((sub) => this.matchesSubscription(sub, envelope));
+
+    const deliveryPromises = matchingSubs.map((sub) => {
+      sub.lastInvokedAt = Date.now();
+      try {
+        const result = sub.handler(envelope);
+        return result instanceof Promise
+          ? result.catch((err) => {
+              Logger.error(
+                `dataflow: handler error on ${channel}: ${err instanceof Error ? err.message : String(err)}`
+              );
+            })
+          : Promise.resolve();
+      } catch (err) {
+        Logger.error(
+          `dataflow: sync handler error on ${channel}: ${err instanceof Error ? err.message : String(err)}`
+        );
+        return Promise.resolve();
+      }
+    });
+
+    await Promise.all(deliveryPromises);
+
+    // Publish to Redis if bridge is set
+    if (this.redisPublisher) {
+      try {
+        await this.redisPublisher(`mcp:dataflow:${channel}`, JSON.stringify(envelope));
+      } catch (err) {
+        Logger.warn(
+          `dataflow: Redis publish failed: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    }
+
+    return envelope.id;
+  }
+
+  /**
+   * Subscribe to a channel with type-safe handler.
+   * Returns an unsubscribe function.
+   */
+  subscribe<C extends DataFlowChannel>(
+    channel: C,
+    handler: DataFlowHandler<C extends keyof ChannelPayloadMap ? ChannelPayloadMap[C] : unknown>,
+    options: SubscriptionOptions = {}
+  ): () => void {
+    const now = Date.now();
+    const sub: Subscription = {
+      id: uuidv4(),
+      channel,
+      handler: handler as DataFlowHandler,
+      options,
+      createdAt: now,
+      lastInvokedAt: now,
+    };
+
+    if (!this.subscriptions.has(channel)) {
+      this.subscriptions.set(channel, new Map());
+    }
+    this.subscriptions.get(channel)!.set(sub.id, sub);
+
+    Logger.debug(`dataflow: subscribed to ${channel} (id: ${sub.id})`);
+
+    return () => {
+      const subsMap = this.subscriptions.get(channel);
+      if (subsMap) {
+        subsMap.delete(sub.id);
+        if (subsMap.size === 0) this.subscriptions.delete(channel);
+      }
+    };
+  }
+
+  /**
+   * Get recent message history for a channel.
+   */
+  getHistory(channel?: DataFlowChannel, limit = 50): DataFlowEnvelope[] {
+    // Read circular buffer in chronological order
+    let ordered: DataFlowEnvelope[];
+    if (!this.historyFull) {
+      ordered = this.messageHistory;
+    } else {
+      ordered = [
+        ...this.messageHistory.slice(this.historyWriteIndex),
+        ...this.messageHistory.slice(0, this.historyWriteIndex),
+      ];
+    }
+
+    const messages = channel ? ordered.filter((m) => m.channel === channel) : ordered;
+
+    return messages.slice(-limit);
+  }
+
+  /**
+   * Get messages by correlation ID (for tracing chains).
+   */
+  getCorrelated(correlationId: string): DataFlowEnvelope[] {
+    return this.messageHistory.filter((m) => m.correlationId === correlationId);
+  }
+
+  /**
+   * Get statistics about the bus.
+   */
+  getStats(): {
+    totalMessages: number;
+    channelCounts: Record<string, number>;
+    subscriberCounts: Record<string, number>;
+  } {
+    const channelCounts: Record<string, number> = {};
+    const subscriberCounts: Record<string, number> = {};
+
+    for (const msg of this.messageHistory) {
+      channelCounts[msg.channel] = (channelCounts[msg.channel] || 0) + 1;
+    }
+
+    for (const [channel, subs] of this.subscriptions) {
+      subscriberCounts[channel] = subs.size;
+    }
+
+    return {
+      totalMessages: this.messageHistory.length,
+      channelCounts,
+      subscriberCounts,
+    };
+  }
+
+  /**
+   * Connect Redis publisher for cross-process messaging.
+   */
+  setRedisPublisher(publisher: (channel: string, message: string) => Promise<void>): void {
+    this.redisPublisher = publisher;
+    Logger.info('dataflow: Redis publisher connected');
+  }
+
+  /**
+   * Handle incoming Redis message (from subscriber).
+   */
+  handleRedisMessage(channel: string, message: string): void {
+    try {
+      const envelope = safeJsonParseNoProto<DataFlowEnvelope>(message);
+      if (!envelope) {
+        Logger.warn('dataflow: invalid JSON or proto-pollution attempt in Redis message, dropping');
+        return;
+      }
+
+      // Avoid re-publishing locally-originated messages (O(1) Set lookup)
+      if (this.messageIds.has(envelope.id)) return;
+
+      // Verify envelope channel matches actual Redis channel to prevent spoofing
+      const resolvedChannel = channel.replace('mcp:dataflow:', '') as DataFlowChannel;
+      if (envelope.channel && envelope.channel !== resolvedChannel) {
+        Logger.warn(
+          `dataflow: channel mismatch (expected=${resolvedChannel}, got=${envelope.channel}), dropping message`
+        );
+        return;
+      }
+
+      // Skip expired messages
+      if (envelope.ttl && envelope.ttl > 0 && Date.now() - envelope.timestamp > envelope.ttl) {
+        Logger.debug(`dataflow: expired Redis message (ttl=${envelope.ttl}ms), skipping`);
+        return;
+      }
+
+      // Store and deliver
+      this.addToHistory(envelope);
+
+      const subsMap = this.subscriptions.get(resolvedChannel);
+      const subs = subsMap ? subsMap.values() : [];
+
+      for (const sub of subs) {
+        if (this.matchesSubscription(sub, envelope)) {
+          try {
+            sub.handler(envelope);
+          } catch (err) {
+            Logger.error(
+              `dataflow: Redis handler error: ${err instanceof Error ? err.message : String(err)}`
+            );
+          }
+        }
+      }
+    } catch (err) {
+      Logger.error(
+        `dataflow: failed to parse Redis message: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  /**
+   * Clear all subscriptions and history.
+   */
+  reset(): void {
+    this.subscriptions.clear();
+    this.messageHistory = [];
+    this.historyWriteIndex = 0;
+    this.historyFull = false;
+    this.messageIds.clear();
+    this.redisPublisher = null;
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+  }
+
+  /**
+   * Cleanup idle subscriptions that haven't been invoked within TTL.
+   */
+  private cleanupIdleSubscriptions(): void {
+    const now = Date.now();
+    let cleaned = 0;
+
+    for (const [channel, subsMap] of this.subscriptions) {
+      for (const [id, sub] of subsMap) {
+        const idleMs = now - sub.lastInvokedAt;
+        if (idleMs > this.subscriptionIdleTtlMs) {
+          subsMap.delete(id);
+          cleaned++;
+        }
+      }
+      if (subsMap.size === 0) {
+        this.subscriptions.delete(channel);
+      }
+    }
+
+    if (cleaned > 0) {
+      Logger.info(`[DataFlowBus] Cleaned ${cleaned} idle subscriptions`);
+    }
+  }
+
+  private addToHistory(envelope: DataFlowEnvelope): void {
+    if (this.messageHistory.length < this.maxHistory) {
+      this.messageHistory.push(envelope);
+    } else {
+      // Circular buffer: evict oldest entry
+      const evicted = this.messageHistory[this.historyWriteIndex];
+      if (evicted) this.messageIds.delete(evicted.id);
+      this.messageHistory[this.historyWriteIndex] = envelope;
+      this.historyFull = true;
+    }
+    this.historyWriteIndex = (this.historyWriteIndex + 1) % this.maxHistory;
+    this.messageIds.add(envelope.id);
+  }
+
+  private matchesSubscription(sub: Subscription, envelope: DataFlowEnvelope): boolean {
+    const { sourceFilter, minPriority } = sub.options;
+
+    // Target filtering: skip if message is addressed to a specific target that doesn't match
+    if (sub.options.target && sub.options.target !== envelope.target) {
+      return false;
+    }
+
+    if (sourceFilter?.length && !sourceFilter.includes(envelope.source)) {
+      return false;
+    }
+
+    if (minPriority !== undefined && envelope.priority < minPriority) {
+      return false;
+    }
+
+    // TTL enforcement: skip expired messages
+    if (envelope.ttl && envelope.ttl > 0 && Date.now() - envelope.timestamp > envelope.ttl) {
+      return false;
+    }
+
+    return true;
+  }
+}
+
+// ─── Singleton ───────────────────────────────────────────────────────────────
+
+let busInstance: DataFlowBus | null = null;
+
+/**
+ * Get the global DataFlowBus singleton.
+ */
+export function getDataFlowBus(): DataFlowBus {
+  if (!busInstance) {
+    busInstance = new DataFlowBus();
+  }
+  return busInstance;
+}
+
+/**
+ * Reset the global bus (for testing).
+ */
+export function resetDataFlowBus(): void {
+  busInstance?.reset();
+  busInstance = null;
+}

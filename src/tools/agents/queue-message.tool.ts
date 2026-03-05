@@ -1,0 +1,251 @@
+/**
+ * KemdiCode MCP Server
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/**
+ * Queue Message Tool
+ *
+ * Queue messages to 1-N agents at once.
+ * Two modes: individual messages per agent OR broadcast same message to all.
+ */
+
+import { z } from 'zod';
+import { UnifiedTool } from '../registry.js';
+import { getAgentMonitor } from '../../context/agent-monitor.js';
+import type { MessagePriority } from '../../context/types.js';
+import { isSilent } from '../../config/silent.js';
+
+const messageSchema = z.object({
+  targetAgentId: z.string().min(1).describe('Target agent ID'),
+  content: z.string().min(1).max(1048576).describe('Message content (max 1MB)'),
+  priority: z
+    .enum(['low', 'normal', 'high', 'critical'])
+    .default('normal')
+    .describe('Message priority'),
+  files: z.array(z.string()).optional().describe('File paths to attach'),
+  context: z.record(z.string(), z.unknown()).optional().describe('Additional context'),
+  forceContextChange: z.boolean().default(false).describe('Force agent to change context'),
+});
+
+// Single flat schema: use "messages" for individual mode, or "targetAgentIds"+"content" for broadcast
+const combinedSchema = z.object({
+  // Individual mode fields
+  messages: z.array(messageSchema).min(1).max(20).optional().describe('Individual messages (1-20). Omit for broadcast mode.'),
+  // Broadcast mode fields
+  targetAgentIds: z.array(z.string().min(1)).min(1).max(20).optional().describe('Broadcast: target agent IDs (1-20)'),
+  content: z.string().min(1).max(1048576).optional().describe('Broadcast: message content (same for all)'),
+  priority: z.enum(['low', 'normal', 'high', 'critical']).default('normal').describe('Broadcast: message priority'),
+  // Shared fields
+  sessionId: z.string().min(1).describe('Session ID'),
+  fromAgentId: z.string().default('supervisor').describe('Sender agent ID'),
+  files: z.array(z.string()).optional().describe('Broadcast: file paths to attach'),
+  context: z.record(z.string(), z.unknown()).optional().describe('Broadcast: additional context'),
+  forceContextChange: z.boolean().default(false).describe('Broadcast: force context change'),
+}).superRefine((data, ctx) => {
+  const hasMessages = Array.isArray(data.messages) && data.messages.length > 0;
+  const hasBroadcast = Array.isArray(data.targetAgentIds) && data.targetAgentIds.length > 0;
+
+  if (hasMessages && hasBroadcast) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Provide either 'messages' (individual mode) or 'targetAgentIds' + 'broadcastContent' (broadcast mode), not both",
+      path: ['messages'],
+    });
+    return;
+  }
+
+  if (!hasMessages && !hasBroadcast) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Provide either 'messages' (individual mode) or 'targetAgentIds' + 'broadcastContent' (broadcast mode)",
+      path: [],
+    });
+    return;
+  }
+
+  if (hasBroadcast && !data.content) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Broadcast mode requires 'content' field",
+      path: ['content'],
+    });
+  }
+});
+
+interface QueueResult {
+  targetAgentId: string;
+  messageId?: string;
+  priority: string;
+  success: boolean;
+  error?: string;
+  queueDepth?: number;
+}
+
+export const queueMessageTool: UnifiedTool = {
+  name: 'queue-message',
+  description:
+    'Queue async messages to agents (stored in Redis list, read when agent polls). Supports targeted messages via "messages" array or broadcast via "targetAgentIds" + "content". Use when: non-urgent coordination between agents. For urgent real-time alerts, use agent-alert. For injecting into a specific session, use agent-inject.',
+  zodSchema: combinedSchema,
+  skipContextShare: true,
+  metadata: {
+    category: 'agents',
+    tags: ['message', 'queue', 'broadcast'],
+    examples: [
+      { args: { messages: [{ targetAgentId: 'backend-dev', content: 'Please review PR #42', priority: 'high' }], sessionId: 'sess-abc123', fromAgentId: 'supervisor' }, description: 'Queue a high-priority message to one agent' },
+      { args: { targetAgentIds: ['agent-1', 'agent-2', 'agent-3'], content: 'All services must use OpenAPI 3.0 spec', priority: 'critical', sessionId: 'sess-abc123' }, description: 'Broadcast critical message to multiple agents' },
+    ],
+    relatedTools: ['agent-list', 'agent-alert', 'agent-history'],
+  },
+
+  execute: async (args) => {
+    const monitor = getAgentMonitor();
+    if (!monitor.isConnected()) {
+      await monitor.connect();
+    }
+
+    const results: QueueResult[] = [];
+
+    // Detect which mode we're in (mutual exclusivity enforced by schema .superRefine())
+    const parsed = args as unknown as z.infer<typeof combinedSchema>;
+    const isBroadcastMode = Array.isArray(parsed.targetAgentIds) && parsed.targetAgentIds.length > 0;
+
+    if (isBroadcastMode) {
+      // Broadcast mode: same message to multiple agents
+      const {
+        targetAgentIds,
+        content,
+        priority,
+        sessionId,
+        fromAgentId,
+        files,
+        context,
+        forceContextChange,
+      } = parsed as Required<Pick<typeof parsed, 'targetAgentIds' | 'content'>> & typeof parsed;
+
+      const queuePromises = targetAgentIds.map(async (targetAgentId) => {
+        try {
+          const message = await monitor.queueMessage(targetAgentId, sessionId, content, {
+            priority: priority as MessagePriority,
+            files,
+            context,
+            forceContextChange,
+            fromAgentId,
+          });
+
+          if (message) {
+            const queueDepth = await monitor.getQueueDepth(targetAgentId);
+            return {
+              targetAgentId,
+              messageId: message.id,
+              priority,
+              success: true,
+              queueDepth,
+            };
+          } else {
+            return {
+              targetAgentId,
+              priority,
+              success: false,
+              error: 'Failed to queue message',
+            };
+          }
+        } catch (error) {
+          return {
+            targetAgentId,
+            priority,
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      });
+
+      results.push(...(await Promise.all(queuePromises)));
+    } else {
+      // Individual messages mode
+      const { messages, sessionId, fromAgentId } = parsed as Required<Pick<typeof parsed, 'messages'>> & typeof parsed;
+
+      const queuePromises = messages.map(async (msg) => {
+        try {
+          const message = await monitor.queueMessage(msg.targetAgentId, sessionId, msg.content, {
+            priority: msg.priority as MessagePriority,
+            files: msg.files,
+            context: msg.context,
+            forceContextChange: msg.forceContextChange,
+            fromAgentId,
+          });
+
+          if (message) {
+            const queueDepth = await monitor.getQueueDepth(msg.targetAgentId);
+            return {
+              targetAgentId: msg.targetAgentId,
+              messageId: message.id,
+              priority: msg.priority,
+              success: true,
+              queueDepth,
+            };
+          } else {
+            return {
+              targetAgentId: msg.targetAgentId,
+              priority: msg.priority,
+              success: false,
+              error: 'Failed to queue message',
+            };
+          }
+        } catch (error) {
+          return {
+            targetAgentId: msg.targetAgentId,
+            priority: msg.priority,
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      });
+
+      results.push(...(await Promise.all(queuePromises)));
+    }
+
+    const successful = results.filter((r) => r.success);
+    const failed = results.filter((r) => !r.success);
+
+    const priorityIcon = (p: string) =>
+      ({
+        low: '⚪',
+        normal: '🟢',
+        high: '🟠',
+        critical: '🔴',
+      })[p] || '⚪';
+
+    if (isSilent()) {
+      return JSON.stringify({ queued: successful.length });
+    }
+
+    return JSON.stringify({
+      success: failed.length === 0,
+      mode: isBroadcastMode ? 'broadcast' : 'individual',
+      queued: successful.length,
+      failed: failed.length,
+      results: results.map((r) => ({
+        targetAgentId: r.targetAgentId,
+        messageId: r.messageId,
+        priority: `${priorityIcon(r.priority)} ${r.priority}`,
+        queueDepth: r.queueDepth,
+        success: r.success,
+        error: r.error,
+      })),
+    });
+  },
+};

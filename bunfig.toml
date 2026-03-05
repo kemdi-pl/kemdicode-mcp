@@ -1,0 +1,58 @@
+# Bun configuration for KemdiCode MCP Server
+# https://bun.sh/docs/runtime/bunfig
+
+[install]
+# Don't auto-install peer dependencies
+peer = false
+# Use exact versions for reproducibility
+exact = true
+# Cache dependencies aggressively
+cache = true
+
+[run]
+# Use Bun runtime
+bun = true
+# Enable hot reloading in development (commented out for production)
+# hot = true
+
+[test]
+# Test configuration
+coverage = false
+# Parallel test execution
+preload = ["./__tests__/fixtures/index.ts"]
+
+[build]
+# Target Bun runtime specifically
+target = "bun"
+# Enable minification for production
+minify = true
+# Generate source maps
+sourcemap = "external"
+# Split chunks for better caching
+splitting = true
+
+[runtime]
+# Enable GC exposure for manual memory management
+expose-gc = true
+
+[loader]
+# Treat .json files as importable modules
+".json" = "json"
+# Enable WASM loading for tree-sitter
+".wasm" = "wasm"
+
+[define]
+# Define global constants for optimization
+"process.env.BUN_RUNTIME" = "\"true\""
+
+# Preload scripts for environment setup
+preload = ["./src/runtime/index.ts"]
+
+[performance]
+# Bundle dependencies for faster startup
+bundleDependencies = true
+
+# Development specific settings (commented out by default)
+# [dev]
+# hot = true
+# inspect = true
