@@ -25,6 +25,7 @@
 
 import { z } from 'zod';
 import { UnifiedTool } from '../registry.js';
+import { Logger } from '../../utils/logger.js';
 import { getLociManager, LOCI_TEMPLATES } from '../../loci/index.js';
 import { getTimelineRecorder } from '../../loci/timeline-recorder.js';
 import { getCompactionEngine } from '../../loci/compaction-engine.js';
@@ -105,7 +106,9 @@ export const lociRecallTool: UnifiedTool<typeof schema> = {
 async function handleAmbientInsights(insightType: string, limit: number): Promise<string> {
   const learner = getAmbientLearner();
   if (!learner.isConnected()) {
-    await learner.connect().catch(() => {});
+    await learner.connect().catch((err) => {
+      Logger.debug(`[LociRecall] Ambient learner connect failed: ${err instanceof Error ? err.message : String(err)}`);
+    });
   }
   if (!learner.isConnected()) {
     return 'Ambient learning unavailable (Redis not connected).';

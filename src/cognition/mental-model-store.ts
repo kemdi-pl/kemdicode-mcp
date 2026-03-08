@@ -30,7 +30,7 @@ import { RedisBackedService } from '../infrastructure/redis/redis-backed-service
 import { Logger } from '../utils/logger.js';
 import { safeJsonParse } from '../utils/validation.js';
 import type { MentalModel, ModelComponent, ModelRelationship } from './types.js';
-import { COGNITION_KEYS, COGNITION_TTL } from './types.js';
+import { COGNITION_KEYS, COGNITION_TTL, MAX_COGNITION_JSON_SIZE } from './types.js';
 import { getCognitionEventBus } from './event-bus.js';
 import { randomBytes } from 'crypto';
 
@@ -76,10 +76,16 @@ export class MentalModelStore extends RedisBackedService {
       const sessionKey = COGNITION_KEYS.modelsBySession(fullModel.sessionId);
       const nameKey = COGNITION_KEYS.modelByName(fullModel.name);
 
+      const json = JSON.stringify(fullModel);
+      if (json.length > MAX_COGNITION_JSON_SIZE) {
+        Logger.error(`MentalModelStore: payload too large (${json.length} bytes > ${MAX_COGNITION_JSON_SIZE})`);
+        return null;
+      }
+
       const tx = this.redis.multi();
 
       // Store the model as a JSON string
-      tx.set(key, JSON.stringify(fullModel));
+      tx.set(key, json);
       if (COGNITION_TTL.model > 0) {
         tx.expire(key, COGNITION_TTL.model);
       }

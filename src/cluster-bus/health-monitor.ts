@@ -124,7 +124,9 @@ export class ClusterHealthMonitor {
     }, this.config.heartbeatIntervalMs * 3);
 
     // Send initial heartbeat
-    this.sendHeartbeat().catch(() => {});
+    this.sendHeartbeat().catch((err) => {
+      Logger.debug(`[HealthMonitor] Initial heartbeat failed: ${err instanceof Error ? err.message : String(err)}`);
+    });
 
     Logger.info(
       `[HealthMonitor] Started (heartbeat: ${this.config.heartbeatIntervalMs}ms, stale threshold: ${this.config.staleThresholdMs}ms)`,

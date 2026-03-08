@@ -44,12 +44,12 @@ const schema = z.object({
   agents: z
     .array(
       z.object({
-        name: z.string().min(1).describe('Human-readable agent name'),
+        name: z.string().min(1).max(100).describe('Human-readable agent name'),
         role: z
           .enum(['supervisor', 'worker', 'specialist', 'coordinator'])
           .default('worker')
           .describe('Agent role'),
-        model: z.string().optional().describe('Model being used'),
+        model: z.string().max(200).optional().describe('Model being used'),
         metadata: z
           .record(
             z.string().regex(/^(?!__proto__|constructor|prototype$)/, 'Reserved key name'),
@@ -85,13 +85,13 @@ const schema = z.object({
     .describe('Max items to return (action=list, rank)'),
 
   // ── init params ──────────────────────────────────────────────────────────
-  name: z.string().optional().describe('Agent name (action=init)'),
+  name: z.string().max(100).optional().describe('Agent name (action=init)'),
   role: z
     .enum(['supervisor', 'worker', 'specialist', 'coordinator'])
     .optional()
     .default('worker')
     .describe('Agent role (action=init)'),
-  model: z.string().optional().describe('Model being used (action=init)'),
+  model: z.string().max(200).optional().describe('Model being used (action=init)'),
   boardId: z
     .string()
     .optional()
@@ -126,10 +126,10 @@ const schema = z.object({
     .array(
       z.object({
         agentId: z.string().min(1).describe('Agent ID'),
-        activity: z.string().min(1).describe('Current activity description'),
+        activity: z.string().min(1).max(1000).describe('Current activity description'),
         progress: z.number().min(0).max(100).optional().describe('Progress percentage'),
         taskId: z.string().optional().describe('Current task ID'),
-        lastAction: z.string().optional().describe('Last completed action'),
+        lastAction: z.string().max(500).optional().describe('Last completed action'),
       })
     )
     .min(1)

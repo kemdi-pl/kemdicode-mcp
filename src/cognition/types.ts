@@ -375,6 +375,9 @@ export const COGNITION_KEYS = {
   consistencyViolations: (sessionId: string) => `mcp:cognition:consistency-violations:${sessionId}`,
 } as const;
 
+/** Maximum JSON payload size for Redis storage (1 MB) */
+export const MAX_COGNITION_JSON_SIZE = 1_048_576;
+
 /** Default TTLs in seconds */
 export const COGNITION_TTL = {
   /** Decisions: 30 days */

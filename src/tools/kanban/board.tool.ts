@@ -49,8 +49,8 @@ const schema = z.object({
     description: z.string().max(500).optional().describe('Board description'),
     workspaceId: z.string().optional().describe('Workspace ID or "name:Workspace Name"'),
     visibility: z.enum(['private', 'workspace', 'public']).default('private').describe('Visibility level'),
-    labels: z.array(z.string()).optional().describe('Board labels'),
-  })).optional().describe('Boards to create (action=create, 1-10)'),
+    labels: z.array(z.string().max(100)).max(50).optional().describe('Board labels'),
+  })).max(10).optional().describe('Boards to create (action=create, 1-10)'),
   createdBy: z.string().optional().describe('Creator agent ID (action=create)'),
 
   // ── list ───────────────────────────────────────────────────────────────
@@ -58,7 +58,7 @@ const schema = z.object({
   includeWorkspaces: z.boolean().optional().describe('Include workspace boards (action=list, default: true)'),
 
   // ── delete ─────────────────────────────────────────────────────────────
-  boardIds: z.array(z.string().min(1)).optional().describe('Board IDs to delete (action=delete, 1-10)'),
+  boardIds: z.array(z.string().min(1)).max(10).optional().describe('Board IDs to delete (action=delete, 1-10)'),
   deleteTasks: z.boolean().optional().describe('Cascade delete tasks (action=delete)'),
 
   // ── share ──────────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ const schema = z.object({
     boardId: z.string().min(1).describe('Board ID or "name:Board Name"'),
     workspaceId: z.string().min(1).describe('Target workspace ID or "name:Workspace Name"'),
     visibility: z.enum(['workspace', 'public']).default('workspace').describe('Visibility level'),
-  })).optional().describe('Shares to create (action=share, 1-10)'),
+  })).max(10).optional().describe('Shares to create (action=share, 1-10)'),
   agentId: z.string().optional().describe('Agent ID (action=share, workflow)'),
 
   // ── invite ─────────────────────────────────────────────────────────────
@@ -74,7 +74,7 @@ const schema = z.object({
     boardId: z.string().min(1).describe('Board ID or "name:Board Name"'),
     agentId: z.string().min(1).describe('Agent to invite'),
     role: z.enum(['admin', 'member', 'viewer']).default('member').describe('Role'),
-  })).optional().describe('Invitations to send (action=invite, 1-20)'),
+  })).max(20).optional().describe('Invitations to send (action=invite, 1-20)'),
   invitingAgentId: z.string().optional().describe('Inviting agent ID (action=invite)'),
 
   // ── members ────────────────────────────────────────────────────────────
@@ -83,14 +83,14 @@ const schema = z.object({
     action: z.enum(['list', 'update-role', 'remove']).default('list').describe('Member action'),
     targetAgentId: z.string().optional().describe('Agent to modify'),
     newRole: z.enum(['owner', 'admin', 'member', 'viewer']).optional().describe('New role'),
-  })).optional().describe('Member operations (action=members, 1-20)'),
+  })).max(20).optional().describe('Member operations (action=members, 1-20)'),
   requestingAgentId: z.string().optional().describe('Requesting agent ID (action=members)'),
 
   // ── workflow ───────────────────────────────────────────────────────────
   workflowAction: z.enum(['create', 'get', 'list', 'check', 'pause', 'resume', 'delete']).optional()
     .describe('Workflow sub-action (action=workflow)'),
   name: z.string().min(1).max(100).optional().describe('Workflow name (workflow: create)'),
-  boardSequence: z.array(z.string().min(1)).optional()
+  boardSequence: z.array(z.string().min(1)).max(20).optional()
     .describe('Ordered board IDs (workflow: create, min 2)'),
   autoCreateNavigationTask: z.boolean().optional()
     .describe('Auto-create navigation task (workflow: create, default: true)'),

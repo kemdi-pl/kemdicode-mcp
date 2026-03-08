@@ -173,11 +173,21 @@ export async function listWorkspacesForSession(sessionId: string): Promise<Works
     return [];
   }
 
-  const workspaces: Workspace[] = [];
+  // Use MGET pipeline to avoid N+1 queries
+  const pipeline = client.pipeline();
   for (const wsId of workspaceIds) {
-    const workspace = await getWorkspace(wsId);
-    if (workspace) {
-      workspaces.push(workspace);
+    pipeline.get(KANBAN_KEYS.workspace(wsId));
+  }
+  const results = await pipeline.exec();
+
+  const workspaces: Workspace[] = [];
+  for (let i = 0; i < workspaceIds.length; i++) {
+    const [err, data] = (results?.[i] ?? [null, null]) as [Error | null, string | null];
+    if (err || !data) continue;
+    try {
+      workspaces.push(JSON.parse(data) as Workspace);
+    } catch {
+      Logger.error(`workspace-store: failed to parse workspace ${workspaceIds[i]}`);
     }
   }
 
@@ -204,11 +214,25 @@ export async function listAllWorkspaces(options?: { limit?: number }): Promise<W
   const workspaceIds = await client.smembers(KANBAN_KEYS.allWorkspaces);
   const idsToFetch = workspaceIds.slice(0, limit);
 
-  const workspaces: Workspace[] = [];
+  if (idsToFetch.length === 0) {
+    return [];
+  }
+
+  // Use MGET pipeline to avoid N+1 queries
+  const pipeline = client.pipeline();
   for (const wsId of idsToFetch) {
-    const workspace = await getWorkspace(wsId);
-    if (workspace) {
-      workspaces.push(workspace);
+    pipeline.get(KANBAN_KEYS.workspace(wsId));
+  }
+  const results = await pipeline.exec();
+
+  const workspaces: Workspace[] = [];
+  for (let i = 0; i < idsToFetch.length; i++) {
+    const [err, data] = (results?.[i] ?? [null, null]) as [Error | null, string | null];
+    if (err || !data) continue;
+    try {
+      workspaces.push(JSON.parse(data) as Workspace);
+    } catch {
+      Logger.error(`workspace-store: failed to parse workspace ${idsToFetch[i]}`);
     }
   }
 

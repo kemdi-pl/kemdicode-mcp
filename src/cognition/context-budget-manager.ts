@@ -236,7 +236,9 @@ export class ContextBudgetManager extends RedisBackedService {
 
               // Fire-and-forget: apply gravitational TTL
               // (items near intent get extended TTL — time dilation)
-              this.triggerGravitationalTtl(sessionId, activeIntent.id).catch(() => {});
+              this.triggerGravitationalTtl(sessionId, activeIntent.id).catch((err) => {
+                Logger.debug(`[ContextBudget] Gravitational TTL trigger failed: ${err instanceof Error ? err.message : String(err)}`);
+              });
             }
           }
         } catch {

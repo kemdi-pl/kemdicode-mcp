@@ -405,7 +405,9 @@ export async function enhancePrompt(
   );
 
   // Store in cognition memory (async, fire-and-forget)
-  storeEnhancementResult(prompt, enhanced, analysis, model, duration).catch(() => {});
+  storeEnhancementResult(prompt, enhanced, analysis, model, duration).catch((err) => {
+    Logger.debug(`[Enhancer] Failed to store enhancement result: ${err instanceof Error ? err.message : String(err)}`);
+  });
 
   return {
     original: prompt,

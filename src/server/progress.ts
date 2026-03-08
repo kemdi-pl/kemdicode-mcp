@@ -94,8 +94,8 @@ export async function sendProgress(
         operation: state.operation,
       });
     }
-  } catch {
-    /* ignore */
+  } catch (err) {
+    Logger.debug(`[Progress] Failed to send progress notification: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 

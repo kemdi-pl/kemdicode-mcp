@@ -317,7 +317,9 @@ export const taskPushMultiTool: UnifiedTool = {
       try {
         const rankStore = getAgentRankStore();
         if (!rankStore.isConnected()) {
-          await rankStore.connect().catch(() => {});
+          await rankStore.connect().catch((err) => {
+            Logger.debug(`[TaskPushMulti] Agent rank store connect failed: ${err instanceof Error ? err.message : String(err)}`);
+          });
         }
         if (rankStore.isConnected() && input.targetAgents.length === 1) {
           const targetId = input.targetAgents[0].agentId;

@@ -49,13 +49,13 @@ const schema = z.object({
   // ── create ─────────────────────────────────────────────────────────────
   tasks: z.array(z.object({
     title: z.string().min(1).max(200).describe('Task title'),
-    description: z.string().optional().describe('Task description'),
+    description: z.string().max(10000).optional().describe('Task description'),
     priority: z.enum(['critical', 'high', 'normal', 'low']).default('normal').describe('Priority level'),
     boardId: z.string().optional().describe('Board ID or "name:Board Name"'),
-    blockedBy: z.array(z.string()).optional().describe('Blocking task IDs'),
-    relatedFiles: z.array(z.string()).optional().describe('Related file paths'),
-    labels: z.array(z.string()).optional().describe('Labels for categorization'),
-    estimatedMinutes: z.number().positive().optional().describe('Time estimate in minutes'),
+    blockedBy: z.array(z.string()).max(50).optional().describe('Blocking task IDs'),
+    relatedFiles: z.array(z.string().max(500)).max(100).optional().describe('Related file paths'),
+    labels: z.array(z.string().max(100)).max(50).optional().describe('Labels for categorization'),
+    estimatedMinutes: z.number().positive().max(100000).optional().describe('Time estimate in minutes'),
   })).optional().describe('Tasks to create (action=create, 1-20)'),
   createdBy: z.string().optional().describe('Creator agent ID (action=create)'),
 
@@ -66,7 +66,7 @@ const schema = z.object({
   assignee: z.string().optional().describe('Filter by agent (action=list)'),
   unassigned: z.boolean().optional().describe('Only unassigned tasks (action=list)'),
   blocked: z.boolean().optional().describe('Filter blocked tasks (action=list)'),
-  labels: z.array(z.string()).optional().describe('Filter by labels (action=list)'),
+  labels: z.array(z.string().max(100)).max(50).optional().describe('Filter by labels (action=list)'),
   offset: z.number().int().min(0).optional().describe('Pagination offset (action=list)'),
   limit: z.number().min(1).max(100).optional().describe('Max tasks to return (action=list)'),
 
@@ -74,20 +74,20 @@ const schema = z.object({
   updates: z.array(z.object({
     taskId: z.string().min(1).describe('Task ID'),
     title: z.string().min(1).max(200).optional().describe('New title'),
-    description: z.string().optional().describe('New description'),
+    description: z.string().max(10000).optional().describe('New description'),
     status: z.enum(['backlog', 'in_progress', 'review', 'done']).optional().describe('New status'),
     priority: z.enum(['critical', 'high', 'normal', 'low']).optional().describe('New priority'),
-    blockedBy: z.array(z.string()).optional().describe('Blocking task IDs (replaces existing)'),
-    addBlockedBy: z.array(z.string()).optional().describe('Task IDs to add to blockedBy'),
-    addBlocks: z.array(z.string()).optional().describe('Task IDs this task blocks'),
-    relatedFiles: z.array(z.string()).optional().describe('Related files'),
-    labels: z.array(z.string()).optional().describe('Labels'),
-    estimatedMinutes: z.number().positive().optional().describe('Time estimate in minutes'),
+    blockedBy: z.array(z.string()).max(50).optional().describe('Blocking task IDs (replaces existing)'),
+    addBlockedBy: z.array(z.string()).max(50).optional().describe('Task IDs to add to blockedBy'),
+    addBlocks: z.array(z.string()).max(50).optional().describe('Task IDs this task blocks'),
+    relatedFiles: z.array(z.string().max(500)).max(100).optional().describe('Related files'),
+    labels: z.array(z.string().max(100)).max(50).optional().describe('Labels'),
+    estimatedMinutes: z.number().positive().max(100000).optional().describe('Time estimate in minutes'),
   })).optional().describe('Task updates (action=update, 1-20)'),
   agentId: z.string().optional().describe('Agent ID (action=update, claim, subtask)'),
 
   // ── delete ─────────────────────────────────────────────────────────────
-  taskIds: z.array(z.string().min(1)).optional().describe('Task IDs to delete (action=delete, 1-20)'),
+  taskIds: z.array(z.string().min(1)).max(20).optional().describe('Task IDs to delete (action=delete, 1-20)'),
 
   // ── comment ────────────────────────────────────────────────────────────
   comments: z.array(z.object({
@@ -108,7 +108,7 @@ const schema = z.object({
     .describe('Subtask sub-action (action=subtask): create, list, promote'),
   parentTaskId: z.string().optional().describe('Parent task ID (action=subtask create/list)'),
   title: z.string().min(1).max(200).optional().describe('Subtask title (action=subtask create)'),
-  description: z.string().optional().describe('Subtask description (action=subtask create)'),
+  description: z.string().max(10000).optional().describe('Subtask description (action=subtask create)'),
 });
 
 export const taskTool: UnifiedTool<typeof schema> = {

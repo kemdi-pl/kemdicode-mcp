@@ -135,14 +135,18 @@ export async function recordToolExecution(
     // 2. Record timeline event for compaction & resurrection
     const timelineRecorder = getTimelineRecorder();
     if (!timelineRecorder.isConnected()) {
-      await timelineRecorder.connect().catch(() => {});
+      await timelineRecorder.connect().catch((err) => {
+        Logger.debug(`[Tool Tracking] Timeline recorder connect failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
     }
     if (timelineRecorder.isConnected()) {
       // Wire compaction callback (idempotent - sets once)
       if (!timelineRecorder['compactionCallback']) {
         const compactionEngine = getCompactionEngine();
         if (!compactionEngine.isConnected()) {
-          await compactionEngine.connect().catch(() => {});
+          await compactionEngine.connect().catch((err) => {
+            Logger.debug(`[Tool Tracking] Compaction engine connect failed: ${err instanceof Error ? err.message : String(err)}`);
+          });
         }
         if (compactionEngine.isConnected()) {
           timelineRecorder.setCompactionCallback(async (sid: string) => {
@@ -156,7 +160,9 @@ export async function recordToolExecution(
     // 3. Ambient learning (fire-and-forget)
     const ambientLearner = getAmbientLearner();
     if (!ambientLearner.isConnected()) {
-      await ambientLearner.connect().catch(() => {});
+      await ambientLearner.connect().catch((err) => {
+        Logger.debug(`[Tool Tracking] Ambient learner connect failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
     }
     if (ambientLearner.isConnected()) {
       await ambientLearner.processToolExecution(toolName, args, success, durationMs, sessionId, agentId);
@@ -165,7 +171,9 @@ export async function recordToolExecution(
     // 4. Agent ranking update (fire-and-forget)
     const rankStore = getAgentRankStore();
     if (!rankStore.isConnected()) {
-      await rankStore.connect().catch(() => {});
+      await rankStore.connect().catch((err) => {
+        Logger.debug(`[Tool Tracking] Agent rank store connect failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
     }
     if (rankStore.isConnected()) {
       const complexity = durationMs > 10000 ? 0.8 : durationMs > 5000 ? 0.6 : 0.4;

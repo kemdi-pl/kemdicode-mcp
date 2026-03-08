@@ -192,10 +192,21 @@ export class RateLimiterService {
   async reset(key: string): Promise<void> {
     const redis = await this.tryGetRedis();
     if (redis) {
-      const keys = await redis.keys(`ratelimit:${key}:*`);
-      if (keys.length > 0) {
-        await redis.del(...keys);
-      }
+      // Use SCAN instead of KEYS to avoid blocking Redis in production
+      let cursor = '0';
+      do {
+        const [nextCursor, batch] = await redis.scan(
+          cursor,
+          'MATCH',
+          `ratelimit:${key}:*`,
+          'COUNT',
+          100
+        );
+        cursor = nextCursor;
+        if (batch.length > 0) {
+          await redis.del(...batch);
+        }
+      } while (cursor !== '0');
       await redis.del(`ratelimit:block:${key}`);
     }
     this.memoryLimits.delete(key);

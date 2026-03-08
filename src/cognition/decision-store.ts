@@ -29,7 +29,7 @@ import { RedisBackedService } from '../infrastructure/redis/redis-backed-service
 import { Logger } from '../utils/logger.js';
 import { safeJsonParse } from '../utils/validation.js';
 import type { Decision } from './types.js';
-import { COGNITION_KEYS, COGNITION_TTL } from './types.js';
+import { COGNITION_KEYS, COGNITION_TTL, MAX_COGNITION_JSON_SIZE } from './types.js';
 import { getCognitionEventBus } from './event-bus.js';
 import { randomBytes } from 'crypto';
 
@@ -78,8 +78,14 @@ export class DecisionStore extends RedisBackedService {
       const sessionKey = COGNITION_KEYS.decisionsBySession(decision.sessionId);
       const agentKey = COGNITION_KEYS.decisionsByAgent(decision.agentId);
 
+      const json = JSON.stringify(full);
+      if (json.length > MAX_COGNITION_JSON_SIZE) {
+        Logger.error(`[DecisionStore] Payload too large (${json.length} bytes > ${MAX_COGNITION_JSON_SIZE})`);
+        return null;
+      }
+
       const tx = this.redis!.multi();
-      tx.set(key, JSON.stringify(full));
+      tx.set(key, json);
       tx.zadd(sessionKey, timestamp, id);
       tx.zadd(agentKey, timestamp, id);
 

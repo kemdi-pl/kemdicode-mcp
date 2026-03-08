@@ -111,7 +111,9 @@ export function registerCustomEndpoint(endpoint: CustomEndpointConfig): Provider
   providers.set(providerId, provider);
 
   // Persist to Redis (fire-and-forget)
-  persistCustomEndpointsToRedis().catch(() => {});
+  persistCustomEndpointsToRedis().catch((err) => {
+    Logger.debug(`[ProviderRegistry] Failed to persist custom endpoints to Redis: ${err instanceof Error ? err.message : String(err)}`);
+  });
 
   Logger.info(
     `Custom endpoint registered: ${providerId} → ${endpoint.baseURL}` +
@@ -132,7 +134,9 @@ export function deregisterCustomEndpoint(name: string): boolean {
 
   if (removed) {
     // Persist removal to Redis (fire-and-forget)
-    persistCustomEndpointsToRedis().catch(() => {});
+    persistCustomEndpointsToRedis().catch((err) => {
+    Logger.debug(`[ProviderRegistry] Failed to persist custom endpoints to Redis: ${err instanceof Error ? err.message : String(err)}`);
+  });
     Logger.info(`Custom endpoint deregistered: ${providerId}`);
   }
   return removed;

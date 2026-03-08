@@ -30,7 +30,7 @@ import { RedisBackedService } from '../infrastructure/redis/redis-backed-service
 import { Logger } from '../utils/logger.js';
 import type { ConfidenceRecord, ConfidenceProfile } from './types.js';
 import { getCognitionEventBus } from './event-bus.js';
-import { COGNITION_KEYS, COGNITION_TTL } from './types.js';
+import { COGNITION_KEYS, COGNITION_TTL, MAX_COGNITION_JSON_SIZE } from './types.js';
 import { randomBytes } from 'crypto';
 
 /**
@@ -100,10 +100,16 @@ export class ConfidenceStore extends RedisBackedService {
       const sessionKey = COGNITION_KEYS.confidenceBySession(record.sessionId);
       const agentKey = confidenceByAgentKey(record.agentId);
 
+      const json = JSON.stringify(fullRecord);
+      if (json.length > MAX_COGNITION_JSON_SIZE) {
+        Logger.error(`[ConfidenceStore] Payload too large (${json.length} bytes > ${MAX_COGNITION_JSON_SIZE})`);
+        return null;
+      }
+
       const pipeline = this.redis.multi();
 
       // Store the record
-      pipeline.set(key, JSON.stringify(fullRecord));
+      pipeline.set(key, json);
       if (COGNITION_TTL.confidence > 0) {
         pipeline.expire(key, COGNITION_TTL.confidence);
       }

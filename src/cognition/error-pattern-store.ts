@@ -30,7 +30,7 @@
 import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
 import { Logger } from '../utils/logger.js';
 import type { ErrorPattern, ErrorClassification } from './types.js';
-import { COGNITION_KEYS } from './types.js';
+import { COGNITION_KEYS, MAX_COGNITION_JSON_SIZE } from './types.js';
 import { getCognitionEventBus } from './event-bus.js';
 import { randomBytes } from 'crypto';
 
@@ -188,7 +188,12 @@ export class ErrorPatternStore extends RedisBackedService {
       };
 
       const key = COGNITION_KEYS.errorPattern(id);
-      await this.redis!.set(key, JSON.stringify(full));
+      const json = JSON.stringify(full);
+      if (json.length > MAX_COGNITION_JSON_SIZE) {
+        Logger.error(`[ErrorPatternStore] Payload too large (${json.length} bytes > ${MAX_COGNITION_JSON_SIZE})`);
+        return null;
+      }
+      await this.redis!.set(key, json);
 
       // Index by error type (sorted set, score = occurrences for sorting)
       await this.redis!.zadd(

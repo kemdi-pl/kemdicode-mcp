@@ -27,6 +27,7 @@
 
 import { z } from 'zod';
 import type { UnifiedTool } from '../registry.js';
+import { Logger } from '../../utils/logger.js';
 import { getAvailabilityChecker } from '../availability-checker.js';
 import { listProviders } from '../../ai/providers/registry.js';
 
@@ -88,7 +89,9 @@ export const toolHealthTool: UnifiedTool<typeof schema> = {
     if (includeDetails) {
       const checker = getAvailabilityChecker();
       if (!checker.isConnected()) {
-        await checker.connect().catch(() => {});
+        await checker.connect().catch((err) => {
+          Logger.debug(`[ToolHealth] Availability checker connect failed: ${err instanceof Error ? err.message : String(err)}`);
+        });
       }
 
       const matrix = checker.getHealthMatrix(AI_TOOL_NAMES, 131);

@@ -29,7 +29,7 @@
 import { RedisBackedService } from '../infrastructure/redis/redis-backed-service.js';
 import { Logger } from '../utils/logger.js';
 import type { SelfCritique, CritiqueScope } from './types.js';
-import { COGNITION_KEYS, COGNITION_TTL } from './types.js';
+import { COGNITION_KEYS, COGNITION_TTL, MAX_COGNITION_JSON_SIZE } from './types.js';
 import { getCognitionEventBus } from './event-bus.js';
 import { randomBytes } from 'crypto';
 
@@ -83,8 +83,14 @@ export class SelfCritiqueStore extends RedisBackedService {
       const key = COGNITION_KEYS.critique(id);
       const sessionKey = COGNITION_KEYS.critiquesBySession(critique.sessionId);
 
+      const json = JSON.stringify(full);
+      if (json.length > MAX_COGNITION_JSON_SIZE) {
+        Logger.error(`[SelfCritiqueStore] Payload too large (${json.length} bytes > ${MAX_COGNITION_JSON_SIZE})`);
+        return null;
+      }
+
       const tx = this.redis!.multi();
-      tx.set(key, JSON.stringify(full));
+      tx.set(key, json);
       tx.zadd(sessionKey, timestamp, id);
 
       if (COGNITION_TTL.critique > 0) {

@@ -310,10 +310,14 @@ export class ClusterBus {
       });
 
       // Subscribe to broadcast channel
-      await this.subscriber.psubscribe(CLUSTER_KEYS.channelBroadcast());
+      const broadcastPattern = CLUSTER_KEYS.channelBroadcast();
+      await this.subscriber.psubscribe(broadcastPattern);
+      this.subscribedPatterns.add(broadcastPattern);
 
       // Subscribe to unicast channels for this cluster
-      await this.subscriber.psubscribe(`mcp:cluster:*:${this.config.clusterId}`);
+      const unicastPattern = `mcp:cluster:*:${this.config.clusterId}`;
+      await this.subscriber.psubscribe(unicastPattern);
+      this.subscribedPatterns.add(unicastPattern);
 
       // Handle incoming messages
       this.subscriber.on('pmessage', (_pattern: string, _channel: string, message: string) => {
@@ -600,7 +604,9 @@ export class ClusterBus {
     }
 
     const pattern = CLUSTER_KEYS.channelMulticast(multicastId);
+    if (this.subscribedPatterns.has(pattern)) return;
     await this.subscriber.psubscribe(pattern);
+    this.subscribedPatterns.add(pattern);
     Logger.info(`[ClusterBus] Subscribed to multicast channel: ${multicastId}`);
   }
 
@@ -612,6 +618,7 @@ export class ClusterBus {
 
     const pattern = CLUSTER_KEYS.channelMulticast(multicastId);
     await this.subscriber.punsubscribe(pattern);
+    this.subscribedPatterns.delete(pattern);
     Logger.info(`[ClusterBus] Unsubscribed from multicast channel: ${multicastId}`);
   }
 

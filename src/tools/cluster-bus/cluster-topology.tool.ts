@@ -18,6 +18,7 @@
 
 import { z } from 'zod';
 import type { UnifiedTool } from '../registry.js';
+import { Logger } from '../../utils/logger.js';
 import {
   isClusterBusActive,
   registerCluster,
@@ -246,7 +247,9 @@ export const clusterTopologyTool: UnifiedTool<typeof schema> = {
         const busRef = getClusterBus();
         if (busRef && busRef.isConnected) {
           for (const prunedId of pruned) {
-            await busRef.unsubscribeFromCluster(prunedId).catch(() => {});
+            await busRef.unsubscribeFromCluster(prunedId).catch((err) => {
+              Logger.debug(`[ClusterTopology] Unsubscribe from pruned cluster ${prunedId} failed: ${err instanceof Error ? err.message : String(err)}`);
+            });
           }
         }
 

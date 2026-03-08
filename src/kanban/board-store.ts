@@ -227,11 +227,21 @@ export async function listBoardsForSession(sessionId: string): Promise<KanbanBoa
     return [];
   }
 
-  const boards: KanbanBoard[] = [];
+  // Use MGET pipeline to avoid N+1 queries
+  const pipeline = client.pipeline();
   for (const boardId of boardIds) {
-    const board = await getBoard(boardId);
-    if (board) {
-      boards.push(board);
+    pipeline.get(KANBAN_KEYS.board(boardId));
+  }
+  const results = await pipeline.exec();
+
+  const boards: KanbanBoard[] = [];
+  for (let i = 0; i < boardIds.length; i++) {
+    const [err, data] = (results?.[i] ?? [null, null]) as [Error | null, string | null];
+    if (err || !data) continue;
+    try {
+      boards.push(JSON.parse(data) as KanbanBoard);
+    } catch {
+      Logger.error(`board-store: failed to parse board ${boardIds[i]}`);
     }
   }
 
@@ -258,11 +268,21 @@ export async function listBoardsForWorkspace(workspaceId: string): Promise<Kanba
     return [];
   }
 
-  const boards: KanbanBoard[] = [];
+  // Use MGET pipeline to avoid N+1 queries
+  const pipeline = client.pipeline();
   for (const boardId of boardIds) {
-    const board = await getBoard(boardId);
-    if (board) {
-      boards.push(board);
+    pipeline.get(KANBAN_KEYS.board(boardId));
+  }
+  const results = await pipeline.exec();
+
+  const boards: KanbanBoard[] = [];
+  for (let i = 0; i < boardIds.length; i++) {
+    const [err, data] = (results?.[i] ?? [null, null]) as [Error | null, string | null];
+    if (err || !data) continue;
+    try {
+      boards.push(JSON.parse(data) as KanbanBoard);
+    } catch {
+      Logger.error(`board-store: failed to parse board ${boardIds[i]}`);
     }
   }
 

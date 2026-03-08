@@ -98,10 +98,14 @@ export interface ChainCompactionOutput {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Stop Words — delegated to shared utils/nlp.ts (v3.0.0)
+// NLP utilities — delegated to shared utils/nlp.ts (v3.0.0 → v3.3.0)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { STOP_WORDS } from '../utils/nlp.js';
+import {
+  tokenize as _nlpTokenize,
+  textToDistribution as _nlpTextToDistribution,
+  tfidfCosineSimilarity as _nlpTfidfCosineSimilarity,
+} from '../utils/nlp.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. CAUSAL DAG — Structure Preservation
@@ -308,39 +312,15 @@ export function findCausalCore(
 
 /**
  * Tokenize text for entropy computation.
- * Lowercase, strip non-alphanumeric, filter stop words and short tokens.
+ * Delegates to shared utils/nlp.ts tokenizer (v3.3.0).
  */
-export function tokenizeForEntropy(text: string): string[] {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .split(/\s+/)
-    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
-}
+export const tokenizeForEntropy = _nlpTokenize;
 
 /**
  * Compute term probability distribution from text.
- *
- * P(term) = count(term) / total_tokens
- *
- * @returns Map<term, probability> where Σ values ≈ 1
+ * Delegates to shared utils/nlp.ts (v3.3.0).
  */
-export function textToDistribution(text: string): Map<string, number> {
-  const tokens = tokenizeForEntropy(text);
-  const freq = new Map<string, number>();
-  for (const token of tokens) {
-    freq.set(token, (freq.get(token) || 0) + 1);
-  }
-
-  const total = tokens.length;
-  if (total === 0) return new Map();
-
-  const dist = new Map<string, number>();
-  for (const [term, count] of freq) {
-    dist.set(term, count / total);
-  }
-  return dist;
-}
+export const textToDistribution = _nlpTextToDistribution;
 
 /**
  * Shannon entropy of a probability distribution.
@@ -483,47 +463,7 @@ export function informationDensity(
  *
  * @returns Similarity in [0, 1]
  */
-export function tfidfCosineSimilarity(textA: string, textB: string): number {
-  const tokensA = tokenizeForEntropy(textA);
-  const tokensB = tokenizeForEntropy(textB);
-
-  if (tokensA.length === 0 || tokensB.length === 0) return 0;
-
-  // Term frequencies
-  const tfA = new Map<string, number>();
-  const tfB = new Map<string, number>();
-  for (const t of tokensA) tfA.set(t, (tfA.get(t) || 0) + 1);
-  for (const t of tokensB) tfB.set(t, (tfB.get(t) || 0) + 1);
-
-  // All terms in union
-  const allTerms = new Set([...tfA.keys(), ...tfB.keys()]);
-
-  let dotProduct = 0;
-  let normA = 0;
-  let normB = 0;
-
-  for (const term of allTerms) {
-    const freqA = tfA.get(term) || 0;
-    const freqB = tfB.get(term) || 0;
-    const inA = freqA > 0;
-    const inB = freqB > 0;
-
-    // Binary IDF: shared terms get weight 1.0, unique terms get 2.0
-    const idf = inA && inB ? 1.0 : 2.0;
-
-    const wA = freqA * idf;
-    const wB = freqB * idf;
-
-    dotProduct += wA * wB;
-    normA += wA * wA;
-    normB += wB * wB;
-  }
-
-  const denominator = Math.sqrt(normA) * Math.sqrt(normB);
-  if (denominator === 0) return 0;
-
-  return dotProduct / denominator;
-}
+export const tfidfCosineSimilarity = _nlpTfidfCosineSimilarity;
 
 /**
  * Find the fixed-point thought in a thinking chain.

@@ -375,10 +375,18 @@ export async function listChains(params: {
     return [];
   }
 
-  const chains: ThinkingChain[] = [];
+  // Use pipeline to avoid N+1 queries
+  const pipeline = client.pipeline();
   for (const id of chainIds) {
-    const chain = await getChain(id);
-    if (!chain) continue;
+    pipeline.hgetall(THINKING_KEYS.chain(id));
+  }
+  const results = await pipeline.exec();
+
+  const chains: ThinkingChain[] = [];
+  for (let i = 0; i < chainIds.length; i++) {
+    const [err, data] = (results?.[i] ?? [null, null]) as [Error | null, Record<string, string> | null];
+    if (err || !data || Object.keys(data).length === 0) continue;
+    const chain = parseChain(data);
     if (params.status && chain.status !== params.status) continue;
     chains.push(chain);
   }

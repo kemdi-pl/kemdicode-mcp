@@ -238,8 +238,20 @@ export class AgentMonitor {
       if (sessionId) {
         agentIds = await this.redis.smembers(`${REDIS_KEYS.AGENTS}session:${sessionId}`);
       } else {
-        // Scan for all agent keys
-        const keys = await this.redis.keys(`${REDIS_KEYS.AGENTS}agent_*`);
+        // Use SCAN instead of KEYS to avoid blocking Redis in production
+        const keys: string[] = [];
+        let cursor = '0';
+        do {
+          const [nextCursor, batch] = await this.redis.scan(
+            cursor,
+            'MATCH',
+            `${REDIS_KEYS.AGENTS}agent_*`,
+            'COUNT',
+            100
+          );
+          cursor = nextCursor;
+          keys.push(...batch);
+        } while (cursor !== '0');
         agentIds = keys.map((k) => k.replace(REDIS_KEYS.PREFIX + REDIS_KEYS.AGENTS, ''));
       }
 

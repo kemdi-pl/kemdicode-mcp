@@ -200,18 +200,31 @@ export class AgentRankStore extends RedisBackedService {
   async getLeaderboard(limit: number = 10): Promise<AgentScore[]> {
     if (!this.redis) return [];
 
-    const keys = await this.redis.keys(`${KEY_PREFIX}*`);
+    // Use SCAN instead of KEYS to avoid blocking Redis in production
     const scores: AgentScore[] = [];
+    let cursor = '0';
+    do {
+      const [nextCursor, keys] = await this.redis.scan(
+        cursor,
+        'MATCH',
+        `${KEY_PREFIX}*`,
+        'COUNT',
+        100
+      );
+      cursor = nextCursor;
 
-    for (const key of keys) {
-      const data = await this.redis.get(key);
-      if (data) {
-        const parsed = safeJsonParse<AgentScore | null>(data, null);
-        if (parsed) {
-          scores.push(this.applyDecay(parsed));
+      for (const key of keys) {
+        // Skip lock keys
+        if (key.includes(':lock:')) continue;
+        const data = await this.redis.get(key);
+        if (data) {
+          const parsed = safeJsonParse<AgentScore | null>(data, null);
+          if (parsed) {
+            scores.push(this.applyDecay(parsed));
+          }
         }
       }
-    }
+    } while (cursor !== '0');
 
     scores.sort((a, b) => b.score - a.score);
     return scores.slice(0, limit);

@@ -659,7 +659,9 @@ export async function warmupLazySchemas(): Promise<void> {
     Logger.info(`Schema warmup: loaded ${loaded} lazy tool schemas`);
     // Notify clients that tool schemas are now available
     if (broadcastToolsChanged) {
-      broadcastToolsChanged().catch(() => {});
+      broadcastToolsChanged().catch((err) => {
+        Logger.debug(`[Registry] broadcastToolsChanged failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
     }
   }
 }
@@ -1059,7 +1061,9 @@ export async function executeTool(
   if (tool.metadata?.aiRequired) {
     const checker = getAvailabilityChecker();
     if (!checker.isConnected()) {
-      await checker.connect().catch(() => {});
+      await checker.connect().catch((err) => {
+        Logger.debug(`[Registry] Availability checker connect failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
     }
     const mode = tool.metadata.availabilityMode || 'soft';
     const result = await checker.check(name, tool.metadata.aiRequired, mode);
@@ -1103,7 +1107,9 @@ export async function executeTool(
       // Tool tracking (async, fire-and-forget — never blocks response) - skip in silent mode
       // Redact sensitive argument values before passing to tracking
       const redactedArgs = redactSensitiveArgs(args as Record<string, unknown>);
-      recordToolExecution(name, redactedArgs, true, duration).catch(() => {});
+      recordToolExecution(name, redactedArgs, true, duration).catch((err) => {
+        Logger.debug(`[Registry] Tool tracking failed for ${name}: ${err instanceof Error ? err.message : String(err)}`);
+      });
     }
 
     // Auto-save session state periodically (async, fire-and-forget)
@@ -1111,7 +1117,9 @@ export async function executeTool(
       const { getActiveSessionId } = await import('../kanban/resolvers.js');
       const autoSaveSessionId = (args as Record<string, unknown>).sessionId as string | undefined
         || getActiveSessionId();
-      maybeAutoSave(autoSaveSessionId, name).catch(() => {});
+      maybeAutoSave(autoSaveSessionId, name).catch((err) => {
+        Logger.debug(`[Registry] Auto-save failed after ${name}: ${err instanceof Error ? err.message : String(err)}`);
+      });
     }
   } catch (error) {
     isError = true;
@@ -1120,7 +1128,9 @@ export async function executeTool(
     // Tool tracking for failures (fire-and-forget) - skip in silent mode
     if (!silent) {
       const redactedArgs = redactSensitiveArgs(args as Record<string, unknown>);
-      recordToolExecution(name, redactedArgs, false, duration).catch(() => {});
+      recordToolExecution(name, redactedArgs, false, duration).catch((err) => {
+        Logger.debug(`[Registry] Tool tracking (failure) failed for ${name}: ${err instanceof Error ? err.message : String(err)}`);
+      });
     }
 
     // Handle Zod validation errors
@@ -1192,7 +1202,9 @@ export async function executeTool(
         }
       }
     };
-    shareWithRetry().catch(() => {});
+    shareWithRetry().catch((err) => {
+      Logger.debug(`[Registry] Context sharing retry exhausted for ${name}: ${err instanceof Error ? err.message : String(err)}`);
+    });
   }
 
   // Inject pending directives as prefix to response

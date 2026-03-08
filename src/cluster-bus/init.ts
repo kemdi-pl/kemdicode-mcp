@@ -208,7 +208,9 @@ export async function initClusterBusSystem(): Promise<boolean> {
                 direction: 'upstream',
               }
             )
-            .catch(() => {});
+            .catch((err) => {
+              Logger.debug(`[ClusterBus] Failed to send llm:error signal: ${err instanceof Error ? err.message : String(err)}`);
+            });
         };
 
         // Full agentic orchestration — cluster spawns a supervisor with tool access
@@ -581,7 +583,9 @@ export async function initClusterBusSystem(): Promise<boolean> {
   } catch (err) {
     Logger.error(`[ClusterBus] Initialization failed:`, err);
     // Attempt cleanup
-    await shutdownClusterBusSystem().catch(() => {});
+    await shutdownClusterBusSystem().catch((shutdownErr) => {
+      Logger.debug(`[ClusterBus] Cleanup during init failure also failed: ${shutdownErr instanceof Error ? shutdownErr.message : String(shutdownErr)}`);
+    });
     return false;
   }
 }

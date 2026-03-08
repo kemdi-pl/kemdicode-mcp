@@ -30,47 +30,17 @@ import { RedisBackedService } from '../infrastructure/redis/redis-backed-service
 import { Logger } from '../utils/logger.js';
 import { safeJsonParse } from '../utils/validation.js';
 import type { Intent, IntentStatus, DriftAlert } from './types.js';
-import { COGNITION_KEYS, COGNITION_TTL } from './types.js';
+import { COGNITION_KEYS, COGNITION_TTL, MAX_COGNITION_JSON_SIZE } from './types.js';
 import { getCognitionEventBus } from './event-bus.js';
 import { randomBytes } from 'crypto';
+import { tokenize } from '../utils/nlp.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Drift Detection — TF-IDF weighted term overlap + bigram sequence similarity
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * English stop words — high-frequency words that carry little semantic meaning.
- * Used to filter noise from drift comparisons so only content words are compared.
- */
-const STOP_WORDS = new Set([
-  'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-  'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-  'should', 'may', 'might', 'shall', 'can', 'need', 'must', 'to', 'of',
-  'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as', 'into', 'about',
-  'and', 'or', 'but', 'not', 'no', 'if', 'then', 'than', 'so', 'that',
-  'this', 'it', 'its', 'i', 'we', 'you', 'he', 'she', 'they', 'me',
-  'my', 'our', 'your', 'his', 'her', 'their', 'what', 'which', 'who',
-  'how', 'when', 'where', 'why', 'all', 'each', 'some', 'any', 'just',
-  'also', 'very', 'up', 'out', 'now', 'get', 'make', 'go', 'see',
-  'like', 'use', 'used', 'using', 'one', 'two', 'new', 'more', 'only',
-  'still', 'back', 'there', 'here', 'been', 'much', 'well', 'way',
-  'them', 'him', 'after', 'before', 'over', 'such', 'through', 'too',
-]);
-
 /** Default drift detection threshold — drift scores above this trigger an alert. */
 const DEFAULT_DRIFT_THRESHOLD = 0.5;
-
-/**
- * Tokenize text into an ordered array of significant (non-stop) words.
- * Preserves order for sequence-based comparison.
- */
-function tokenize(text: string): string[] {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, ' ')
-    .split(/\s+/)
-    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
-}
 
 /**
  * Build a term-frequency map from a token array.
@@ -345,10 +315,16 @@ export class IntentStore extends RedisBackedService {
       const sessionKey = COGNITION_KEYS.intentsBySession(fullIntent.sessionId);
       const ttl = COGNITION_TTL.intent;
 
+      const json = JSON.stringify(fullIntent);
+      if (json.length > MAX_COGNITION_JSON_SIZE) {
+        Logger.error(`[IntentStore] Payload too large (${json.length} bytes > ${MAX_COGNITION_JSON_SIZE})`);
+        return null;
+      }
+
       const pipeline = this.redis.pipeline();
 
       // Store intent as JSON string
-      pipeline.set(key, JSON.stringify(fullIntent));
+      pipeline.set(key, json);
       if (ttl > 0) {
         pipeline.expire(key, ttl);
       }
