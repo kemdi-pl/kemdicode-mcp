@@ -98,7 +98,8 @@ export function connectBridges(
     for (const eventType of cfg.eventsToCluster) {
       const sub = eventBus.on(eventType, (event) => {
         // Prevent amplification loops — drop events that already crossed too many bridges
-        const hops = ((event.payload as Record<string, unknown>)?._bridgeHops as number) ?? 0;
+        const rawHops = (event.payload as Record<string, unknown>)?._bridgeHops;
+        const hops = (typeof rawHops === 'number' && Number.isFinite(rawHops) && rawHops >= 0) ? rawHops : 0;
         if (hops >= MAX_BRIDGE_HOPS) {
           Logger.debug(`[Bridge] Dropping event ${event.type} — bridge hop limit (${MAX_BRIDGE_HOPS}) reached`);
           return;
@@ -136,7 +137,11 @@ export function connectBridges(
       const sub = bus.onSignal(signalType, (signal: ClusterSignal) => {
         // Prevent amplification loops
         const payloadObj = (signal.payload && typeof signal.payload === 'object') ? signal.payload as Record<string, unknown> : {};
-        const hops = (payloadObj._bridgeHops as number) ?? 0;
+        const rawHops = payloadObj._bridgeHops;
+        // Validate hop count is a finite non-negative number; for external signals with missing hops, default to MAX to prevent bypass
+        const hops = (typeof rawHops === 'number' && Number.isFinite(rawHops) && rawHops >= 0)
+          ? rawHops
+          : (signal.sourceCluster !== bus.clusterId ? MAX_BRIDGE_HOPS : 0);
         if (hops >= MAX_BRIDGE_HOPS) {
           Logger.debug(`[Bridge] Dropping signal ${signal.type} — bridge hop limit (${MAX_BRIDGE_HOPS}) reached`);
           return;

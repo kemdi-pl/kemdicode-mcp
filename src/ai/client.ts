@@ -229,6 +229,11 @@ export async function complete(request: CompletionRequest): Promise<CompletionRe
         request.model !== currentConfig.fallbackModel &&
         !(request as CompletionRequest)._fallbackAttempt
       ) {
+        if (!hasProviderPrefix(currentConfig.fallbackModel)) {
+          Logger.warn(
+            `fallbackModel "${currentConfig.fallbackModel}" has no provider prefix — it will default to openai. Use explicit prefix (e.g., "anthropic:${currentConfig.fallbackModel}") to avoid misrouting.`
+          );
+        }
         Logger.warn(
           `Provider ${spec.provider} failed, trying fallback: ${currentConfig.fallbackModel}`
         );

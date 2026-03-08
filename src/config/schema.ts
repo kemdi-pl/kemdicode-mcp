@@ -32,7 +32,7 @@ export const serverSchema = z.object({
   host: z.string().min(1).describe('HTTP server host'),
   primaryModel: z.string().describe('Primary AI model (set via CLI or env)'),
   fallbackModel: z.string().describe('Fallback model for quota exceeded (optional)'),
-  apiBaseUrl: z.string().url().optional().describe('AI API base URL for hot-reload'),
+  apiBaseUrl: z.union([z.string().url(), z.literal('')]).optional().describe('AI API base URL for hot-reload'),
   apiKey: z.string().optional().describe('AI API key'),
 });
 

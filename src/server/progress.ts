@@ -138,6 +138,10 @@ export function startProgress(
 
   const interval = setInterval(() => {
     try {
+      if (!progressStates.has(requestId)) {
+        clearInterval(interval);
+        return;
+      }
       const currentState = progressStates.get(requestId);
       if (!currentState?.isProcessing) {
         clearInterval(interval);

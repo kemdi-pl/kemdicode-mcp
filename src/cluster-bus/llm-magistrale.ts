@@ -210,12 +210,17 @@ export class LLMMagistrale {
     }, 60_000);
   }
 
-  /** Stop the periodic cleanup (for graceful shutdown). */
+  /** Stop the periodic cleanup and unsubscribe signal handlers (for graceful shutdown). */
   stopCleanup(): void {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
     }
+    // Unsubscribe signal handlers to prevent subscription leak
+    for (const sub of this.subscriptions) {
+      sub.unsubscribe();
+    }
+    this.subscriptions = [];
   }
 
   /** Fully destroy this magistrale instance: unsubscribe all handlers, stop cleanup. */
@@ -387,6 +392,11 @@ export class LLMMagistrale {
         modelSpec = undefined;
       }
 
+      // Set timeout BEFORE dispatching to avoid race where response arrives before timeout is assigned
+      pending.timeoutHandle = setTimeout(() => {
+        this.resolveDispatch(dispatchId);
+      }, timeoutMs);
+
       // Lorenz orbit compression: remove redundant blocks from long prompts
       // before dispatching to remote clusters to save tokens
       const compressedPrompt = compressPromptForDispatch(prompt);
@@ -432,11 +442,6 @@ export class LLMMagistrale {
       Logger.info(
         `[Magistrale] Dispatched "${prompt.slice(0, 50)}..." to ${targets.length} clusters (strategy: ${cfg.strategy})`
       );
-
-      // Set timeout
-      pending.timeoutHandle = setTimeout(() => {
-        this.resolveDispatch(dispatchId);
-      }, timeoutMs);
 
       const response = await promise;
       return response;

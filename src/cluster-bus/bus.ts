@@ -344,6 +344,13 @@ export class ClusterBus {
         `[ClusterBus] Connected as ${this.config.clusterId} (${this.config.clusterName})`
       );
     } catch (err) {
+      // Clean up subscriber connection on error to prevent connection leak
+      if (this.subscriber) {
+        try {
+          this.subscriber.disconnect();
+        } catch { /* ignore disconnect errors during cleanup */ }
+        this.subscriber = null;
+      }
       Logger.error(`[ClusterBus] Connection failed:`, err);
       throw err;
     }
@@ -368,6 +375,7 @@ export class ClusterBus {
     this.historyWriteIndex = 0;
     this.historyFull = false;
     this.localVirtualClusters.clear();
+    this.subscribedPatterns.clear();
     this.flowController.reset();
     if (this.subscriptionCleanupInterval) {
       clearInterval(this.subscriptionCleanupInterval);
@@ -391,6 +399,8 @@ export class ClusterBus {
 
   /** Set of virtual cluster IDs hosted on this node (for loopback routing). */
   private localVirtualClusters = new Set<string>();
+  /** Tracks Redis psubscribe patterns to prevent duplicate subscriptions */
+  private subscribedPatterns = new Set<string>();
 
   /**
    * Subscribe to unicast channel for an additional cluster ID.
@@ -404,7 +414,10 @@ export class ClusterBus {
     if (clusterId === this.config.clusterId) return; // already subscribed
     if (this.localVirtualClusters.has(clusterId)) return; // already added
 
-    await this.subscriber.psubscribe(`mcp:cluster:*:${clusterId}`);
+    const pattern = `mcp:cluster:*:${clusterId}`;
+    if (this.subscribedPatterns.has(pattern)) return;
+    await this.subscriber.psubscribe(pattern);
+    this.subscribedPatterns.add(pattern);
     this.localVirtualClusters.add(clusterId);
     Logger.info(`[ClusterBus] Subscribed to virtual cluster channel: ${clusterId}`);
   }
@@ -416,7 +429,9 @@ export class ClusterBus {
     if (!this.subscriber || !this._connected) return;
     if (!this.localVirtualClusters.has(clusterId)) return;
 
-    await this.subscriber.punsubscribe(`mcp:cluster:*:${clusterId}`);
+    const pattern = `mcp:cluster:*:${clusterId}`;
+    await this.subscriber.punsubscribe(pattern);
+    this.subscribedPatterns.delete(pattern);
     this.localVirtualClusters.delete(clusterId);
     Logger.info(`[ClusterBus] Unsubscribed from virtual cluster channel: ${clusterId}`);
   }

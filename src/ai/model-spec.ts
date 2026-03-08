@@ -56,12 +56,14 @@ function parseThinkingSuffix(suffix: string): ThinkingConfig | undefined {
   // Thinking budget: "4k" → 4096, "16384" → 16384
   const kMatch = lower.match(/^(\d+)k$/);
   if (kMatch) {
-    return { thinkingBudget: parseInt(kMatch[1], 10) * 1024 };
+    const budget = Math.min(Math.max(parseInt(kMatch[1], 10) * 1024, 0), 1_000_000);
+    return { thinkingBudget: budget };
   }
 
   const numMatch = lower.match(/^(\d+)$/);
   if (numMatch) {
-    return { thinkingBudget: parseInt(numMatch[1], 10) };
+    const budget = Math.min(Math.max(parseInt(numMatch[1], 10), 0), 1_000_000);
+    return { thinkingBudget: budget };
   }
 
   return undefined;

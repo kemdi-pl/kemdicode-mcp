@@ -138,7 +138,8 @@ export function createOpenAICompatProvider(providerId: ProviderId): LLMProvider 
           if (!response.choices?.length) {
             const raw = response as unknown as Record<string, unknown>;
             // Check if raw response is a rate-limit JSON (e.g., iFlow 449)
-            const status = typeof raw.status === 'number' ? raw.status : typeof raw.status === 'string' ? parseInt(raw.status, 10) : 0;
+            let status = typeof raw.status === 'number' ? raw.status : typeof raw.status === 'string' ? parseInt(raw.status, 10) : 0;
+            if (isNaN(status) || status < 100 || status > 599) status = 0;
             if (RETRYABLE_STATUS_CODES.has(status) && attempt < MAX_RETRIES) {
               const delay = backoffDelay(attempt);
               Logger.warn(`[${providerId}] Rate limit (${status}), retry ${attempt + 1}/${MAX_RETRIES} in ${Math.round(delay)}ms`);
@@ -153,9 +154,8 @@ export function createOpenAICompatProvider(providerId: ProviderId): LLMProvider 
             }
 
             // Non-standard response without any extractable content — treat as error
-            const rawContent = typeof raw.content === 'string' ? raw.content : JSON.stringify(raw);
             throw new Error(
-              `${providerId}: non-standard response (no choices array). Raw: ${rawContent.slice(0, 200)}`,
+              `${providerId}: non-standard response (no choices array, keys: ${Object.keys(raw).join(',')})`,
             );
           }
 

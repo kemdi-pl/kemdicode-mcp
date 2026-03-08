@@ -20,7 +20,7 @@
  * Project Memory Tools Module
  *
  * Exports consolidated memory and checkpoint tools.
- * v4.2.0: 8 tools consolidated into 2 action-based tools.
+ * v4.3.0: 8 tools consolidated into 2 action-based tools.
  *
  * @module tools/memory
  */

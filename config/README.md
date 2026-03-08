@@ -1,6 +1,6 @@
 # Configuration Files
 
-Example configuration files for kemdiCode MCP Server v4.2.0.
+Example configuration files for kemdiCode MCP Server v4.3.0.
 
 ## Server Configuration
 

@@ -202,6 +202,9 @@ function completeAggregation(aggregationId: string, state: AggregationState): vo
     return;
   }
 
+  // Guard against double-completion
+  if (result.state === 'completed' || result.state === 'failed') return;
+
   result.state = state;
   result.aggregatedAt = Date.now();
   result.durationMs = result.aggregatedAt - aggregation.startedAt;

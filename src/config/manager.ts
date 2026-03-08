@@ -263,7 +263,8 @@ class ConfigManager {
       this.config.redis.host = process.env.REDIS_HOST;
     }
     if (process.env.REDIS_PORT) {
-      this.config.redis.port = parseInt(process.env.REDIS_PORT, 10);
+      const parsed = parseInt(process.env.REDIS_PORT, 10);
+      if (!isNaN(parsed)) this.config.redis.port = parsed;
     }
     if (process.env.REDIS_PASSWORD) {
       this.config.redis.password = process.env.REDIS_PASSWORD;
@@ -282,7 +283,8 @@ class ConfigManager {
       this.config.server.fallbackModel = String(opts.fallbackModel);
     }
     if (opts.port !== undefined) {
-      this.config.server.port = parseInt(String(opts.port), 10);
+      const parsed = parseInt(String(opts.port), 10);
+      if (!isNaN(parsed)) this.config.server.port = parsed;
     }
     if (opts.host !== undefined) {
       this.config.server.host = String(opts.host);
@@ -293,7 +295,8 @@ class ConfigManager {
       this.config.redis.host = String(opts.redisHost);
     }
     if (opts.redisPort !== undefined) {
-      this.config.redis.port = parseInt(String(opts.redisPort), 10);
+      const parsed = parseInt(String(opts.redisPort), 10);
+      if (!isNaN(parsed)) this.config.redis.port = parsed;
     }
   }
 

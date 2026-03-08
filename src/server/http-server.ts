@@ -92,6 +92,7 @@ export async function startHttpServer(host: string, port: number): Promise<Serve
   const keepAliveIntervals = new Map<string, NodeJS.Timeout>();
   // Track active tool execution streams
   const executionStreams = new Map<string, ServerResponse>();
+  const closedSessions = new Set<string>();
 
   const httpServer = createServer(async (req, res) => {
     const requestStartTime = Date.now();
@@ -261,6 +262,9 @@ export async function startHttpServer(host: string, port: number): Promise<Serve
           cwd: getAllSessionConfigs().get(sseSessionId)?.cwd,
         });
         transport.onclose = () => {
+          if (closedSessions.has(sseSessionId)) return;
+          closedSessions.add(sseSessionId);
+          setTimeout(() => closedSessions.delete(sseSessionId), 30_000);
           transports.delete(sseSessionId);
           deleteSessionConfig(sseSessionId);
           deleteSessionActivity(sseSessionId);
@@ -338,6 +342,9 @@ export async function startHttpServer(host: string, port: number): Promise<Serve
       }
 
       transport.onclose = () => {
+        if (closedSessions.has(msgSessionId)) return;
+        closedSessions.add(msgSessionId);
+        setTimeout(() => closedSessions.delete(msgSessionId), 30_000);
         transports.delete(msgSessionId);
         deleteSessionConfig(msgSessionId);
         deleteSessionActivity(msgSessionId);
@@ -375,6 +382,9 @@ export async function startHttpServer(host: string, port: number): Promise<Serve
             transport.onclose = () => {
               const closedSessionId = transport.sessionId;
               if (closedSessionId) {
+                if (closedSessions.has(closedSessionId)) return;
+                closedSessions.add(closedSessionId);
+                setTimeout(() => closedSessions.delete(closedSessionId), 30_000);
                 transports.delete(closedSessionId);
                 deleteSessionConfig(closedSessionId);
                 deleteSessionActivity(closedSessionId);
