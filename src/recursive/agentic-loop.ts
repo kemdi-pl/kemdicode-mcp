@@ -37,7 +37,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { executeAI, completeWithTools } from '../ai/execute.js';
 import type { Message } from '../ai/client.js';
 import type { FunctionTool } from '../ai/providers/types.js';
-import { getAgentMaxTokens, getAgentTemperature, type AgentType } from '../ai/agents.js';
+import { getAgentConfig, getAgentMaxTokens, getAgentTemperature, type AgentType } from '../ai/agents.js';
 import { Logger } from '../utils/logger.js';
 import { getGlobalEventBus } from '../events/global-bus.js';
 import type { EventMetadata } from '../events/types.js';
@@ -264,6 +264,9 @@ export interface AgenticLoopConfig {
 
   /** Injected tool executor (DI) */
   toolExecutor?: ToolExecutor;
+
+  /** Hint: this orchestration runs alongside other clusters (enables collaboration nudges) */
+  isMultiCluster?: boolean;
 }
 
 export interface ToolCall {
@@ -596,7 +599,7 @@ ${blocked}${cognitiveSection}${subAgentInstr}
 // System Prompt (function calling mode)
 // ---------------------------------------------------------------------------
 
-function buildFunctionCallingPrompt(config: AgenticLoopConfig): string {
+function buildFunctionCallingPrompt(config: AgenticLoopConfig, toolNames?: string[], maxIterations?: number): string {
   const canSpawnSubAgents = (config.maxSubAgentDepth ?? 2) > (config.currentDepth ?? 0);
   const subAgentInstr = canSpawnSubAgents
     ? `
@@ -620,14 +623,52 @@ Use cognitive tools (decision-journal, confidence-tracker, thinking-chain, error
 Always use sessionId="${sessionId}" and agentId="${agentId}" in cognitive tool calls.`;
   }
 
-  return `You are an autonomous tool-calling agent. You MUST use the provided tools to gather information — NEVER guess or make up answers.
+  // Include agent-specific expertise from agents.ts when available
+  let agentExpertise = '';
+  if (config.agent) {
+    const agentConfig = getAgentConfig(config.agent);
+    if (agentConfig) {
+      agentExpertise = `\n\n## Your Expertise\n${agentConfig.systemPrompt}`;
+    }
+  }
 
-Call the tools you need. You will receive the results and can continue calling more tools.
-When you have enough information, respond with your final answer in plain text (no tool calls).
-${cognitiveSection}${subAgentInstr}
+  // List available tools so LLM knows what it can use
+  let toolListing = '';
+  if (toolNames && toolNames.length > 0) {
+    const budgetNote = maxIterations ? ` You have a budget of ${maxIterations} tool-call iterations — use them all for thorough analysis. Do NOT stop early.` : '';
+    toolListing = `\n\n## Available Tools\nYou have access to exactly ${toolNames.length} tools: ${toolNames.join(', ')}.${budgetNote}\nUse different tools to gather different types of information. Calling the same tool with different arguments is encouraged (e.g., multiple searches, multiple task creates).`;
+  }
+
+  let collaborationSection = '';
+  if (config.isMultiCluster) {
+    collaborationSection = `
+
+## Collaboration
+You are one of MULTIPLE agents working on this task in parallel. Other agents are investigating the same codebase simultaneously.
+- Use "shared-thoughts" to PUBLISH your key findings so other agents can see them.
+- Use "get-shared-context" to READ what other agents have found — build on their work, don't duplicate it.
+- Use "task" tool with action "create" to record EACH confirmed finding as a SEPARATE kanban task. Call it multiple times with different arguments — one task per finding.
+- Publish findings EARLY (after 3-4 iterations) so other agents benefit.`;
+  }
+
+  return `You are an autonomous tool-calling agent. You MUST use the provided tools to gather information — NEVER guess or make up answers.
+${agentExpertise}${toolListing}
+
+## Workflow
+1. PLAN: Read your task carefully. Identify what information you need and which tools to use.
+2. EXECUTE: Call tools one step at a time. After each result, decide the NEXT different action.
+3. DIG DEEPER: If initial results seem clean or incomplete, search with different queries and angles. Be skeptical — look harder.
+4. COLLABORATE: Share findings and check what other agents found (if in multi-agent mode).
+5. SYNTHESIZE: Only after exhausting your investigation, provide your final answer.
+
+IMPORTANT: Never call the same tool with the SAME arguments more than once — you already have that result. However, calling the same tool with DIFFERENT arguments is fine and encouraged (e.g., creating multiple tasks, searching for different queries).
+Only provide your final answer (plain text, no tool calls) after you have thoroughly investigated using most of your iteration budget.
+${cognitiveSection}${collaborationSection}${subAgentInstr}
 
 ## Rules
 - ALWAYS call tools to gather information — never fabricate results.
+- Vary your tool usage — don't repeat identical calls.
+- Calling the same tool with different arguments is OK (e.g., multiple task creates, different search queries).
 - Be thorough but efficient.
 - When done, respond with your final answer as plain text.
 - NEVER write truncated content to files. If a file-read result was truncated, re-read it with a smaller line range.
@@ -887,10 +928,11 @@ async function executeWithFunctionCalling(
 
   // Build function tools from definitions
   const functionTools = buildFunctionTools(executor, availableTools, config.blockedTools);
+  const toolNames = functionTools.map((t) => t.function.name);
   progress(`Function calling mode: ${functionTools.length} tools available`);
 
-  // Build system prompt
-  const systemPrompt = buildFunctionCallingPrompt(config);
+  // Build system prompt (with tool names and agent expertise)
+  const systemPrompt = buildFunctionCallingPrompt(config, toolNames, maxIterations);
 
   // Multi-turn message history
   const messages: Message[] = [
@@ -900,6 +942,10 @@ async function executeWithFunctionCalling(
 
   let lastAnswer = '';
   let stopReason: AgenticLoopResult['stopReason'] = 'max_iterations';
+
+  // Track recent tool calls to detect repetition
+  const recentToolCalls: Array<{ name: string; argsHash: string }> = [];
+  const MAX_CONSECUTIVE_SAME_TOOL = 3;
 
   for (let iteration = 1; iteration <= maxIterations; iteration++) {
     // Time budget check: stop before starting a new iteration if budget is exhausted
@@ -1016,6 +1062,43 @@ async function executeWithFunctionCalling(
       }
 
       log.push(iterationLog);
+
+      // Track tool calls for repetition detection
+      for (const tc of nativeToolCalls) {
+        const argsHash = tc.function.arguments.slice(0, 200);
+        recentToolCalls.push({ name: tc.function.name, argsHash });
+      }
+
+      // Detect repetitive tool usage — nudge LLM to move on
+      if (recentToolCalls.length >= MAX_CONSECUTIVE_SAME_TOOL) {
+        const lastN = recentToolCalls.slice(-MAX_CONSECUTIVE_SAME_TOOL);
+        const allSameCall = lastN.every((c) => c.name === lastN[0].name && c.argsHash === lastN[0].argsHash);
+        const allSameTool = allSameCall; // Only nudge when same tool + same args (not just same tool name)
+        if (allSameTool) {
+          const otherTools = toolNames.filter((t) => t !== lastN[0].name);
+          const nudge = otherTools.length > 0
+            ? `You have called "${lastN[0].name}" ${MAX_CONSECUTIVE_SAME_TOOL} times in a row. You already have those results. Now move to the NEXT step: use a different tool (${otherTools.join(', ')}) or provide your final answer.`
+            : `You have called "${lastN[0].name}" ${MAX_CONSECUTIVE_SAME_TOOL} times in a row. You already have sufficient results. Provide your final answer now.`;
+          messages.push({ role: 'user', content: nudge });
+          progress(`Nudge: ${lastN[0].name} called ${MAX_CONSECUTIVE_SAME_TOOL}x — prompting to move on`);
+        }
+      }
+
+      // Collaboration nudge: remind multi-cluster agents to share and read findings
+      if (config.isMultiCluster && iteration > 0 && iteration % 5 === 0) {
+        const hasSharedThoughts = toolNames.includes('shared-thoughts');
+        const hasGetContext = toolNames.includes('get-shared-context');
+        if (hasSharedThoughts || hasGetContext) {
+          const actions = [];
+          if (hasSharedThoughts) actions.push('use "shared-thoughts" to publish your findings so far');
+          if (hasGetContext) actions.push('use "get-shared-context" to check what other agents have discovered');
+          messages.push({
+            role: 'user',
+            content: `COLLABORATION CHECK (iteration ${iteration}/${maxIterations}): Other agents are working in parallel. ${actions.join(' and ')}. Build on their work — don't duplicate effort.`,
+          });
+          progress(`Collaboration nudge at iteration ${iteration}`);
+        }
+      }
 
       // Handle sub-agent requests from text
       if (subAgentReqs.length > 0 && currentDepth < maxSubAgentDepth) {

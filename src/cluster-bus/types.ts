@@ -313,6 +313,10 @@ export const LLMRequestPayload = z.object({
         .boolean()
         .default(false)
         .describe('Enable cognitive tools (decision-journal, thinking-chain, etc.)'),
+      isMultiCluster: z
+        .boolean()
+        .default(false)
+        .describe('Hint: multiple clusters are working in parallel (enables collaboration nudges)'),
     })
     .optional()
     .describe('Full agentic orchestration — cluster spawns a supervisor that reasons + calls tools autonomously'),

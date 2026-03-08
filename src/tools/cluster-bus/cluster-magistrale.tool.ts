@@ -43,7 +43,7 @@ const schema = z.object({
   timeoutMs: z
     .number()
     .min(1000)
-    .max(120000)
+    .max(600000)
     .default(30000)
     .describe('Timeout per cluster response in ms'),
   minResponses: z
@@ -116,6 +116,14 @@ const schema = z.object({
     .boolean()
     .default(false)
     .describe('Enable cognitive tools in orchestration (only when orchestrate=true)'),
+  orchestrateEnableKanban: z
+    .boolean()
+    .default(false)
+    .describe('Enable kanban tools (task, board) in orchestration for recording findings'),
+  orchestrateEnableCollaboration: z
+    .boolean()
+    .default(true)
+    .describe('Auto-add shared-thoughts + get-shared-context for inter-cluster communication (only when maxTargets > 1)'),
 });
 
 export const clusterMagistraleTool: UnifiedTool<typeof schema> = {
@@ -197,12 +205,36 @@ export const clusterMagistraleTool: UnifiedTool<typeof schema> = {
           maxPasses: args.agentMaxPasses,
           qualityThreshold: args.agentQualityThreshold,
         } : undefined,
-        orchestrate: args.orchestrate ? {
-          agent: args.orchestrateAgent,
-          maxIterations: args.orchestrateMaxIterations,
-          allowedTools: args.orchestrateAllowedTools,
-          enableCognition: args.orchestrateEnableCognition,
-        } : undefined,
+        orchestrate: args.orchestrate ? (() => {
+          // Build effective allowed tools list with auto-injected collaboration/kanban tools
+          let effectiveTools = args.orchestrateAllowedTools ? [...args.orchestrateAllowedTools] : undefined;
+
+          const collaborationTools = ['shared-thoughts', 'get-shared-context'];
+          const kanbanTools = ['task', 'task-multi', 'board'];
+
+          if (effectiveTools) {
+            // Auto-inject collaboration tools for multi-cluster dispatch
+            if (args.orchestrateEnableCollaboration !== false && args.maxTargets > 1) {
+              for (const t of collaborationTools) {
+                if (!effectiveTools.includes(t)) effectiveTools.push(t);
+              }
+            }
+            // Inject kanban tools if enabled
+            if (args.orchestrateEnableKanban) {
+              for (const t of kanbanTools) {
+                if (!effectiveTools.includes(t)) effectiveTools.push(t);
+              }
+            }
+          }
+
+          return {
+            agent: args.orchestrateAgent,
+            maxIterations: args.orchestrateMaxIterations,
+            allowedTools: effectiveTools,
+            enableCognition: args.orchestrateEnableCognition,
+            isMultiCluster: args.maxTargets > 1,
+          };
+        })() : undefined,
       });
     } finally {
       // Always clean up subscriptions and intervals to prevent leaks

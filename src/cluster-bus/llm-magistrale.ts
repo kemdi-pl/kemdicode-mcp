@@ -79,6 +79,7 @@ export interface MagistraleConfig {
     allowedTools?: string[];
     blockedTools?: string[];
     enableCognition: boolean;
+    isMultiCluster?: boolean;
   };
   /** System prompt override for LLM calls */
   systemPrompt?: string;
@@ -412,7 +413,10 @@ export class LLMMagistrale {
         model: modelSpec,
         passConfig: cfg.passConfig,
         agentIteration: cfg.agentIteration,
-        orchestrate: cfg.orchestrate,
+        orchestrate: cfg.orchestrate ? {
+          ...cfg.orchestrate,
+          isMultiCluster: cfg.orchestrate.isMultiCluster ?? targets.length > 1,
+        } : undefined,
         systemPrompt: cfg.systemPrompt,
         temperature: cfg.temperature,
         maxTokens: cfg.maxTokens,
