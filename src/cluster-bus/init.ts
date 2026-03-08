@@ -45,6 +45,7 @@ import type {
 import { initClusterBus, shutdownClusterBus, getClusterBus } from './bus.js';
 import { complete } from '../ai/client.js';
 import { registerCluster, deregisterCluster, markVirtualLocal, getCluster } from './cluster-registry.js';
+import { getCustomEndpoint } from '../ai/providers/registry.js';
 import { ClusterHealthMonitor } from './health-monitor.js';
 import { connectBridges } from './bridges.js';
 import type { BridgeHandle } from './bridges.js';
@@ -185,9 +186,24 @@ export async function initClusterBusSystem(): Promise<boolean> {
             try {
               const targetNode = await getCluster(targetClusterId);
               if (targetNode && targetNode.connectedProviders.length > 0 && !resolvedModel) {
-                resolvedModel = targetNode.connectedProviders[0];
-                resolvedProvider = resolvedModel;
-                Logger.debug(`[ClusterBus] Resolved provider "${resolvedModel}" from cluster "${targetClusterId}" (${targetNode.name})`);
+                const providerId = targetNode.connectedProviders[0];
+                resolvedProvider = providerId;
+
+                // For custom providers (custom:<name>), resolve the full model spec
+                // including defaultModel: custom:<name>:<defaultModel>
+                if (providerId.startsWith('custom:')) {
+                  const endpointName = providerId; // e.g. "custom:minimax"
+                  const endpoint = getCustomEndpoint(endpointName.replace('custom:', ''));
+                  if (endpoint?.defaultModel) {
+                    resolvedModel = `${providerId}:${endpoint.defaultModel}`;
+                  } else {
+                    resolvedModel = providerId;
+                  }
+                } else {
+                  resolvedModel = providerId;
+                }
+
+                Logger.info(`[ClusterBus] Resolved model "${resolvedModel}" from cluster "${targetClusterId}" (${targetNode.name})`);
               }
             } catch {
               // Registry lookup failed — use default model

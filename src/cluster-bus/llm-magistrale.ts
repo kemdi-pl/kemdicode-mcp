@@ -41,6 +41,7 @@ import type { z } from 'zod';
 import type { ClusterBus } from './bus.js';
 import type { ClusterNode } from './types.js';
 import { listClusters, findByCapability } from './cluster-registry.js';
+import { getCustomEndpoint } from '../ai/providers/registry.js';
 import { tfidfCosineSimilarity } from '../cognition/ctc-math.js';
 import { analyzeOrbits } from '../cognition/orbit-compressor.js';
 
@@ -335,6 +336,11 @@ export class LLMMagistrale {
       };
     }
 
+    // Prefer user-registered clusters (with meta-tags) over auto-registered local nodes.
+    // User-registered clusters have meta-tags set via topology register;
+    // auto-registered local nodes typically have no meta-tags.
+    targets.sort((a, b) => b.metaTags.length - a.metaTags.length);
+
     // Limit targets
     if (cfg.maxTargets > 0 && targets.length > cfg.maxTargets) {
       targets = targets.slice(0, cfg.maxTargets);
@@ -417,9 +423,19 @@ export class LLMMagistrale {
         // Per-target model spec: use the cluster's connectedProviders if no explicit model
         let targetPayload = payload;
         if (!modelSpec && target.connectedProviders.length > 0) {
-          const provider = target.connectedProviders[0];
-          targetPayload = { ...payload, model: provider };
-          Logger.debug(`[Magistrale] Using provider "${provider}" from cluster "${target.id}" (${target.name})`);
+          const providerId = target.connectedProviders[0];
+          let resolvedModelSpec = providerId;
+
+          // For custom providers, resolve full model spec: custom:<name>:<defaultModel>
+          if (providerId.startsWith('custom:')) {
+            const endpoint = getCustomEndpoint(providerId.replace('custom:', ''));
+            if (endpoint?.defaultModel) {
+              resolvedModelSpec = `${providerId}:${endpoint.defaultModel}`;
+            }
+          }
+
+          targetPayload = { ...payload, model: resolvedModelSpec };
+          Logger.info(`[Magistrale] Using model "${resolvedModelSpec}" from cluster "${target.id}" (${target.name})`);
         }
 
         let sendTimer: ReturnType<typeof setTimeout> | null = null;
