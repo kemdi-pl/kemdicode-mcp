@@ -414,8 +414,16 @@ export class LLMMagistrale {
 
       const sendTimeoutMs = Math.min(timeoutMs, 10000); // max 10s per send
       for (const target of targets) {
+        // Per-target model spec: use the cluster's connectedProviders if no explicit model
+        let targetPayload = payload;
+        if (!modelSpec && target.connectedProviders.length > 0) {
+          const provider = target.connectedProviders[0];
+          targetPayload = { ...payload, model: provider };
+          Logger.debug(`[Magistrale] Using provider "${provider}" from cluster "${target.id}" (${target.name})`);
+        }
+
         let sendTimer: ReturnType<typeof setTimeout> | null = null;
-        const sendPromise = this.bus.send(target.id, 'llm:request', payload, {
+        const sendPromise = this.bus.send(target.id, 'llm:request', targetPayload, {
           correlationId: dispatchId,
           priority: 2,
           direction: 'downstream',
@@ -641,11 +649,11 @@ export class LLMMagistrale {
   // -------------------------------------------------------------------------
 
   private async findTargets(cfg: MagistraleConfig): Promise<ClusterNode[]> {
+    const all = await listClusters();
     let candidates: ClusterNode[];
 
     if (cfg.preferredProvider) {
-      // Find clusters with specific provider
-      const all = await listClusters();
+      // Find clusters with specific provider in connectedProviders
       candidates = all.filter(
         (n) => n.status === 'online' && n.connectedProviders.includes(cfg.preferredProvider!)
       );
@@ -656,8 +664,11 @@ export class LLMMagistrale {
         candidates = all.filter((n) => n.status === 'online' && n.capabilities.includes('llm'));
       }
     } else {
-      // Find clusters with generic LLM capability (including self for single-node)
-      candidates = (await findByCapability('llm')).filter((n) => n.status === 'online');
+      // Find clusters with LLM capability OR any connectedProviders
+      // Virtual clusters registered with providers (e.g. ["custom:minimax"]) are valid LLM targets
+      candidates = all.filter(
+        (n) => n.status === 'online' && (n.capabilities.includes('llm') || n.connectedProviders.length > 0)
+      );
     }
 
     return candidates;

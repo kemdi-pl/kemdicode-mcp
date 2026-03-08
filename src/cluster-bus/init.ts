@@ -44,7 +44,7 @@ import type {
 } from './types.js';
 import { initClusterBus, shutdownClusterBus, getClusterBus } from './bus.js';
 import { complete } from '../ai/client.js';
-import { registerCluster, deregisterCluster, markVirtualLocal } from './cluster-registry.js';
+import { registerCluster, deregisterCluster, markVirtualLocal, getCluster } from './cluster-registry.js';
 import { ClusterHealthMonitor } from './health-monitor.js';
 import { connectBridges } from './bridges.js';
 import type { BridgeHandle } from './bridges.js';
@@ -172,6 +172,28 @@ export async function initClusterBusSystem(): Promise<boolean> {
         const payload = signal.payload;
         const replyTo = signal.sourceCluster;
 
+        // Resolve per-cluster provider: if signal targets a virtual cluster with
+        // connectedProviders, use that provider instead of the global default.
+        // This enables magistrale to dispatch to virtual clusters with their own LLM.
+        const targetClusterId = signal.targetCluster;
+        let resolvedModel = payload.model;
+        let resolvedProvider = 'local';
+
+        // Async IIFE to resolve provider before processing
+        (async () => {
+          if (targetClusterId) {
+            try {
+              const targetNode = await getCluster(targetClusterId);
+              if (targetNode && targetNode.connectedProviders.length > 0 && !resolvedModel) {
+                resolvedModel = targetNode.connectedProviders[0];
+                resolvedProvider = resolvedModel;
+                Logger.debug(`[ClusterBus] Resolved provider "${resolvedModel}" from cluster "${targetClusterId}" (${targetNode.name})`);
+              }
+            } catch {
+              // Registry lookup failed — use default model
+            }
+          }
+
         // Guard against double-response (timeout vs async completion race)
         let responded = false;
 
@@ -224,7 +246,7 @@ export async function initClusterBusSystem(): Promise<boolean> {
             const result = await executeAgenticLoop({
               task: payload.prompt,
               agent: (orchConfig.agent as 'plan' | 'build' | 'explore' | 'general') || 'plan',
-              model: payload.model ?? undefined,
+              model: resolvedModel ?? payload.model ?? undefined,
               sessionId,
               maxIterations: orchConfig.maxIterations ?? 10,
               maxSubAgentDepth: 0, // no sub-agent nesting within cluster
@@ -240,8 +262,8 @@ export async function initClusterBusSystem(): Promise<boolean> {
             sendResult({
               requestId: correlationId,
               content: result.answer || result.log.map((i) => i.aiResponse).join('\n'),
-              model: payload.model || 'unknown',
-              provider: 'local',
+              model: resolvedModel || payload.model || 'unknown',
+              provider: resolvedProvider,
               promptTokens: undefined,
               completionTokens: undefined,
               finishReason: result.completed ? 'orchestration-complete' : `stopped:${result.stopReason}`,
@@ -265,7 +287,7 @@ export async function initClusterBusSystem(): Promise<boolean> {
           (async () => {
             const { AgentIterationLoop } = await import('./agent-iteration.js');
             const loop = new AgentIterationLoop({
-              model: payload.model ?? undefined,
+              model: resolvedModel ?? payload.model ?? undefined,
               agentCount: iterConfig.agentCount ?? 2,
               maxPasses: iterConfig.maxPasses ?? 3,
               qualityThreshold: iterConfig.qualityThreshold ?? 0.8,
@@ -276,8 +298,8 @@ export async function initClusterBusSystem(): Promise<boolean> {
             sendResult({
               requestId: correlationId,
               content: iterResult.content,
-              model: payload.model || 'unknown',
-              provider: 'local',
+              model: resolvedModel || payload.model || 'unknown',
+              provider: resolvedProvider,
               promptTokens: undefined,
               completionTokens: undefined,
               totalTokens: iterResult.totalTokens,
@@ -309,7 +331,7 @@ export async function initClusterBusSystem(): Promise<boolean> {
 
         // Multi-pass execution with PassController
         if (payload.passConfig) {
-          const controller = new PassController(payload.passConfig, payload.model ?? undefined);
+          const controller = new PassController(payload.passConfig, resolvedModel ?? payload.model ?? undefined);
 
           (async () => {
             // Pass 0: Assessment (skipped for 'fixed' strategy)
@@ -366,8 +388,8 @@ export async function initClusterBusSystem(): Promise<boolean> {
             sendResult({
               requestId: correlationId,
               content: finalContent,
-              model: payload.model || 'unknown',
-              provider: 'local',
+              model: resolvedModel || payload.model || 'unknown',
+              provider: resolvedProvider,
               promptTokens: controller.getTotalTokens(),
               completionTokens: undefined,
               finishReason: controller.isBudgetExceeded() ? 'budget-exceeded' : 'pass-complete',
@@ -387,7 +409,7 @@ export async function initClusterBusSystem(): Promise<boolean> {
 
         // Single-shot execution (no passConfig)
         complete({
-          model: payload.model ?? undefined,
+          model: resolvedModel ?? payload.model ?? undefined,
           messages: [
             ...(payload.systemPrompt
               ? [{ role: 'system' as const, content: payload.systemPrompt }]
@@ -406,8 +428,8 @@ export async function initClusterBusSystem(): Promise<boolean> {
             sendResult({
               requestId: correlationId,
               content: response.content,
-              model: response.model || payload.model || 'unknown',
-              provider: 'local',
+              model: response.model || resolvedModel || payload.model || 'unknown',
+              provider: resolvedProvider,
               promptTokens: response.usage?.promptTokens,
               completionTokens: response.usage?.completionTokens,
               finishReason: response.finishReason,
@@ -417,6 +439,9 @@ export async function initClusterBusSystem(): Promise<boolean> {
           .catch((err) => {
             sendError(err instanceof Error ? err.message : String(err));
           });
+        })().catch((err) => {
+          Logger.debug(`[ClusterBus] Provider resolution error: ${err instanceof Error ? err.message : String(err)}`);
+        });
       },
       undefined,
       { ttlMs: 0 }
