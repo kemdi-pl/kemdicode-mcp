@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "kemdicode-mcp": {
+      "command": "kemdicode-mcp",
+      "args": ["--stdio"],
+      "env": {
+        "OPENAI_API_KEY": "sk-...",
+        "ANTHROPIC_API_KEY": "sk-ant-..."
+      }
+    }
+  }
+}
