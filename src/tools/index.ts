@@ -19,7 +19,7 @@
 import { registerLazyTool } from './registry.js';
 
 /**
- * Lazy Tool Loader Registry — v4.3.0
+ * Lazy Tool Loader Registry — v4.4.0
  *
  * Consolidated to 62 action-based tools.
  * IDE AI (Claude Code, Cursor, etc.) provides native equivalents.
