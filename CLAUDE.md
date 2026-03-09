@@ -1,4 +1,4 @@
-# KemdiCode MCP Server v4.4.0
+# KemdiCode MCP Server v4.5.0
 
 ## How to Use kemdiCode MCP
 

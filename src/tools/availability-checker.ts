@@ -76,7 +76,7 @@ export interface HealthMatrix {
 /** Availability cache TTL in seconds */
 const CACHE_TTL = 60;
 
-/** Non-AI alternatives for AI-dependent tools (v4.4.0) */
+/** Non-AI alternatives for AI-dependent tools (v4.5.0) */
 const FALLBACK_MAP: Record<string, string[]> = {
   'semantic-search': ['find-definition', 'find-references'],
   'ask-ai': ['shared-thoughts'],

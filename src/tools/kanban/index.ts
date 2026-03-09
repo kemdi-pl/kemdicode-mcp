@@ -68,7 +68,7 @@ export { taskSubtaskTool } from './task-subtask.tool.js';
 // Board workflow (auto board switching)
 export { boardWorkflowTool } from './board-workflow.tool.js';
 
-// ─── Consolidated Tools (v4.4.0) ────────────────────────────────────────────
+// ─── Consolidated Tools (v4.5.0) ────────────────────────────────────────────
 // These wrap the individual tools above into 4 action-based unified tools.
 export { taskTool } from './task.tool.js';
 export { taskMultiTool } from './task-multi.tool.js';
