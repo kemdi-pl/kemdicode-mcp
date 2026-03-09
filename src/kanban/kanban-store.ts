@@ -1,0 +1,1296 @@
+/**
+ * KemdiCode MCP Server
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/**
+ * Kanban Store
+ *
+ * Redis-based persistence layer for the Kanban system.
+ *
+ * @module kanban/kanban-store
+ */
+
+import { Redis } from 'ioredis';
+import { v4 as uuidv4 } from 'uuid';
+import { Logger } from '../utils/logger.js';
+import { getSharedRedis } from '../infrastructure/redis/connection.js';
+import {
+  KanbanTask,
+  TaskNote,
+  TaskStatus,
+  TaskPriority,
+  CreateTaskInput,
+  UpdateTaskInput,
+  TaskEvent,
+  TaskFilter,
+  BoardSummary,
+  KANBAN_KEYS,
+  PRIORITY_SCORES,
+  DEFAULT_TASK_TTL,
+  COMPLETED_TASK_TTL,
+  MAX_EVENTS,
+} from './types.js';
+import { updateBoardTaskCount } from './board-store.js';
+
+const getRedis = getSharedRedis;
+
+function safeParseJsonArray(value: string | undefined): string[] {
+  try {
+    const parsed = JSON.parse(value || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function safeParseNotes(value: string | undefined): TaskNote[] | undefined {
+  try {
+    const parsed = JSON.parse(value || '[]');
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function safeParseInt(value: string | undefined, fallback?: number): number {
+  const parsed = parseInt(value || '', 10);
+  return isNaN(parsed) ? (fallback ?? 0) : parsed;
+}
+
+// ---------------------------------------------------------------------------
+// Per-task distributed lock — prevents lost updates from concurrent R-M-W
+// ---------------------------------------------------------------------------
+
+const TASK_LOCK_TTL_MS = 5000;
+const TASK_LOCK_MAX_RETRIES = parseInt(process.env.MCP_TASK_LOCK_RETRIES || '5', 10);
+const TASK_LOCK_RETRY_DELAY_MS = 50;
+
+/** Lua CAS delete: release lock only if we still own it */
+const LOCK_RELEASE_LUA = `if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end`;
+
+async function withTaskLock<T>(taskId: string, fn: () => Promise<T>): Promise<T> {
+  const client = await getRedis();
+  const lockKey = `mcp:kanban:lock:${taskId}`;
+  const lockValue = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+  for (let attempt = 0; attempt < TASK_LOCK_MAX_RETRIES; attempt++) {
+    const acquired = await client.set(lockKey, lockValue, 'PX', TASK_LOCK_TTL_MS, 'NX');
+    if (acquired === 'OK') {
+      try {
+        return await fn();
+      } finally {
+        await client.eval(LOCK_RELEASE_LUA, 1, lockKey, lockValue).catch(() => {});
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, TASK_LOCK_RETRY_DELAY_MS * (attempt + 1)));
+  }
+
+  Logger.warn(`[KanbanStore] Lock contention on task ${taskId}, proceeding without lock`);
+  return fn();
+}
+
+/**
+ * Create a new task on the Kanban board
+ *
+ * @description Creates a new task with the provided input, stores it in Redis,
+ *              sets up blocking relationships, and emits a task-created event
+ * @param {CreateTaskInput} input - Task creation parameters
+ * @param {string} input.sessionId - Session ID for the task
+ * @param {string} input.title - Task title (max 200 chars)
+ * @param {string} [input.description] - Detailed task description
+ * @param {TaskPriority} [input.priority='normal'] - Task priority level
+ * @param {string} input.createdBy - Agent ID creating the task
+ * @param {string[]} [input.blockedBy] - Task IDs that block this task
+ * @param {string[]} [input.relatedFiles] - Related file paths
+ * @param {string[]} [input.labels] - Task labels for categorization
+ * @param {number} [input.estimatedMinutes] - Estimated completion time
+ * @returns {Promise<KanbanTask>} The created task with generated ID and timestamps
+ *
+ * @example
+ * ```typescript
+ * const task = await createTask({
+ *   sessionId: 'session-123',
+ *   title: 'Implement authentication',
+ *   priority: 'high',
+ *   createdBy: 'agent-1',
+ *   labels: ['feature', 'auth'],
+ * });
+ * ```
+ */
+/** Maximum allowed lengths for task fields */
+const MAX_TITLE_LENGTH = 500;
+const MAX_DESCRIPTION_LENGTH = 10000;
+
+export async function createTask(input: CreateTaskInput): Promise<KanbanTask> {
+  // Validate input lengths
+  if (input.title.length > MAX_TITLE_LENGTH) {
+    throw new Error(`Task title exceeds maximum length (${MAX_TITLE_LENGTH} chars)`);
+  }
+  if (input.description && input.description.length > MAX_DESCRIPTION_LENGTH) {
+    throw new Error(`Task description exceeds maximum length (${MAX_DESCRIPTION_LENGTH} chars)`);
+  }
+
+  const client = await getRedis();
+
+  const taskId = uuidv4();
+  const now = Date.now();
+
+  const task: KanbanTask = {
+    id: taskId,
+    sessionId: input.sessionId,
+    boardId: input.boardId,
+    title: input.title,
+    description: input.description,
+    status: 'backlog',
+    priority: input.priority || 'normal',
+    createdBy: input.createdBy,
+    blockedBy: input.blockedBy || [],
+    blocks: [],
+    relatedFiles: input.relatedFiles || [],
+    labels: input.labels || [],
+    createdAt: now,
+    updatedAt: now,
+    estimatedMinutes: input.estimatedMinutes,
+    parentTaskId: input.parentTaskId,
+    subtaskIds: [],
+  };
+
+  // Calculate score for sorting (priority + time) — use integer math for ZSET consistency
+  const score = Math.floor(PRIORITY_SCORES[task.priority] * 1000000000 + (1000000000 - Math.floor(now / 1000)));
+
+  // Use pipeline to batch all task creation operations
+  const pipeline = client.pipeline();
+
+  pipeline.hset(KANBAN_KEYS.task(taskId), {
+    ...task,
+    blockedBy: JSON.stringify(task.blockedBy),
+    blocks: JSON.stringify(task.blocks),
+    relatedFiles: JSON.stringify(task.relatedFiles),
+    labels: JSON.stringify(task.labels),
+    subtaskIds: JSON.stringify(task.subtaskIds || []),
+    parentTaskId: task.parentTaskId || '',
+  });
+
+  // If this is a subtask, add it to parent's subtaskIds
+  if (input.parentTaskId) {
+    pipeline.sadd(KANBAN_KEYS.subtasks(input.parentTaskId), taskId);
+  }
+
+  pipeline.zadd(KANBAN_KEYS.tasks(input.sessionId), score, taskId);
+  pipeline.sadd(KANBAN_KEYS.byStatus(input.sessionId, 'backlog'), taskId);
+  pipeline.expire(KANBAN_KEYS.task(taskId), DEFAULT_TASK_TTL);
+
+  await pipeline.exec();
+
+  // Update board task count
+  if (input.boardId) {
+    await updateBoardTaskCount(input.boardId, 1);
+  }
+
+  // Emit event
+  await emitEvent({
+    type: 'task-created',
+    taskId,
+    agentId: input.createdBy,
+    sessionId: input.sessionId,
+    timestamp: now,
+    data: { title: task.title, priority: task.priority },
+  });
+
+  // Update blockedBy relationships
+  for (const blockingId of task.blockedBy) {
+    await addBlocksRelation(blockingId, taskId);
+  }
+
+  Logger.debug(`kanban: created task ${taskId}: ${task.title}`);
+
+  return task;
+}
+
+/**
+ * Retrieve a task by its unique identifier
+ *
+ * @description Fetches a task from Redis by ID, deserializing JSON fields
+ *              (blockedBy, blocks, relatedFiles, labels)
+ * @param {string} taskId - Unique task identifier (UUID)
+ * @returns {Promise<KanbanTask | null>} The task if found, null otherwise
+ *
+ * @example
+ * ```typescript
+ * const task = await getTask('550e8400-e29b-41d4-a716-446655440000');
+ * if (task) {
+ *   console.log(`Task: ${task.title}, Status: ${task.status}`);
+ * }
+ * ```
+ */
+export async function getTask(taskId: string): Promise<KanbanTask | null> {
+  const client = await getRedis();
+
+  const data = await client.hgetall(KANBAN_KEYS.task(taskId));
+
+  if (!data || Object.keys(data).length === 0) {
+    return null;
+  }
+
+  return {
+    id: data.id,
+    sessionId: data.sessionId,
+    boardId: data.boardId || undefined,
+    title: data.title,
+    description: data.description || undefined,
+    status: data.status as TaskStatus,
+    priority: data.priority as TaskPriority,
+    assignee: data.assignee || undefined,
+    createdBy: data.createdBy,
+    blockedBy: safeParseJsonArray(data.blockedBy),
+    blocks: safeParseJsonArray(data.blocks),
+    relatedFiles: safeParseJsonArray(data.relatedFiles),
+    labels: safeParseJsonArray(data.labels),
+    createdAt: safeParseInt(data.createdAt, 0),
+    updatedAt: safeParseInt(data.updatedAt, 0),
+    startedAt: data.startedAt ? safeParseInt(data.startedAt) : undefined,
+    completedAt: data.completedAt ? safeParseInt(data.completedAt) : undefined,
+    estimatedMinutes: data.estimatedMinutes ? safeParseInt(data.estimatedMinutes) : undefined,
+    actualMinutes: data.actualMinutes ? safeParseInt(data.actualMinutes) : undefined,
+    notes: data.notes ? safeParseNotes(data.notes) : undefined,
+    parentTaskId: data.parentTaskId || undefined,
+    subtaskIds: safeParseJsonArray(data.subtaskIds),
+  };
+}
+
+/**
+ * Update an existing task with new values
+ *
+ * @description Updates task fields, handles status transitions (emitting events),
+ *              manages blocking relationships, and persists changes to Redis
+ * @param {string} taskId - Unique task identifier
+ * @param {UpdateTaskInput} update - Fields to update
+ * @param {string} agentId - Agent ID performing the update
+ * @returns {Promise<KanbanTask | null>} Updated task or null if not found
+ * @throws {Error} Never throws - returns null on failure
+ *
+ * @example
+ * ```typescript
+ * const updated = await updateTask('task-123', {
+ *   status: 'in_progress',
+ *   priority: 'high',
+ * }, 'agent-1');
+ * ```
+ */
+export async function updateTask(
+  taskId: string,
+  update: UpdateTaskInput,
+  agentId: string
+): Promise<KanbanTask | null> {
+  return withTaskLock(taskId, async () => {
+  const client = await getRedis();
+
+  const task = await getTask(taskId);
+  if (!task) return null;
+
+  const now = Date.now();
+  const oldStatus = task.status;
+
+  // Apply updates
+  if (update.title !== undefined) task.title = update.title;
+  if (update.description !== undefined) task.description = update.description;
+  if (update.priority !== undefined) task.priority = update.priority;
+  if (update.assignee !== undefined) task.assignee = update.assignee || undefined;
+  if (update.relatedFiles !== undefined) task.relatedFiles = update.relatedFiles;
+  if (update.labels !== undefined) task.labels = update.labels;
+  if (update.estimatedMinutes !== undefined) task.estimatedMinutes = update.estimatedMinutes;
+
+  // Handle status change
+  let statusChanged = false;
+  if (update.status !== undefined && update.status !== oldStatus) {
+    task.status = update.status;
+    statusChanged = true;
+
+    // Handle status-specific updates (outside transaction - events should not be rolled back)
+    if (update.status === 'in_progress' && !task.startedAt) {
+      task.startedAt = now;
+      await emitEvent({
+        type: 'task-started',
+        taskId,
+        agentId,
+        sessionId: task.sessionId,
+        timestamp: now,
+      });
+    }
+
+    if (update.status === 'done') {
+      task.completedAt = now;
+      if (task.startedAt) {
+        task.actualMinutes = Math.round((now - task.startedAt) / 60000);
+      }
+    }
+  }
+
+  // Handle blockedBy changes (outside transaction - separate task updates)
+  if (update.blockedBy !== undefined) {
+    const oldBlockedBy = new Set(task.blockedBy);
+    const newBlockedBy = new Set(update.blockedBy);
+
+    // Check for circular dependencies before making any changes
+    for (const newId of newBlockedBy) {
+      if (!oldBlockedBy.has(newId)) {
+        const cyclePath = await detectDependencyCycle(taskId, newId);
+        if (cyclePath) {
+          const cycleStr = cyclePath.join(' -> ');
+          throw new Error(
+            `Circular dependency detected: ${cycleStr}. ` +
+            `Cannot add ${newId} as a blocker of ${taskId}.`
+          );
+        }
+      }
+    }
+
+    // Remove old relations
+    for (const old of oldBlockedBy) {
+      if (!newBlockedBy.has(old)) {
+        await removeBlocksRelation(old, taskId);
+      }
+    }
+
+    // Add new relations
+    for (const newId of newBlockedBy) {
+      if (!oldBlockedBy.has(newId)) {
+        await addBlocksRelation(newId, taskId);
+      }
+    }
+
+    task.blockedBy = update.blockedBy;
+  }
+
+  task.updatedAt = now;
+
+  // ATOMIC UPDATE: Use MULTI/EXEC for status indices and task data
+  // This ensures consistency between status indices and task data
+  const multi = client.multi();
+
+  if (statusChanged) {
+    // Update status indices atomically
+    multi.srem(KANBAN_KEYS.byStatus(task.sessionId, oldStatus), taskId);
+    multi.sadd(KANBAN_KEYS.byStatus(task.sessionId, task.status), taskId);
+
+    // Reset TTL when re-opening a done task (prevent premature expiry)
+    if (oldStatus === 'done' && task.status !== 'done') {
+      multi.expire(KANBAN_KEYS.task(taskId), DEFAULT_TASK_TTL);
+    }
+  }
+
+  // Update ZSET score when priority changes (keeps sorting consistent)
+  if (update.priority !== undefined) {
+    const newScore = Math.floor(PRIORITY_SCORES[task.priority] * 1000000000 + (1000000000 - Math.floor(task.createdAt / 1000)));
+    multi.zadd(KANBAN_KEYS.tasks(task.sessionId), newScore, taskId);
+  }
+
+  // Store updated task
+  multi.hset(KANBAN_KEYS.task(taskId), {
+    ...task,
+    blockedBy: JSON.stringify(task.blockedBy),
+    blocks: JSON.stringify(task.blocks),
+    relatedFiles: JSON.stringify(task.relatedFiles),
+    labels: JSON.stringify(task.labels),
+    assignee: task.assignee || '',
+    description: task.description || '',
+    startedAt: task.startedAt?.toString() || '',
+    completedAt: task.completedAt?.toString() || '',
+    estimatedMinutes: task.estimatedMinutes?.toString() || '',
+    actualMinutes: task.actualMinutes?.toString() || '',
+  });
+
+  // Set shorter TTL for completed tasks
+  if (task.status === 'done') {
+    multi.expire(KANBAN_KEYS.task(taskId), COMPLETED_TASK_TTL);
+  }
+
+  // Execute all operations atomically
+  // In ioredis v5 with async/await, exec() returns results directly or throws on error
+  await multi.exec();
+
+  // Emit events outside transaction (they shouldn't be rolled back)
+  if (statusChanged && task.status === 'done') {
+    await emitEvent({
+      type: 'task-completed',
+      taskId,
+      agentId,
+      sessionId: task.sessionId,
+      timestamp: now,
+      data: { actualMinutes: task.actualMinutes, title: task.title, assignee: task.assignee },
+    });
+  }
+
+  await emitEvent({
+    type: 'task-updated',
+    taskId,
+    agentId,
+    sessionId: task.sessionId,
+    timestamp: now,
+    data: update as unknown as Record<string, unknown>,
+  });
+
+  Logger.debug(`kanban: updated task ${taskId}`);
+
+  return task;
+  }); // withTaskLock
+}
+
+/**
+ * Claim a task for an agent (self-assignment)
+ *
+ * @description Allows an agent to claim an unassigned, unblocked task.
+ *              Sets the agent as assignee and transitions status to 'in_progress'.
+ *              Verifies blocking tasks are completed before allowing claim.
+ *              Uses atomic Lua script to prevent race conditions.
+ * @param {string} taskId - Task ID to claim
+ * @param {string} agentId - Agent ID claiming the task
+ * @returns {Promise<KanbanTask | null>} Claimed task or null if not found
+ * @throws {Error} If task is already assigned to another agent
+ * @throws {Error} If task is blocked by incomplete tasks
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   const task = await claimTask('task-123', 'agent-1');
+ *   console.log(`Claimed: ${task?.title}`);
+ * } catch (error) {
+ *   console.error('Cannot claim:', error.message);
+ * }
+ * ```
+ */
+export async function claimTask(taskId: string, agentId: string): Promise<KanbanTask | null> {
+  const client = await getRedis();
+
+  // Get task data for Lua script parameters.
+  // The actual validation (assignee, blockers) is done atomically inside the Lua script.
+  const task = await getTask(taskId);
+  if (!task) {
+    return null;
+  }
+
+  const now = Date.now();
+  const startedAt = task.startedAt || now;
+
+  // Build list of blocker task keys for Lua script
+  const blockerKeys = task.blockedBy.map((id) => KANBAN_KEYS.task(id));
+
+  // Atomically claim the task: check blockers + assignee + update in one script
+  const luaScript = `
+    local taskKey = KEYS[1]
+    local byAgentKey = KEYS[2]
+    local oldStatusKey = KEYS[3]
+    local newStatusKey = KEYS[4]
+    local agentId = ARGV[1]
+    local taskId = ARGV[2]
+    local now = ARGV[3]
+    local startedAt = ARGV[4]
+    local sessionId = ARGV[5]
+    local blockerCount = tonumber(ARGV[6])
+
+    -- Atomically check blocking tasks
+    for i = 1, blockerCount do
+      local blockerKey = ARGV[6 + i]
+      local blockerStatus = redis.call('hget', blockerKey, 'status')
+      if blockerStatus and blockerStatus ~= 'done' then
+        local blockerTitle = redis.call('hget', blockerKey, 'title') or 'unknown'
+        local blockerId = redis.call('hget', blockerKey, 'id') or 'unknown'
+        return {-2, blockerId, blockerTitle}
+      end
+    end
+
+    -- Check current assignee atomically
+    local currentAssignee = redis.call('hget', taskKey, 'assignee')
+
+    -- If already assigned to someone else, return error code
+    if currentAssignee and currentAssignee ~= '' and currentAssignee ~= agentId then
+      return {-1, currentAssignee}
+    end
+
+    -- If already assigned to this agent, return success (idempotent)
+    if currentAssignee == agentId then
+      return {1}
+    end
+
+    -- Atomically update task fields
+    redis.call('hset', taskKey, 'assignee', agentId)
+    redis.call('hset', taskKey, 'status', 'in_progress')
+    redis.call('hset', taskKey, 'updatedAt', now)
+    redis.call('hset', taskKey, 'startedAt', startedAt)
+
+    -- Update agent index
+    redis.call('sadd', byAgentKey, taskId)
+
+    -- Update status indices
+    redis.call('srem', oldStatusKey, taskId)
+    redis.call('sadd', newStatusKey, taskId)
+
+    return {0}
+  `;
+
+  const taskKey = KANBAN_KEYS.task(taskId);
+  const byAgentKey = KANBAN_KEYS.byAgent(agentId);
+  const oldStatusKey = KANBAN_KEYS.byStatus(task.sessionId, task.status);
+  const newStatusKey = KANBAN_KEYS.byStatus(task.sessionId, 'in_progress');
+
+  const result = (await client.eval(
+    luaScript,
+    4, // number of keys
+    taskKey,
+    byAgentKey,
+    oldStatusKey,
+    newStatusKey,
+    agentId,
+    taskId,
+    now.toString(),
+    startedAt.toString(),
+    task.sessionId,
+    blockerKeys.length.toString(),
+    ...blockerKeys
+  )) as [number, string?, string?];
+
+  const statusCode = result[0];
+
+  // Handle results
+  if (statusCode === -2) {
+    // Task is blocked by an incomplete task
+    const blockerId = result[1] as string;
+    const blockerTitle = result[2] as string;
+    throw new Error(`Task blocked by ${blockerId} (${blockerTitle})`);
+  }
+
+  if (statusCode === -1) {
+    // Task was assigned to someone else during our check
+    const otherAssignee = result[1] as string;
+    throw new Error(`Task already assigned to ${otherAssignee}`);
+  }
+
+  if (statusCode === 0 || statusCode === 1) {
+    // Success (0 = newly claimed, 1 = already claimed by this agent)
+    if (statusCode === 0) {
+      // Emit event only on actual claim (not idempotent re-claim)
+      await emitEvent({
+        type: 'task-claimed',
+        taskId,
+        agentId,
+        sessionId: task.sessionId,
+        timestamp: now,
+      });
+
+      Logger.debug(`kanban: agent ${agentId} claimed task ${taskId}`);
+    }
+
+    // Return updated task
+    return {
+      ...task,
+      assignee: agentId,
+      status: 'in_progress',
+      startedAt,
+      updatedAt: now,
+    };
+  }
+
+  // Unexpected result
+  throw new Error('Unexpected result from claim operation');
+}
+
+/**
+ * Assign a task to a specific agent (supervisor action)
+ *
+ * @description Supervisors can assign tasks to any agent, overriding current assignment.
+ *              Updates agent indices and emits task-assigned event.
+ * @param {string} taskId - Task ID to assign
+ * @param {string} assigneeId - Target agent ID to assign the task to
+ * @param {string} supervisorId - Supervisor agent ID making the assignment
+ * @returns {Promise<KanbanTask | null>} Assigned task or null if not found
+ *
+ * @example
+ * ```typescript
+ * const task = await assignTask('task-123', 'worker-agent', 'supervisor-agent');
+ * ```
+ */
+export async function assignTask(
+  taskId: string,
+  assigneeId: string,
+  supervisorId: string
+): Promise<KanbanTask | null> {
+  const task = await getTask(taskId);
+  if (!task) return null;
+
+  const client = await getRedis();
+
+  // Use MULTI/EXEC to atomically update assignee indices
+  const multi = client.multi();
+
+  if (task.assignee) {
+    multi.srem(KANBAN_KEYS.byAgent(task.assignee), taskId);
+  }
+
+  multi.sadd(KANBAN_KEYS.byAgent(assigneeId), taskId);
+
+  await multi.exec();
+
+  await emitEvent({
+    type: 'task-assigned',
+    taskId,
+    agentId: supervisorId,
+    sessionId: task.sessionId,
+    timestamp: Date.now(),
+    data: { assignee: assigneeId },
+  });
+
+  return updateTask(taskId, { assignee: assigneeId }, supervisorId);
+}
+
+/**
+ * List tasks from a session with optional filtering
+ *
+ * @description Retrieves tasks sorted by priority, applying optional filters
+ *              for status, priority, assignee, blocked state, and labels
+ * @param {string} sessionId - Session ID to list tasks from
+ * @param {TaskFilter} [filter] - Optional filter criteria
+ * @param {TaskStatus|TaskStatus[]} [filter.status] - Filter by status(es)
+ * @param {TaskPriority|TaskPriority[]} [filter.priority] - Filter by priority(ies)
+ * @param {string} [filter.assignee] - Filter by assigned agent
+ * @param {boolean} [filter.unassigned] - Show only unassigned tasks
+ * @param {boolean} [filter.blocked] - Filter by blocked state
+ * @param {string[]} [filter.labels] - Filter by labels (any match)
+ * @param {number} [limit=50] - Maximum number of tasks to return
+ * @returns {Promise<KanbanTask[]>} Array of matching tasks sorted by priority
+ *
+ * @example
+ * ```typescript
+ * // Get all high-priority unassigned tasks
+ * const tasks = await listTasks('session-123', {
+ *   priority: 'high',
+ *   unassigned: true,
+ *   blocked: false,
+ * });
+ * ```
+ */
+export async function listTasks(
+  sessionId: string,
+  filter?: TaskFilter,
+  limit: number = 50
+): Promise<KanbanTask[]> {
+  const client = await getRedis();
+
+  // Get all task IDs for session (sorted by priority)
+  const taskIds = await client.zrevrange(KANBAN_KEYS.tasks(sessionId), 0, limit * 2);
+
+  if (taskIds.length === 0) return [];
+
+  // Batch fetch all tasks using pipeline (eliminates N+1 queries)
+  const pipeline = client.pipeline();
+  for (const taskId of taskIds) {
+    pipeline.hgetall(KANBAN_KEYS.task(taskId));
+  }
+  const pipelineResults = await pipeline.exec();
+
+  const tasks: KanbanTask[] = [];
+
+  for (let i = 0; i < taskIds.length; i++) {
+    if (tasks.length >= limit) break;
+
+    const [err, data] = (pipelineResults?.[i] ?? [null, null]) as [Error | null, Record<string, string> | null];
+    if (err || !data || Object.keys(data).length === 0) continue;
+
+    const task: KanbanTask = {
+      id: data.id,
+      sessionId: data.sessionId,
+      boardId: data.boardId || undefined,
+      title: data.title,
+      description: data.description || undefined,
+      status: data.status as TaskStatus,
+      priority: data.priority as TaskPriority,
+      assignee: data.assignee || undefined,
+      createdBy: data.createdBy,
+      blockedBy: safeParseJsonArray(data.blockedBy),
+      blocks: safeParseJsonArray(data.blocks),
+      relatedFiles: safeParseJsonArray(data.relatedFiles),
+      labels: safeParseJsonArray(data.labels),
+      createdAt: safeParseInt(data.createdAt, 0),
+      updatedAt: safeParseInt(data.updatedAt, 0),
+      startedAt: data.startedAt ? safeParseInt(data.startedAt) : undefined,
+      completedAt: data.completedAt ? safeParseInt(data.completedAt) : undefined,
+      estimatedMinutes: data.estimatedMinutes ? safeParseInt(data.estimatedMinutes) : undefined,
+      actualMinutes: data.actualMinutes ? safeParseInt(data.actualMinutes) : undefined,
+      notes: data.notes ? safeParseNotes(data.notes) : undefined,
+    };
+
+    // Apply filters
+    if (filter) {
+      if (filter.status) {
+        const statuses = Array.isArray(filter.status) ? filter.status : [filter.status];
+        if (!statuses.includes(task.status)) continue;
+      }
+
+      if (filter.priority) {
+        const priorities = Array.isArray(filter.priority) ? filter.priority : [filter.priority];
+        if (!priorities.includes(task.priority)) continue;
+      }
+
+      if (filter.assignee && task.assignee !== filter.assignee) continue;
+
+      if (filter.unassigned && task.assignee) continue;
+
+      if (filter.blocked !== undefined) {
+        const isBlocked = task.blockedBy.length > 0;
+        if (filter.blocked !== isBlocked) continue;
+      }
+
+      if (filter.labels && filter.labels.length > 0) {
+        const hasLabel = filter.labels.some((l) => task.labels.includes(l));
+        if (!hasLabel) continue;
+      }
+
+      if (filter.createdBy && task.createdBy !== filter.createdBy) continue;
+
+      // Board ID filtering (multi-board support)
+      if (filter.boardId && task.boardId !== filter.boardId) continue;
+
+      if (filter.boardIds && filter.boardIds.length > 0) {
+        if (!task.boardId || !filter.boardIds.includes(task.boardId)) continue;
+      }
+    }
+
+    tasks.push(task);
+  }
+
+  return tasks;
+}
+
+/**
+ * Get comprehensive Kanban board summary statistics
+ *
+ * @description Aggregates task data to provide board overview including
+ *              counts by status/priority, agent workload, and recent activity
+ * @param {string} sessionId - Session ID to get summary for
+ * @returns {Promise<BoardSummary>} Board summary with statistics and recent events
+ *
+ * @example
+ * ```typescript
+ * const summary = await getBoardSummary('session-123');
+ * console.log(`Total: ${summary.totalTasks}, In Progress: ${summary.byStatus.in_progress}`);
+ * console.log(`Blocked: ${summary.blockedTasks}, Unassigned: ${summary.unassignedTasks}`);
+ * ```
+ */
+export async function getBoardSummary(sessionId: string): Promise<BoardSummary> {
+  const client = await getRedis();
+
+  const tasks = await listTasks(sessionId, undefined, 1000);
+
+  const byStatus: Record<TaskStatus, number> = {
+    backlog: 0,
+    in_progress: 0,
+    review: 0,
+    done: 0,
+  };
+
+  const byPriority: Record<TaskPriority, number> = {
+    critical: 0,
+    high: 0,
+    normal: 0,
+    low: 0,
+  };
+
+  const agentStats = new Map<string, { taskCount: number; inProgress: number }>();
+
+  let blockedTasks = 0;
+  let assignedTasks = 0;
+  let unassignedTasks = 0;
+
+  for (const task of tasks) {
+    byStatus[task.status]++;
+    byPriority[task.priority]++;
+
+    if (task.blockedBy.length > 0) blockedTasks++;
+
+    if (task.assignee) {
+      assignedTasks++;
+      const stats = agentStats.get(task.assignee) || { taskCount: 0, inProgress: 0 };
+      stats.taskCount++;
+      if (task.status === 'in_progress') stats.inProgress++;
+      agentStats.set(task.assignee, stats);
+    } else {
+      unassignedTasks++;
+    }
+  }
+
+  // Get recent events
+  const eventData = await client.lrange(KANBAN_KEYS.events(sessionId), 0, 9);
+  const recentActivity = eventData
+    .map((e) => { try { return JSON.parse(e) as TaskEvent; } catch { return null; } })
+    .filter((e): e is TaskEvent => e !== null);
+
+  return {
+    sessionId,
+    totalTasks: tasks.length,
+    byStatus,
+    byPriority,
+    blockedTasks,
+    assignedTasks,
+    unassignedTasks,
+    agents: Array.from(agentStats.entries()).map(([agentId, stats]) => ({
+      agentId,
+      ...stats,
+    })),
+    recentActivity,
+  };
+}
+
+/**
+ * Permanently delete a task from the Kanban board
+ *
+ * @description Removes task data, updates all indices, and cleans up
+ *              blocking relationships with other tasks
+ * @param {string} taskId - Task ID to delete
+ * @returns {Promise<boolean>} True if task was deleted, false if not found
+ *
+ * @example
+ * ```typescript
+ * const deleted = await deleteTask('task-123');
+ * if (deleted) {
+ *   console.log('Task removed');
+ * }
+ * ```
+ */
+export async function deleteTask(taskId: string): Promise<boolean> {
+  const client = await getRedis();
+
+  const task = await getTask(taskId);
+  if (!task) return false;
+
+  // Cascade delete subtasks first
+  const subtaskIds = task.subtaskIds || [];
+  if (subtaskIds.length > 0) {
+    for (const subtaskId of subtaskIds) {
+      try {
+        await deleteTask(subtaskId);
+      } catch (error) {
+        Logger.error(`kanban: failed to cascade-delete subtask ${subtaskId}: ${error}`);
+      }
+    }
+    // Clean up the subtasks SET for this parent
+    await client.del(KANBAN_KEYS.subtasks(taskId));
+  }
+
+  // If this task is a subtask, remove it from its parent's subtaskIds array and SET
+  if (task.parentTaskId) {
+    try {
+      const parentTask = await getTask(task.parentTaskId);
+      if (parentTask) {
+        const updatedSubtaskIds = (parentTask.subtaskIds || []).filter((id) => id !== taskId);
+        await client.hset(
+          KANBAN_KEYS.task(task.parentTaskId),
+          'subtaskIds',
+          JSON.stringify(updatedSubtaskIds),
+          'updatedAt',
+          Date.now().toString()
+        );
+      }
+      await client.srem(KANBAN_KEYS.subtasks(task.parentTaskId), taskId);
+    } catch (error) {
+      Logger.error(`kanban: failed to clean up parent reference for task ${taskId}: ${error}`);
+    }
+  }
+
+  // Use pipeline to batch all deletion operations
+  const pipeline = client.pipeline();
+
+  pipeline.del(KANBAN_KEYS.task(taskId));
+  pipeline.zrem(KANBAN_KEYS.tasks(task.sessionId), taskId);
+  pipeline.srem(KANBAN_KEYS.byStatus(task.sessionId, task.status), taskId);
+
+  if (task.assignee) {
+    pipeline.srem(KANBAN_KEYS.byAgent(task.assignee), taskId);
+  }
+
+  await pipeline.exec();
+
+  // Update board task count
+  if (task.boardId) {
+    await updateBoardTaskCount(task.boardId, -1);
+  }
+
+  // Remove blocking relationships
+  for (const blockerId of task.blockedBy) {
+    await removeBlocksRelation(blockerId, taskId);
+  }
+
+  for (const blockedId of task.blocks) {
+    const blockedTask = await getTask(blockedId);
+    if (blockedTask) {
+      const newBlockedBy = blockedTask.blockedBy.filter((id) => id !== taskId);
+      await updateTask(blockedId, { blockedBy: newBlockedBy }, 'system');
+    }
+  }
+
+  Logger.debug(`kanban: deleted task ${taskId}`);
+
+  return true;
+}
+
+/**
+ * Detect circular dependencies using depth-first search
+ *
+ * @description When adding "taskId blockedBy newBlockerId", checks if newBlockerId
+ *              is transitively blocked by taskId. If so, adding this dependency
+ *              would create a cycle (taskId -> newBlockerId -> ... -> taskId).
+ *              Traverses the blockedBy graph starting from newBlockerId.
+ * @param {string} taskId - The task that would become blocked
+ * @param {string} newBlockerId - The task that would become a blocker
+ * @returns {Promise<string[] | null>} The cycle path as task IDs if a cycle is detected,
+ *                                     or null if no cycle exists
+ *
+ * @example
+ * ```typescript
+ * // Task B is blockedBy C, and we want to add A blockedBy B.
+ * // Check: does B transitively depend on A? If B -> C -> A, then cycle: A -> B -> C -> A
+ * const cycle = await detectDependencyCycle('A', 'B');
+ * if (cycle) {
+ *   console.log(`Cycle: ${cycle.join(' -> ')}`);
+ * }
+ * ```
+ */
+export async function detectDependencyCycle(
+  taskId: string,
+  newBlockerId: string
+): Promise<string[] | null> {
+  // Self-dependency is trivially a cycle
+  if (taskId === newBlockerId) {
+    return [taskId, taskId];
+  }
+
+  const visited = new Set<string>();
+  const path: string[] = [taskId, newBlockerId];
+
+  async function dfs(currentId: string): Promise<boolean> {
+    if (currentId === taskId) {
+      return true; // Found cycle back to taskId
+    }
+
+    if (visited.has(currentId)) {
+      return false;
+    }
+    visited.add(currentId);
+
+    const currentTask = await getTask(currentId);
+    if (!currentTask) {
+      return false;
+    }
+
+    for (const blockerId of currentTask.blockedBy) {
+      path.push(blockerId);
+      if (await dfs(blockerId)) {
+        return true;
+      }
+      path.pop();
+    }
+
+    return false;
+  }
+
+  // Check if newBlockerId transitively depends on taskId
+  // by following newBlockerId's blockedBy chain
+  if (await dfs(newBlockerId)) {
+    return path;
+  }
+
+  return null;
+}
+
+/**
+ * Add a blocking relationship between two tasks
+ *
+ * @description Adds blockedId to the blocker task's "blocks" array,
+ *              establishing a dependency relationship
+ * @param {string} blockerId - Task ID that blocks another task
+ * @param {string} blockedId - Task ID that is being blocked
+ * @internal
+ */
+async function addBlocksRelation(blockerId: string, blockedId: string): Promise<void> {
+  const client = await getRedis();
+
+  const blocker = await getTask(blockerId);
+  if (blocker && !blocker.blocks.includes(blockedId)) {
+    blocker.blocks.push(blockedId);
+    await client.hset(KANBAN_KEYS.task(blockerId), 'blocks', JSON.stringify(blocker.blocks));
+  }
+}
+
+/**
+ * Remove a blocking relationship between two tasks
+ *
+ * @description Removes blockedId from the blocker task's "blocks" array
+ * @param {string} blockerId - Task ID that was blocking
+ * @param {string} blockedId - Task ID that was blocked
+ * @internal
+ */
+async function removeBlocksRelation(blockerId: string, blockedId: string): Promise<void> {
+  const client = await getRedis();
+
+  const blocker = await getTask(blockerId);
+  if (blocker) {
+    blocker.blocks = blocker.blocks.filter((id) => id !== blockedId);
+    await client.hset(KANBAN_KEYS.task(blockerId), 'blocks', JSON.stringify(blocker.blocks));
+  }
+}
+
+/**
+ * Emit a task event to Redis
+ *
+ * @description Stores event in the events list (capped at MAX_EVENTS)
+ *              and publishes to the Kanban Pub/Sub channel
+ * @param {TaskEvent} event - Event to emit
+ * @internal
+ */
+async function emitEvent(event: TaskEvent): Promise<void> {
+  const client = await getRedis();
+
+  // Store in kanban-specific event list (for getBoardSummary)
+  const pipeline = client.pipeline();
+  pipeline.lpush(KANBAN_KEYS.events(event.sessionId), JSON.stringify(event));
+  pipeline.ltrim(KANBAN_KEYS.events(event.sessionId), 0, MAX_EVENTS - 1);
+  await pipeline.exec();
+
+  // Emit to global event bus with Redis propagation
+  const { getGlobalEventBus } = await import('../events/global-bus.js');
+  const bus = getGlobalEventBus();
+
+  const globalType = `kanban:task:${event.type.replace('task-', '')}`;
+
+  bus.emit(
+    globalType,
+    {
+      taskId: event.taskId,
+      ...event.data as Record<string, unknown>,
+    },
+    {
+      sessionId: event.sessionId,
+      agentId: event.agentId,
+      sourceModule: 'kanban',
+    },
+    { publishToRedis: true },
+  );
+}
+
+/**
+ * Subscribe to real-time Kanban board events
+ *
+ * @description Creates a Redis Pub/Sub subscription for task events.
+ *              Returns an unsubscribe function for cleanup.
+ * @param {Function} callback - Function called with each TaskEvent
+ * @returns {Function} Unsubscribe function to stop receiving events
+ *
+ * @example
+ * ```typescript
+ * const unsubscribe = subscribeToEvents((event) => {
+ *   console.log(`Event: ${event.type} on task ${event.taskId}`);
+ * });
+ *
+ * // Later, to stop listening:
+ * unsubscribe();
+ * ```
+ */
+// Singleton subscriber to prevent connection leaks
+let sharedEventSubscriber: Redis | null = null;
+let _sharedEventSubscriberReady = false;
+const eventCallbacks = new Set<(event: TaskEvent) => void>();
+
+function ensureSharedSubscriber(): void {
+  if (sharedEventSubscriber) return;
+
+  try {
+    sharedEventSubscriber = new Redis({
+      host: process.env.REDIS_HOST || '127.0.0.1',
+      port: parseInt(process.env.REDIS_PORT || '6379'),
+      password: process.env.REDIS_PASSWORD || undefined,
+      db: 2,
+    });
+
+    sharedEventSubscriber.on('error', (error: Error) => {
+      Logger.error(`kanban: shared Redis subscriber error: ${error}`);
+    });
+
+    sharedEventSubscriber.subscribe(KANBAN_KEYS.channel, (error: Error | null | undefined) => {
+      if (error) {
+        Logger.error(`kanban: failed to subscribe to channel: ${error}`);
+        return;
+      }
+      _sharedEventSubscriberReady = true;
+    });
+
+    sharedEventSubscriber.on('message', (_channel: string, message: string) => {
+      try {
+        const event = JSON.parse(message) as TaskEvent;
+        eventCallbacks.forEach((cb) => cb(event));
+      } catch (error) {
+        Logger.error(`kanban: failed to parse event: ${error}`);
+      }
+    });
+  } catch (error) {
+    Logger.error(`kanban: failed to create shared Redis subscriber: ${error}`);
+    sharedEventSubscriber = null;
+  }
+}
+
+function cleanupSharedSubscriber(): void {
+  if (eventCallbacks.size > 0 || !sharedEventSubscriber) return;
+
+  try {
+    sharedEventSubscriber.disconnect();
+  } catch {
+    // Ignore disconnect errors
+  }
+  sharedEventSubscriber = null;
+  _sharedEventSubscriberReady = false;
+}
+
+export function subscribeToEvents(callback: (event: TaskEvent) => void): () => void {
+  ensureSharedSubscriber();
+  eventCallbacks.add(callback);
+
+  return () => {
+    eventCallbacks.delete(callback);
+    cleanupSharedSubscriber();
+  };
+}
+
+/**
+ * Get all tasks assigned to a specific agent
+ *
+ * @description Retrieves all tasks currently assigned to the given agent
+ *              across all sessions
+ * @param {string} agentId - Agent ID to get tasks for
+ * @returns {Promise<KanbanTask[]>} Array of tasks assigned to the agent
+ *
+ * @example
+ * ```typescript
+ * const myTasks = await getAgentTasks('agent-1');
+ * const inProgress = myTasks.filter(t => t.status === 'in_progress');
+ * ```
+ */
+export async function getAgentTasks(agentId: string): Promise<KanbanTask[]> {
+  const client = await getRedis();
+
+  const taskIds = await client.smembers(KANBAN_KEYS.byAgent(agentId));
+  const tasks: KanbanTask[] = [];
+
+  for (const taskId of taskIds) {
+    const task = await getTask(taskId);
+    if (task) tasks.push(task);
+  }
+
+  return tasks;
+}
+
+/**
+ * Get tasks available for claiming (unassigned, unblocked, in backlog)
+ *
+ * @description Convenience method to find tasks that agents can immediately
+ *              claim and start working on
+ * @param {string} sessionId - Session ID to search in
+ * @returns {Promise<KanbanTask[]>} Array of available tasks sorted by priority
+ *
+ * @example
+ * ```typescript
+ * const available = await getAvailableTasks('session-123');
+ * if (available.length > 0) {
+ *   await claimTask(available[0].id, 'agent-1');
+ * }
+ * ```
+ */
+export async function getAvailableTasks(sessionId: string): Promise<KanbanTask[]> {
+  return listTasks(sessionId, { unassigned: true, blocked: false, status: 'backlog' });
+}
+
+/**
+ * Add a note/comment to a task
+ *
+ * @description Appends a note to the task's notes array without overwriting
+ *              the description or any other field. Notes are stored as a
+ *              JSON-serialized array in the Redis HASH.
+ * @param {string} taskId - Task ID to add the note to
+ * @param {object} note - Note data
+ * @param {string} note.author - Author name or agent ID
+ * @param {string} note.content - Note content
+ * @returns {Promise<TaskNote>} The created note with generated ID and timestamp
+ * @throws {Error} If task is not found
+ *
+ * @example
+ * ```typescript
+ * const note = await addTaskNote('task-123', {
+ *   author: 'agent-1',
+ *   content: 'Encountered issue with auth middleware, switching approach.',
+ * });
+ * ```
+ */
+export async function addTaskNote(
+  taskId: string,
+  note: { author: string; content: string }
+): Promise<TaskNote> {
+  return withTaskLock(taskId, async () => {
+  const client = await getRedis();
+
+  const task = await getTask(taskId);
+  if (!task) throw new Error(`Task not found: ${taskId}`);
+
+  const newNote: TaskNote = {
+    id: `note_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    author: note.author,
+    content: note.content,
+    createdAt: Date.now(),
+  };
+
+  const notes = task.notes || [];
+  notes.push(newNote);
+
+  await client.hset(KANBAN_KEYS.task(taskId), {
+    notes: JSON.stringify(notes),
+    updatedAt: Date.now().toString(),
+  });
+
+  Logger.debug(`kanban: added note ${newNote.id} to task ${taskId}`);
+
+  return newNote;
+  }); // withTaskLock
+}
+
+/**
+ * Get all notes/comments for a task
+ *
+ * @description Retrieves the notes array from a task, returning an empty
+ *              array if the task has no notes.
+ * @param {string} taskId - Task ID to get notes for
+ * @returns {Promise<TaskNote[]>} Array of notes (empty if none)
+ * @throws {Error} If task is not found
+ *
+ * @example
+ * ```typescript
+ * const notes = await getTaskNotes('task-123');
+ * for (const note of notes) {
+ *   console.log(`[${note.author}]: ${note.content}`);
+ * }
+ * ```
+ */
+export async function getTaskNotes(taskId: string): Promise<TaskNote[]> {
+  const task = await getTask(taskId);
+  if (!task) throw new Error(`Task not found: ${taskId}`);
+
+  return task.notes || [];
+}
