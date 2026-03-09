@@ -25,7 +25,7 @@
 
 import RedisMock from 'ioredis-mock';
 import type { Redis } from 'ioredis';
-import { vi } from 'vitest';
+import { beforeEach, afterEach } from 'bun:test';
 
 /**
  * Performance metrics for a single benchmark run
@@ -386,11 +386,11 @@ export function suppressConsoleForPerformance() {
   const originalConsole = { ...console };
 
   beforeEach(() => {
-    console.log = vi.fn();
-    console.info = vi.fn();
-    console.warn = vi.fn();
-    console.error = vi.fn();
-    console.debug = vi.fn();
+    console.log = () => {};
+    console.info = () => {};
+    console.warn = () => {};
+    console.error = () => {};
+    console.debug = () => {};
   });
 
   afterEach(() => {

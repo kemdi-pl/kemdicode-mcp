@@ -16,7 +16,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'bun:test';
 import { ClusterBus, initClusterBus, shutdownClusterBus } from '../../src/cluster-bus/index.js';
 import { ClusterBusConfig, loadClusterBusConfig } from '../../src/cluster-bus/types.js';
 import type { CIMulticastPayloadType, CIResultPayloadType } from '../../src/cluster-bus/types.js';

@@ -25,7 +25,7 @@
  * Self-contained: imports real SignalFlowController (no Redis dependency).
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import {
   SignalFlowController,
   defaultLLMPolicy,

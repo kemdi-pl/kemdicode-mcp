@@ -22,7 +22,7 @@
  * Tests for Lorenz attractor orbital cycle detection and compression.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import {
   computeSimilarityMatrix,
   detectCycleRepetitions,

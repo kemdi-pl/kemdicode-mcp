@@ -29,7 +29,7 @@
  * - R4.10: Session lifecycle edge cases
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { AgentMonitor } from '../../src/context/agent-monitor.js';
 import { ContextStorage } from '../../src/context/storage.js';
 import { SessionManager } from '../../src/session/manager.js';
@@ -46,11 +46,11 @@ describe('Level 4 Resilience: Edge Cases and Boundary Conditions', () => {
 
   beforeEach(async () => {
     // Suppress console during tests
-    console.log = vi.fn();
-    console.info = vi.fn();
-    console.warn = vi.fn();
-    console.error = vi.fn();
-    console.debug = vi.fn();
+    console.log = () => {};
+    console.info = () => {};
+    console.warn = () => {};
+    console.error = () => {};
+    console.debug = () => {};
 
     mockRedis = new RedisMock({ data: {} }) as unknown as Redis;
     agentMonitor = new AgentMonitor({ db: 3 });

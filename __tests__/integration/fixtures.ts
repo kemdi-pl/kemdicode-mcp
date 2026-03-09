@@ -25,7 +25,7 @@
 
 import RedisMock from 'ioredis-mock';
 import type { Redis } from 'ioredis';
-import { vi } from 'vitest';
+// bun:test hooks loaded dynamically in suppressConsoleForIntegration()
 
 /**
  * Create a shared Redis mock for multi-agent scenarios
@@ -361,20 +361,24 @@ export const IntegrationIds = {
 };
 
 /**
- * Suppress console output during integration tests
+ * Suppress console output during integration tests.
+ * Uses bun:test APIs (beforeEach/afterEach must be imported by the caller).
  */
 export function suppressConsoleForIntegration() {
+  // Import bun:test hooks dynamically to avoid ReferenceError
+  // when this module is loaded outside of a test context
+  const { beforeEach: _beforeEach, afterEach: _afterEach } = require('bun:test');
   const originalConsole = { ...console };
 
-  beforeEach(() => {
-    console.log = vi.fn();
-    console.info = vi.fn();
-    console.warn = vi.fn();
-    console.error = vi.fn();
-    console.debug = vi.fn();
+  _beforeEach(() => {
+    console.log = () => {};
+    console.info = () => {};
+    console.warn = () => {};
+    console.error = () => {};
+    console.debug = () => {};
   });
 
-  afterEach(() => {
+  _afterEach(() => {
     console.log = originalConsole.log;
     console.info = originalConsole.info;
     console.warn = originalConsole.warn;

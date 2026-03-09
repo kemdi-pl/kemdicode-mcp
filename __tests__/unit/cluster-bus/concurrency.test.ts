@@ -25,7 +25,7 @@
  * Self-contained: uses real SignalFlowController (no Redis dependency).
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import {
   SignalFlowController,
 } from '../../../src/cluster-bus/signal-flow.js';

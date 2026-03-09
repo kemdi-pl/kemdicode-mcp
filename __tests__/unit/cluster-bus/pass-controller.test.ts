@@ -28,42 +28,12 @@
  * Self-contained: tests pure logic, mocks AI client for LLM calls.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-
-// We'll dynamically import to allow mocking
-let PassController: typeof import('../../../src/cluster-bus/pass-controller.js').PassController;
-let shouldSkipAssessment: typeof import('../../../src/cluster-bus/pass-controller.js').shouldSkipAssessment;
-let detectTaskBudget: typeof import('../../../src/cluster-bus/pass-controller.js').detectTaskBudget;
-
-// Mock AI client to avoid real LLM calls
-vi.mock('../../../src/ai/client.js', () => ({
-  complete: vi.fn().mockResolvedValue({
-    content: '{"minPasses": 2, "reasoning": "moderate complexity", "complexity": "moderate"}',
-    usage: { promptTokens: 100, completionTokens: 50 },
-  }),
-}));
-
-// Mock logger to suppress noise
-vi.mock('../../../src/utils/logger.js', () => ({
-  Logger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  },
-}));
-
-beforeEach(async () => {
-  vi.clearAllMocks();
-  const mod = await import('../../../src/cluster-bus/pass-controller.js');
-  PassController = mod.PassController;
-  shouldSkipAssessment = mod.shouldSkipAssessment;
-  detectTaskBudget = mod.detectTaskBudget;
-});
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
+import { describe, it, expect } from 'bun:test';
+import {
+  PassController,
+  shouldSkipAssessment,
+  detectTaskBudget,
+} from '../../../src/cluster-bus/pass-controller.js';
 
 // ---------------------------------------------------------------------------
 // shouldSkipAssessment

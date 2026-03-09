@@ -23,7 +23,7 @@
  * for consistent test patterns across the test suite.
  */
 
-import { vi, expect } from 'vitest';
+import { vi, expect } from 'bun:test';
 
 /**
  * Wait for a specified duration

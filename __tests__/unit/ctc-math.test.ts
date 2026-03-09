@@ -23,7 +23,7 @@
  * Closed Timelike Curves from General Relativity.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import {
   CTC,
   findCausalPast,

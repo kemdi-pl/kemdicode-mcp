@@ -30,7 +30,7 @@
  * - P3.10: Summary benchmarks
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { ContextStorage } from '../../src/context/storage.js';
 import {
   runBenchmark,

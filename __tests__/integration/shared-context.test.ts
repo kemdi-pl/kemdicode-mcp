@@ -32,7 +32,7 @@
  * - I2.15: Multi-server context sharing
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { ContextStorage } from '../../src/context/storage.js';
 import {
   createSharedRedisMock,

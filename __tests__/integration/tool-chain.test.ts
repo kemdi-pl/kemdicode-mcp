@@ -31,7 +31,7 @@
  * - I2.27: Cross-tool data flow
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { z } from 'zod';
 import { ContextStorage } from '../../src/context/storage.js';
 import {

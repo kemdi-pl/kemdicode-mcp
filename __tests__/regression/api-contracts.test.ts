@@ -31,7 +31,7 @@
  * - REG.10: Error handling contracts
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, spyOn } from 'bun:test';
 import { AgentMonitor } from '../../src/context/agent-monitor.js';
 import { ContextStorage } from '../../src/context/storage.js';
 import { SessionManager } from '../../src/session/manager.js';
@@ -47,11 +47,11 @@ describe('Level 5 Regression: API Contracts', () => {
   const originalConsole = { ...console };
 
   beforeEach(async () => {
-    console.log = vi.fn();
-    console.info = vi.fn();
-    console.warn = vi.fn();
-    console.error = vi.fn();
-    console.debug = vi.fn();
+    console.log = () => {};
+    console.info = () => {};
+    console.warn = () => {};
+    console.error = () => {};
+    console.debug = () => {};
 
     mockRedis = new RedisMock({ data: {} }) as unknown as Redis;
     agentMonitor = new AgentMonitor({ db: 3 });
@@ -294,7 +294,7 @@ describe('Level 5 Regression: API Contracts', () => {
       const disconnectedStorage = new ContextStorage({ db: 3 });
 
       // Prevent lazy connect by stubbing connect() to always fail
-      vi.spyOn(disconnectedStorage, 'connect').mockResolvedValue(false);
+      spyOn(disconnectedStorage, 'connect').mockResolvedValue(false);
 
       const result = await disconnectedStorage.saveContext({
         id: 'disconnect-contract',

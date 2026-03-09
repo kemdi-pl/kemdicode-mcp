@@ -24,7 +24,7 @@
  * - Request timeout via AbortController
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { aiModelsTool } from '../../src/tools/system/ai-models.tool.js';
 import { config } from '../../src/config/index.js';
 
@@ -42,7 +42,6 @@ describe('ai-models tool', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-    vi.restoreAllMocks();
   });
 
   it('blocks private/localhost base URLs (SSRF guard)', async () => {
@@ -52,7 +51,9 @@ describe('ai-models tool', () => {
     });
 
     // Even if fetch is mocked, it should not be called due to URL validation
-    globalThis.fetch = vi.fn(() => {
+    let fetchCalled = false;
+    globalThis.fetch = (() => {
+      fetchCalled = true;
       throw new Error('fetch should not be called');
     }) as unknown as typeof fetch;
 
@@ -60,7 +61,7 @@ describe('ai-models tool', () => {
 
     expect(out).toContain('Failed to fetch models:');
     expect(out).toContain('Invalid API base URL');
-    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(fetchCalled).toBe(false);
   });
 
   it('returns a timeout error message on AbortError', async () => {
@@ -70,7 +71,9 @@ describe('ai-models tool', () => {
     });
     config.set('timeouts', { safeExec: 5_000 });
 
-    globalThis.fetch = vi.fn(async () => {
+    let fetchCallCount = 0;
+    globalThis.fetch = (async () => {
+      fetchCallCount++;
       throw new DOMException('aborted', 'AbortError');
     }) as unknown as typeof fetch;
 
@@ -78,7 +81,7 @@ describe('ai-models tool', () => {
 
     expect(out).toContain('Failed to fetch models:');
     expect(out).toContain('timed out');
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(fetchCallCount).toBe(1);
   });
 
   it('formats model list when API returns data', async () => {
@@ -87,7 +90,7 @@ describe('ai-models tool', () => {
       apiKey: 'test-key',
     });
 
-    globalThis.fetch = vi.fn(async () => {
+    globalThis.fetch = (async () => {
       return {
         ok: true,
         status: 200,

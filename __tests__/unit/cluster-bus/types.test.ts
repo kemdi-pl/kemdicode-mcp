@@ -25,7 +25,7 @@
  * Self-contained: no Redis, no mocks.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import {
   parseMetaTag,
   serializeMetaTag,

@@ -29,7 +29,7 @@
  * - R4.5: Graceful degradation
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, spyOn } from 'bun:test';
 import { AgentMonitor } from '../../src/context/agent-monitor.js';
 import { ContextStorage } from '../../src/context/storage.js';
 import RedisMock from 'ioredis-mock';
@@ -44,11 +44,11 @@ describe('Level 4 Resilience: Error Handling', () => {
 
   beforeEach(async () => {
     // Suppress console during tests
-    console.log = vi.fn();
-    console.info = vi.fn();
-    console.warn = vi.fn();
-    console.error = vi.fn();
-    console.debug = vi.fn();
+    console.log = () => {};
+    console.info = () => {};
+    console.warn = () => {};
+    console.error = () => {};
+    console.debug = () => {};
 
     mockRedis = new RedisMock({ data: {} }) as unknown as Redis;
     agentMonitor = new AgentMonitor({ db: 3 });
@@ -110,7 +110,7 @@ describe('Level 4 Resilience: Error Handling', () => {
       const disconnectedStorage = new ContextStorage({ db: 3 });
 
       // Prevent lazy connect by stubbing connect() to always fail
-      vi.spyOn(disconnectedStorage, 'connect').mockResolvedValue(false);
+      spyOn(disconnectedStorage, 'connect').mockResolvedValue(false);
 
       const result = await disconnectedStorage.saveContext({
         id: 'test-1',
@@ -130,16 +130,17 @@ describe('Level 4 Resilience: Error Handling', () => {
 
     it('should handle Redis errors gracefully', async () => {
       // Create a mock that throws errors
+      const rejectRedis = () => Promise.reject(new Error('Redis error'));
       const failingRedis = {
-        hset: vi.fn().mockRejectedValue(new Error('Redis error')),
-        hget: vi.fn().mockRejectedValue(new Error('Redis error')),
-        zadd: vi.fn().mockRejectedValue(new Error('Redis error')),
-        zrange: vi.fn().mockRejectedValue(new Error('Redis error')),
-        smembers: vi.fn().mockRejectedValue(new Error('Redis error')),
-        sadd: vi.fn().mockRejectedValue(new Error('Redis error')),
-        expire: vi.fn().mockRejectedValue(new Error('Redis error')),
-        publish: vi.fn().mockRejectedValue(new Error('Redis error')),
-        del: vi.fn().mockResolvedValue(1),
+        hset: rejectRedis,
+        hget: rejectRedis,
+        zadd: rejectRedis,
+        zrange: rejectRedis,
+        smembers: rejectRedis,
+        sadd: rejectRedis,
+        expire: rejectRedis,
+        publish: rejectRedis,
+        del: async () => 1,
       } as unknown as Redis;
 
       (agentMonitor as unknown as { redis: unknown }).redis = failingRedis;
@@ -348,9 +349,10 @@ describe('Level 4 Resilience: Error Handling', () => {
 
   describe('R4.5: Graceful degradation', () => {
     it('should return empty list when Redis fails during list', async () => {
+      const rejectUnavailable = () => Promise.reject(new Error('Redis unavailable'));
       const failingRedis = {
-        smembers: vi.fn().mockRejectedValue(new Error('Redis unavailable')),
-        hgetall: vi.fn().mockRejectedValue(new Error('Redis unavailable')),
+        smembers: rejectUnavailable,
+        hgetall: rejectUnavailable,
       } as unknown as Redis;
 
       (agentMonitor as unknown as { redis: unknown }).redis = failingRedis;
@@ -360,9 +362,10 @@ describe('Level 4 Resilience: Error Handling', () => {
     });
 
     it('should return empty history when Redis fails during query', async () => {
+      const rejectUnavailable2 = () => Promise.reject(new Error('Redis unavailable'));
       const failingRedis = {
-        zrevrange: vi.fn().mockRejectedValue(new Error('Redis unavailable')),
-        zrangebyscore: vi.fn().mockRejectedValue(new Error('Redis unavailable')),
+        zrevrange: rejectUnavailable2,
+        zrangebyscore: rejectUnavailable2,
       } as unknown as Redis;
 
       (contextStorage as unknown as { redis: unknown }).redis = failingRedis;

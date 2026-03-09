@@ -32,7 +32,7 @@
  * - CB.10: Magistrale scoring & consensus algorithms
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // CB.1: BloomFilter Deduplication — Probabilistic Correctness

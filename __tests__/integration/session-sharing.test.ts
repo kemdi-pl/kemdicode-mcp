@@ -31,7 +31,7 @@
  * - I2.21: Session expiration and cleanup with active agents
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { SessionManager } from '../../src/session/manager.js';
 import { AgentMonitor } from '../../src/context/agent-monitor.js';
 import { ContextStorage } from '../../src/context/storage.js';

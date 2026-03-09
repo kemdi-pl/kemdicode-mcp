@@ -23,7 +23,7 @@
  * with realistic multi-phase thinking chain data to validate compaction quality.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { analyzePhases, type ThoughtInput as PhaseThought } from '../../src/cognition/phase-detector.js';
 import { analyzeOrbits, type ThoughtInput as OrbitThought } from '../../src/cognition/orbit-compressor.js';
 import { compactThinkingChain } from '../../src/cognition/ctc-math.js';

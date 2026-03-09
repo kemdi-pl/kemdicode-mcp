@@ -30,7 +30,7 @@
  * - REG.5: Performance thresholds too aggressive for mock Redis
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, spyOn } from 'bun:test';
 import { AgentMonitor } from '../../src/context/agent-monitor.js';
 import { ContextStorage } from '../../src/context/storage.js';
 import RedisMock from 'ioredis-mock';
@@ -50,11 +50,11 @@ describe('Level 5 Regression: Known Issues', () => {
 
   beforeEach(async () => {
     // Suppress console during tests
-    console.log = vi.fn();
-    console.info = vi.fn();
-    console.warn = vi.fn();
-    console.error = vi.fn();
-    console.debug = vi.fn();
+    console.log = () => {};
+    console.info = () => {};
+    console.warn = () => {};
+    console.error = () => {};
+    console.debug = () => {};
 
     mockRedis = new RedisMock({ data: {} }) as unknown as Redis;
     agentMonitor = new AgentMonitor({ db: 3 });
@@ -214,7 +214,7 @@ describe('Level 5 Regression: Known Issues', () => {
       const disconnectedStorage = new ContextStorage({ db: 3 });
 
       // Prevent lazy connect by stubbing connect() to always fail
-      vi.spyOn(disconnectedStorage, 'connect').mockResolvedValue(false);
+      spyOn(disconnectedStorage, 'connect').mockResolvedValue(false);
 
       const result = await disconnectedStorage.saveContext({
         id: 'disconnect-test',

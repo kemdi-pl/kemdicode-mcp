@@ -22,7 +22,7 @@
  * Tests for Poincaré section phase detection in thinking chains.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import {
   computeConsecutiveJSD,
   detectPhaseBoundaries,

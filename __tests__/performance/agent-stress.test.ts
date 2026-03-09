@@ -30,7 +30,7 @@
  * - P3.5: Benchmark summary
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { AgentMonitor } from '../../src/context/agent-monitor.js';
 import {
   runBenchmark,
