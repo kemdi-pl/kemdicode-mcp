@@ -225,7 +225,7 @@ export const clusterMagistraleTool: UnifiedTool<typeof schema> = {
         } : undefined,
         orchestrate: args.orchestrate ? (() => {
           // Build effective allowed tools list with auto-injected collaboration/kanban tools
-          let effectiveTools = args.orchestrateAllowedTools ? [...args.orchestrateAllowedTools] : undefined;
+          const effectiveTools = args.orchestrateAllowedTools ? [...args.orchestrateAllowedTools] : undefined;
 
           const collaborationTools = ['shared-thoughts', 'get-shared-context'];
           const kanbanTools = ['task', 'task-multi', 'board'];

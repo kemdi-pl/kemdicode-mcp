@@ -40,7 +40,7 @@ import type {
 import type { z } from 'zod';
 import type { ClusterBus } from './bus.js';
 import type { ClusterNode } from './types.js';
-import { listClusters, findByCapability } from './cluster-registry.js';
+import { listClusters } from './cluster-registry.js';
 import { getCustomEndpoint } from '../ai/providers/registry.js';
 import { tfidfCosineSimilarity } from '../cognition/ctc-math.js';
 import { analyzeOrbits } from '../cognition/orbit-compressor.js';
