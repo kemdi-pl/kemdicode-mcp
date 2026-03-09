@@ -44,7 +44,7 @@ const MAX_EVENT_CHAIN_DEPTH = 8;
 const DEFAULT_MAX_LISTENERS = (() => {
   const val = process.env.MCP_EVENT_MAX_LISTENERS;
   if (val) { const n = parseInt(val, 10); if (!isNaN(n) && n > 0) return n; }
-  return 100;
+  return 500;
 })();
 
 /** Max retry attempts for Redis bridge (env: MCP_EVENT_REDIS_RETRIES, default: 2) */
@@ -69,10 +69,10 @@ class GlobalEventBus {
   private subscriptionMeta = new Map<EventSubscription, { createdAt: number; lastInvokedAt: number; eventType: string; permanent: boolean }>();
   /** Periodic cleanup interval for idle subscriptions */
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
-  /** Idle subscription TTL: 60 minutes */
-  private readonly subscriptionIdleTtlMs = 60 * 60 * 1000;
-  /** Cleanup interval: every 10 minutes */
-  private readonly cleanupIntervalMs = 10 * 60 * 1000;
+  /** Idle subscription TTL (env: MCP_EVENT_IDLE_TTL_MS, default: 10 min) */
+  private readonly subscriptionIdleTtlMs = parseInt(process.env.MCP_EVENT_IDLE_TTL_MS || String(10 * 60 * 1000), 10);
+  /** Cleanup interval (env: MCP_EVENT_CLEANUP_MS, default: 2 min) */
+  private readonly cleanupIntervalMs = parseInt(process.env.MCP_EVENT_CLEANUP_MS || String(2 * 60 * 1000), 10);
 
   constructor(maxListeners?: number) {
     this.maxListeners = maxListeners ?? DEFAULT_MAX_LISTENERS;

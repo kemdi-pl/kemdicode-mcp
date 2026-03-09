@@ -37,7 +37,7 @@ const schema = z.object({
   maxTargets: z
     .number()
     .min(0)
-    .max(20)
+    .max(100)
     .default(3)
     .describe('Maximum clusters to dispatch to (0 = all matching)'),
   timeoutMs: z
@@ -124,6 +124,10 @@ const schema = z.object({
     .boolean()
     .default(true)
     .describe('Auto-add shared-thoughts + get-shared-context for inter-cluster communication (only when maxTargets > 1)'),
+  orchestrateFocusAreas: z
+    .array(z.string())
+    .optional()
+    .describe('Work partitioning: assign each cluster a focus area (e.g., ["security", "performance", "error-handling"]). Clusters without a focus get general analysis.'),
 });
 
 export const clusterMagistraleTool: UnifiedTool<typeof schema> = {
@@ -171,6 +175,20 @@ export const clusterMagistraleTool: UnifiedTool<typeof schema> = {
           orchestrateAllowedTools: ['find-definition', 'find-references', 'semantic-search'],
         },
         description: 'Orchestrated: cluster spawns a supervisor that uses tools to analyze code',
+      },
+      {
+        args: {
+          prompt: 'Audit this codebase for quality issues',
+          strategy: 'best-of-n',
+          maxTargets: 5,
+          orchestrate: true,
+          orchestrateAgent: 'plan',
+          orchestrateMaxIterations: 15,
+          orchestrateEnableKanban: true,
+          orchestrateEnableCollaboration: true,
+          orchestrateFocusAreas: ['security vulnerabilities', 'performance bottlenecks', 'error handling gaps', 'race conditions', 'memory leaks'],
+        },
+        description: 'Work partitioning: 5 clusters each focus on a different quality aspect',
       },
     ],
     relatedTools: ['cluster-bus-status', 'cluster-bus-send', 'cluster-bus-topology'],
@@ -233,6 +251,7 @@ export const clusterMagistraleTool: UnifiedTool<typeof schema> = {
             allowedTools: effectiveTools,
             enableCognition: args.orchestrateEnableCognition,
             isMultiCluster: args.maxTargets > 1,
+            focusAreas: args.orchestrateFocusAreas,
           };
         })() : undefined,
       });

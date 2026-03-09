@@ -317,6 +317,22 @@ export const LLMRequestPayload = z.object({
         .boolean()
         .default(false)
         .describe('Hint: multiple clusters are working in parallel (enables collaboration nudges)'),
+      totalClusters: z
+        .number()
+        .optional()
+        .describe('Total number of clusters in this dispatch'),
+      clusterIndex: z
+        .number()
+        .optional()
+        .describe('0-based index of this cluster within the dispatch'),
+      clusterFocus: z
+        .string()
+        .optional()
+        .describe('Assigned focus area for this cluster (work partitioning)'),
+      focusAreas: z
+        .array(z.string())
+        .optional()
+        .describe('Focus areas for work partitioning (one per cluster)'),
     })
     .optional()
     .describe('Full agentic orchestration — cluster spawns a supervisor that reasons + calls tools autonomously'),

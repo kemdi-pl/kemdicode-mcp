@@ -119,10 +119,10 @@ export class SignalFlowController {
   private readonly circuitFailureThreshold = 10;
   /** Burst detection: sliding window size in ms */
   private readonly burstWindowMs = 500;
-  /** Max sliding window entries per channel (prevents unbounded growth) */
-  private readonly maxSlidingWindowSize = 500;
-  /** Max channel states to track (LRU eviction beyond this) */
-  private readonly maxChannelStates = 5000;
+  /** Max sliding window entries per channel (env: MCP_MAX_SLIDING_WINDOW, default: 500) */
+  private readonly maxSlidingWindowSize = parseInt(process.env.MCP_MAX_SLIDING_WINDOW || '500', 10);
+  /** Max channel states to track — LRU eviction beyond this (env: MCP_MAX_CHANNEL_STATES, default: 50000) */
+  private readonly maxChannelStates = parseInt(process.env.MCP_MAX_CHANNEL_STATES || '50000', 10);
   /** Periodic cleanup interval for sliding windows */
   private slidingWindowCleanupInterval: ReturnType<typeof setInterval> | null = null;
 

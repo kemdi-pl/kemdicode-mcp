@@ -76,7 +76,7 @@ function safeParseInt(value: string | undefined, fallback?: number): number {
 // ---------------------------------------------------------------------------
 
 const TASK_LOCK_TTL_MS = 5000;
-const TASK_LOCK_MAX_RETRIES = 3;
+const TASK_LOCK_MAX_RETRIES = parseInt(process.env.MCP_TASK_LOCK_RETRIES || '5', 10);
 const TASK_LOCK_RETRY_DELAY_MS = 50;
 
 /** Lua CAS delete: release lock only if we still own it */

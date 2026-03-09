@@ -416,8 +416,8 @@ export const DEFAULT_TASK_TTL = 7 * 24 * 60 * 60;
 /** Completed task TTL (1 day) */
 export const COMPLETED_TASK_TTL = 24 * 60 * 60;
 
-/** Max events to keep per session */
-export const MAX_EVENTS = 100;
+/** Max events to keep per session (env: MCP_MAX_KANBAN_EVENTS, default: 1000) */
+export const MAX_EVENTS = parseInt(process.env.MCP_MAX_KANBAN_EVENTS || '1000', 10);
 
 // ============================================================================
 // WORKSPACE & BOARD TYPES (Multi-Board Kanban Extension)

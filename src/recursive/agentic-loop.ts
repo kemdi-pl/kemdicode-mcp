@@ -267,6 +267,15 @@ export interface AgenticLoopConfig {
 
   /** Hint: this orchestration runs alongside other clusters (enables collaboration nudges) */
   isMultiCluster?: boolean;
+
+  /** Total number of clusters in this dispatch (for collaboration scaling) */
+  totalClusters?: number;
+
+  /** Cluster index (0-based) within the dispatch — used for work partitioning */
+  clusterIndex?: number;
+
+  /** Assigned focus area for this cluster (from work partitioning) */
+  clusterFocus?: string;
 }
 
 export interface ToolCall {
@@ -628,51 +637,96 @@ Always use sessionId="${sessionId}" and agentId="${agentId}" in cognitive tool c
   if (config.agent) {
     const agentConfig = getAgentConfig(config.agent);
     if (agentConfig) {
-      agentExpertise = `\n\n## Your Expertise\n${agentConfig.systemPrompt}`;
+      agentExpertise = `\n\n## Your Role\n${agentConfig.systemPrompt}`;
     }
   }
 
-  // List available tools so LLM knows what it can use
+  // List available tools with budget and phase milestones
   let toolListing = '';
   if (toolNames && toolNames.length > 0) {
-    const budgetNote = maxIterations ? ` You have a budget of ${maxIterations} tool-call iterations — use them all for thorough analysis. Do NOT stop early.` : '';
-    toolListing = `\n\n## Available Tools\nYou have access to exactly ${toolNames.length} tools: ${toolNames.join(', ')}.${budgetNote}\nUse different tools to gather different types of information. Calling the same tool with different arguments is encouraged (e.g., multiple searches, multiple task creates).`;
+    const budget = maxIterations ?? 10;
+    const phase1End = Math.max(2, Math.floor(budget * 0.3));
+    const phase2End = Math.max(phase1End + 2, Math.floor(budget * 0.7));
+
+    toolListing = `\n\n## Available Tools (${toolNames.length})
+${toolNames.join(', ')}
+
+## Budget: ${budget} iterations — use ALL of them
+- Iterations 1-${phase1End}: EXPLORE — use search/read tools to scan broadly
+- Iterations ${phase1End + 1}-${phase2End}: ANALYZE — use different queries, dig into suspicious areas
+- Iterations ${phase2End + 1}-${budget}: RECORD — create tasks for each finding, share thoughts, synthesize
+
+CRITICAL: You must call tools in EVERY iteration until your budget runs out. Do NOT give a final answer before iteration ${phase2End}. Each iteration should use a DIFFERENT tool or the SAME tool with DIFFERENT arguments.`;
+  }
+
+  // Work partitioning for multi-cluster
+  let focusSection = '';
+  if (config.clusterFocus) {
+    focusSection = `\n\n## Your Assigned Focus
+You have been assigned a SPECIFIC area to investigate: **${config.clusterFocus}**
+Focus your searches and analysis on this area. Other clusters are covering other areas.
+Do NOT investigate areas outside your focus — trust other clusters to handle theirs.`;
   }
 
   let collaborationSection = '';
   if (config.isMultiCluster) {
+    const totalClusters = config.totalClusters ?? 2;
+    const clusterIdx = config.clusterIndex ?? 0;
+
+    // Adaptive collaboration frequency based on cluster count
+    // 2-5 clusters: share every 4 iterations
+    // 6-20 clusters: share every 6 iterations
+    // 20+: share every 8 iterations (reduce Redis pressure)
+    const shareFreq = totalClusters <= 5 ? 4 : totalClusters <= 20 ? 6 : 8;
+
     collaborationSection = `
 
-## Collaboration
-You are one of MULTIPLE agents working on this task in parallel. Other agents are investigating the same codebase simultaneously.
-- Use "shared-thoughts" to PUBLISH your key findings so other agents can see them.
-- Use "get-shared-context" to READ what other agents have found — build on their work, don't duplicate it.
-- Use "task" tool with action "create" to record EACH confirmed finding as a SEPARATE kanban task. Call it multiple times with different arguments — one task per finding.
-- Publish findings EARLY (after 3-4 iterations) so other agents benefit.`;
+## Collaboration (you are cluster ${clusterIdx + 1} of ${totalClusters})
+You are one of ${totalClusters} agents working in parallel.
+
+### How to collaborate:
+1. **PUBLISH findings** with "shared-thoughts": call it after every ${shareFreq} iterations with a summary of what you found.
+   Example: shared-thoughts with thought="Found race condition in bus.ts:245 — concurrent send() calls can interleave correlationIds"
+2. **READ others' findings** with "get-shared-context": call it at iteration ${Math.max(3, shareFreq)} and before your final answer.
+3. **RECORD each finding** with "task" (action="create"): create ONE task per finding. You should create at least 3-5 tasks for a thorough investigation.
+
+### Task creation pattern (call "task" with these args):
+\`\`\`json
+{"action": "create", "title": "[FINDING] Short description", "description": "Detailed explanation with file:line references", "priority": "high"}
+\`\`\`
+Call "task" multiple times with different titles — one per distinct finding. Do NOT batch findings into a single task.`;
+  } else if (toolNames?.includes('task')) {
+    // Single cluster but kanban is enabled
+    collaborationSection = `
+
+## Recording Findings
+Use the "task" tool (action="create") to record each finding as a separate kanban task.
+You should create at least 3 tasks for a thorough investigation.
+
+### Task creation pattern:
+\`\`\`json
+{"action": "create", "title": "[FINDING] Short description", "description": "Detailed explanation with file:line references", "priority": "high"}
+\`\`\`
+Call "task" MULTIPLE times — one task per finding. Each task should have a DIFFERENT title describing a specific issue.`;
   }
 
-  return `You are an autonomous tool-calling agent. You MUST use the provided tools to gather information — NEVER guess or make up answers.
-${agentExpertise}${toolListing}
+  return `You are an autonomous tool-calling agent. You MUST use the provided tools to gather information — NEVER guess or fabricate results.
+${agentExpertise}${toolListing}${focusSection}
 
 ## Workflow
-1. PLAN: Read your task carefully. Identify what information you need and which tools to use.
-2. EXECUTE: Call tools one step at a time. After each result, decide the NEXT different action.
-3. DIG DEEPER: If initial results seem clean or incomplete, search with different queries and angles. Be skeptical — look harder.
-4. COLLABORATE: Share findings and check what other agents found (if in multi-agent mode).
-5. SYNTHESIZE: Only after exhausting your investigation, provide your final answer.
-
-IMPORTANT: Never call the same tool with the SAME arguments more than once — you already have that result. However, calling the same tool with DIFFERENT arguments is fine and encouraged (e.g., creating multiple tasks, searching for different queries).
-Only provide your final answer (plain text, no tool calls) after you have thoroughly investigated using most of your iteration budget.
-${cognitiveSection}${collaborationSection}${subAgentInstr}
+1. EXPLORE: Scan the codebase broadly using search/read tools with varied queries.
+2. ANALYZE: When you find something interesting, dig deeper — read the full function, check callers, look for edge cases.
+3. RECORD: For EACH distinct finding, create a separate kanban task AND share via collaboration tools.
+4. SYNTHESIZE: Only after using most of your iteration budget AND recording all findings, provide your final answer.
 
 ## Rules
 - ALWAYS call tools to gather information — never fabricate results.
-- Vary your tool usage — don't repeat identical calls.
-- Calling the same tool with different arguments is OK (e.g., multiple task creates, different search queries).
-- Be thorough but efficient.
-- When done, respond with your final answer as plain text.
-- NEVER write truncated content to files. If a file-read result was truncated, re-read it with a smaller line range.
-- When using file-write, ALWAYS write the COMPLETE file content — never include "... (truncated" markers.`;
+- NEVER call the same tool with the SAME arguments twice — you already have that result.
+- Calling the same tool with DIFFERENT arguments is expected and encouraged.
+- Use your FULL iteration budget. Do NOT stop early.
+- When done, respond with your final answer as plain text (no tool calls).
+- NEVER write truncated content to files.
+${cognitiveSection}${collaborationSection}${subAgentInstr}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1084,19 +1138,26 @@ async function executeWithFunctionCalling(
         }
       }
 
-      // Collaboration nudge: remind multi-cluster agents to share and read findings
-      if (config.isMultiCluster && iteration > 0 && iteration % 5 === 0) {
-        const hasSharedThoughts = toolNames.includes('shared-thoughts');
-        const hasGetContext = toolNames.includes('get-shared-context');
-        if (hasSharedThoughts || hasGetContext) {
-          const actions = [];
-          if (hasSharedThoughts) actions.push('use "shared-thoughts" to publish your findings so far');
-          if (hasGetContext) actions.push('use "get-shared-context" to check what other agents have discovered');
-          messages.push({
-            role: 'user',
-            content: `COLLABORATION CHECK (iteration ${iteration}/${maxIterations}): Other agents are working in parallel. ${actions.join(' and ')}. Build on their work — don't duplicate effort.`,
-          });
-          progress(`Collaboration nudge at iteration ${iteration}`);
+      // Collaboration nudge: adaptive frequency based on cluster count
+      if (config.isMultiCluster && iteration > 0) {
+        const totalClusters = config.totalClusters ?? 2;
+        // Scale nudge frequency: 2-5 clusters → every 4, 6-20 → every 6, 20+ → every 8
+        const nudgeFreq = totalClusters <= 5 ? 4 : totalClusters <= 20 ? 6 : 8;
+        if (iteration % nudgeFreq === 0) {
+          const hasSharedThoughts = toolNames.includes('shared-thoughts');
+          const hasGetContext = toolNames.includes('get-shared-context');
+          const hasTask = toolNames.includes('task');
+          if (hasSharedThoughts || hasGetContext || hasTask) {
+            const actions = [];
+            if (hasSharedThoughts) actions.push('publish your findings with "shared-thoughts"');
+            if (hasGetContext) actions.push('check others\' work with "get-shared-context"');
+            if (hasTask) actions.push('record each finding with "task" (action="create") — one task per issue');
+            messages.push({
+              role: 'user',
+              content: `CHECKPOINT (iteration ${iteration}/${maxIterations}): ${actions.join('. ')}. How many tasks have you created so far? If fewer than 3, search harder.`,
+            });
+            progress(`Collaboration nudge at iteration ${iteration} (freq=${nudgeFreq})`);
+          }
         }
       }
 

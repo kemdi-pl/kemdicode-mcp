@@ -271,6 +271,9 @@ export async function initClusterBusSystem(): Promise<boolean> {
               enableCognition: orchConfig.enableCognition ?? false,
               useFunctionCalling: true,
               isMultiCluster: orchConfig.isMultiCluster ?? false,
+              totalClusters: orchConfig.totalClusters,
+              clusterIndex: orchConfig.clusterIndex,
+              clusterFocus: orchConfig.clusterFocus,
               timeoutMs: Math.min(payload.orchestrate!.maxIterations ?? 10, 30) * 15_000, // ~15s per iteration budget
             });
 

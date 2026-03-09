@@ -80,6 +80,14 @@ export interface MagistraleConfig {
     blockedTools?: string[];
     enableCognition: boolean;
     isMultiCluster?: boolean;
+    /** Focus areas for work partitioning — each cluster gets one. If fewer areas than clusters, extras get general focus. */
+    focusAreas?: string[];
+    /** Total number of clusters in dispatch (set by dispatcher) */
+    totalClusters?: number;
+    /** 0-based index of this cluster in the dispatch (set by dispatcher) */
+    clusterIndex?: number;
+    /** Assigned focus area for this cluster (set by dispatcher from focusAreas) */
+    clusterFocus?: string;
   };
   /** System prompt override for LLM calls */
   systemPrompt?: string;
@@ -153,11 +161,11 @@ const DEFAULT_CONFIG: MagistraleConfig = {
   minResponses: 1,
 };
 
-/** Resource quota: max concurrent dispatches per magistrale instance */
-const MAX_CONCURRENT_DISPATCHES = 10;
+/** Resource quota: max concurrent dispatches per magistrale instance (env: MCP_MAX_CONCURRENT_DISPATCHES) */
+const MAX_CONCURRENT_DISPATCHES = parseInt(process.env.MCP_MAX_CONCURRENT_DISPATCHES || '50', 10);
 
-/** Resource quota: max total pending results across all dispatches */
-const MAX_TOTAL_PENDING_RESULTS = 50;
+/** Resource quota: max total pending results across all dispatches (env: MCP_MAX_PENDING_RESULTS) */
+const MAX_TOTAL_PENDING_RESULTS = parseInt(process.env.MCP_MAX_PENDING_RESULTS || '200', 10);
 
 // ---------------------------------------------------------------------------
 // LLMMagistrale
@@ -408,22 +416,40 @@ export class LLMMagistrale {
       // before dispatching to remote clusters to save tokens
       const compressedPrompt = compressPromptForDispatch(prompt);
 
-      const payload: SignalPayloadMap['llm:request'] = {
-        prompt: compressedPrompt,
-        model: modelSpec,
-        passConfig: cfg.passConfig,
-        agentIteration: cfg.agentIteration,
-        orchestrate: cfg.orchestrate ? {
-          ...cfg.orchestrate,
-          isMultiCluster: cfg.orchestrate.isMultiCluster ?? targets.length > 1,
-        } : undefined,
-        systemPrompt: cfg.systemPrompt,
-        temperature: cfg.temperature,
-        maxTokens: cfg.maxTokens,
-      };
+      const baseOrchestrate = cfg.orchestrate ? {
+        ...cfg.orchestrate,
+        isMultiCluster: cfg.orchestrate.isMultiCluster ?? targets.length > 1,
+        totalClusters: targets.length,
+      } : undefined;
 
       const sendTimeoutMs = Math.min(timeoutMs, 10000); // max 10s per send
-      for (const target of targets) {
+      for (let targetIdx = 0; targetIdx < targets.length; targetIdx++) {
+        const target = targets[targetIdx];
+
+        // Per-cluster orchestrate with work partitioning
+        let orchPayload = baseOrchestrate;
+        if (baseOrchestrate) {
+          const focusAreas = cfg.orchestrate?.focusAreas;
+          const clusterFocus = focusAreas && targetIdx < focusAreas.length
+            ? focusAreas[targetIdx]
+            : undefined;
+          orchPayload = {
+            ...baseOrchestrate,
+            clusterIndex: targetIdx,
+            clusterFocus,
+          };
+        }
+
+        const payload: SignalPayloadMap['llm:request'] = {
+          prompt: compressedPrompt,
+          model: modelSpec,
+          passConfig: cfg.passConfig,
+          agentIteration: cfg.agentIteration,
+          orchestrate: orchPayload,
+          systemPrompt: cfg.systemPrompt,
+          temperature: cfg.temperature,
+          maxTokens: cfg.maxTokens,
+        };
         // Per-target model spec: use the cluster's connectedProviders if no explicit model
         let targetPayload = payload;
         if (!modelSpec && target.connectedProviders.length > 0) {

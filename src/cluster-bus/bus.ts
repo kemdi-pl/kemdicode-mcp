@@ -149,23 +149,23 @@ export class ClusterBus {
   private subscriber: Redis | null = null;
   private subscriptions = new Map<string, Subscription>();
   /** Bloom filter for fast signal dedup (probabilistic, ~0.1% false positive at 20K items) */
-  private bloomFilter = new BloomFilter(20000, 0.001);
-  /** Small exact-match set for recent signals (prevents bloom filter false positives) */
+  private bloomFilter = new BloomFilter(parseInt(process.env.MCP_BLOOM_EXPECTED || '100000', 10), 0.001);
+  /** Exact-match set for recent signals — prevents bloom filter false positives (env: MCP_BLOOM_MAX_RECENT) */
   private recentSignals = new Set<string>();
-  private readonly maxRecent = 2000;
+  private readonly maxRecent = parseInt(process.env.MCP_BLOOM_MAX_RECENT || '10000', 10);
   /** Generation counter — bloom filter resets every N signals to bound FP rate */
   private bloomGeneration = 0;
-  private readonly bloomResetThreshold = 15000;
+  private readonly bloomResetThreshold = parseInt(process.env.MCP_BLOOM_RESET_THRESHOLD || '100000', 10);
   private signalHistory: ClusterSignal[] = [];
   private _connected = false;
   /** Subscription cleanup interval */
   private subscriptionCleanupInterval: ReturnType<typeof setInterval> | null = null;
   /** Periodic queue drain interval — processes backpressured signals */
   private queueDrainInterval: ReturnType<typeof setInterval> | null = null;
-  /** Default subscription TTL: 30 minutes */
-  private readonly defaultSubscriptionTtlMs = 30 * 60 * 1000;
-  /** Cleanup interval: every 5 minutes */
-  private readonly subscriptionCleanupIntervalMs = 5 * 60 * 1000;
+  /** Default subscription TTL (env: MCP_SUB_TTL_MS, default: 5 min) */
+  private readonly defaultSubscriptionTtlMs = parseInt(process.env.MCP_SUB_TTL_MS || String(5 * 60 * 1000), 10);
+  /** Cleanup interval (env: MCP_SUB_CLEANUP_MS, default: 1 min) */
+  private readonly subscriptionCleanupIntervalMs = parseInt(process.env.MCP_SUB_CLEANUP_MS || String(60 * 1000), 10);
 
   /** Loopback depth guard — prevents infinite local signal loops */
   private loopbackDepth = 0;
