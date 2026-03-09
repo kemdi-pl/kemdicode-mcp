@@ -1,6 +1,6 @@
 {
   "name": "kemdicode-mcp",
-  "version": "4.5.0",
+  "version": "4.6.0",
   "description": "Model Context Protocol (MCP) server with 62 tools for AI cognition, thinking chains, multi-agent coordination, kanban task management, and Lorenz-inspired context compaction",
   "type": "module",
   "main": "dist/index.js",
@@ -97,7 +97,7 @@
     "@anthropic-ai/sdk": "0.78.0",
     "@google/genai": "1.44.0",
     "@modelcontextprotocol/sdk": "1.27.1",
-    "@openai/agents": "0.5.4",
+    "@openai/agents": "^0.6.0",
     "@vscode/vscode-languagedetection": "1.0.23",
     "commander": "14.0.3",
     "ioredis": "5.10.0",

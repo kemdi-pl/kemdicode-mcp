@@ -17,7 +17,7 @@
  */
 
 /**
- * Agent Tools — Consolidated (v4.5.0)
+ * Agent Tools — Consolidated (v4.6.0)
  *
  * 10 tools consolidated into 3:
  * - agent: register, list, init, summary, rank (was 5 separate tools)

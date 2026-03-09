@@ -17,7 +17,7 @@
  */
 
 /**
- * Code Intelligence Tools Module — v4.5.0
+ * Code Intelligence Tools Module — v4.6.0
  *
  * Kept: find-definition (AST), find-references (AST), semantic-search (AI)
  * Removed: find-symbols, code-outline, insert-before/after-symbol, rename-symbol
