@@ -1091,6 +1091,13 @@ export async function executeTool(
   let isError = false;
 
   try {
+    // Enforce maximum input payload size to prevent DoS via oversized arguments
+    const MAX_INPUT_SIZE = 2 * 1024 * 1024; // 2MB
+    const inputSize = JSON.stringify(args).length;
+    if (inputSize > MAX_INPUT_SIZE) {
+      throw new Error(`Input payload too large (${(inputSize / 1024 / 1024).toFixed(1)}MB, max ${MAX_INPUT_SIZE / 1024 / 1024}MB)`);
+    }
+
     // Always validate - Zod applies defaults and coercion needed for correct execution
     const validatedArgs = tool.zodSchema.parse(args) as ToolArguments;
 

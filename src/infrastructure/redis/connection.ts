@@ -195,7 +195,7 @@ export class RedisConnectionManager {
   }
 
   /**
-   * Get Redis client
+   * Get Redis client (primary connection)
    * @returns Redis client or null if not connected
    */
   getClient(): Redis | null {
@@ -203,13 +203,67 @@ export class RedisConnectionManager {
   }
 
   /**
-   * Disconnect from Redis
+   * Acquire a connection from the pool for parallel operations.
+   * Falls back to primary connection if pool is exhausted.
+   */
+  async acquire(): Promise<Redis> {
+    // Try to reuse a pooled connection
+    while (this.pool.length > 0) {
+      const conn = this.pool.pop()!;
+      if (conn.status === 'ready') {
+        return conn;
+      }
+      // Stale connection — close and try next
+      conn.quit().catch(() => {});
+    }
+
+    // Pool empty — create new if under limit, else return primary
+    if (this.poolSize > 0) {
+      try {
+        const conn = new Redis(this.buildConfig());
+        await conn.ping();
+        return conn;
+      } catch {
+        // Fall through to primary
+      }
+    }
+
+    // Fallback: return primary connection
+    if (!this.redis || !this.connected) {
+      await this.connect();
+    }
+    return this.redis!;
+  }
+
+  /**
+   * Release a connection back to the pool.
+   * If pool is full, the connection is closed.
+   */
+  release(conn: Redis): void {
+    // Never pool the primary connection
+    if (conn === this.redis) return;
+
+    if (this.pool.length < this.poolSize && conn.status === 'ready') {
+      this.pool.push(conn);
+    } else {
+      conn.quit().catch(() => {});
+    }
+  }
+
+  /**
+   * Disconnect from Redis and close all pooled connections
    */
   async disconnect(): Promise<void> {
     if (this.healthCheckInterval) {
       clearInterval(this.healthCheckInterval);
       this.healthCheckInterval = null;
     }
+
+    // Close pooled connections
+    for (const conn of this.pool) {
+      await conn.quit().catch(() => {});
+    }
+    this.pool = [];
 
     if (this.redis) {
       await this.redis.quit();
@@ -236,6 +290,23 @@ export class RedisConnectionManager {
       Logger.error('Redis operation failed:', error);
       this.connected = false;
       return null;
+    }
+  }
+
+  /**
+   * Execute operation using a pooled connection (for parallel workloads).
+   * Automatically acquires and releases the connection.
+   */
+  async executePooled<T>(operation: (redis: Redis) => Promise<T>): Promise<T | null> {
+    let conn: Redis | null = null;
+    try {
+      conn = await this.acquire();
+      return await operation(conn);
+    } catch (error) {
+      Logger.error('Redis pooled operation failed:', error);
+      return null;
+    } finally {
+      if (conn) this.release(conn);
     }
   }
 }

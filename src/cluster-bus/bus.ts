@@ -901,21 +901,17 @@ export class ClusterBus {
         return;
       }
 
-      // Dedup: skip if we've seen this signal (bloom filter + recent exact set)
+      // Dedup: atomic check-and-mark to prevent TOCTOU race conditions.
       // BUT allow broadcast signals from ourselves (targetCluster='') to pass through
       // so that local handlers (e.g. file:read) can process self-broadcasts
       const isSelfBroadcast =
         signal.sourceCluster === this.config.clusterId && signal.targetCluster === '';
-      if (
-        !isSelfBroadcast &&
-        (this.bloomFilter.has(signal.id) || this.recentSignals.has(signal.id))
-      ) {
+      if (!isSelfBroadcast && !this.checkAndMarkSeen(signal.id)) {
         Logger.debug(
           `[ClusterBus] Dropping ${signal.type} - already seen (id: ${signal.id.slice(0, 8)})`
         );
         return;
       }
-      this.markSeen(signal.id);
 
       // Skip unicast signals from ourselves (but allow self-broadcasts through)
       if (signal.sourceCluster === this.config.clusterId && signal.targetCluster !== '') {
@@ -1008,6 +1004,18 @@ export class ClusterBus {
         );
       }
     }
+  }
+
+  /**
+   * Atomic check-and-mark: returns true if signal is NEW (not seen before),
+   * false if already seen. Eliminates TOCTOU race between has() and markSeen().
+   */
+  private checkAndMarkSeen(signalId: string): boolean {
+    if (this.bloomFilter.has(signalId) || this.recentSignals.has(signalId)) {
+      return false; // already seen
+    }
+    this.markSeen(signalId);
+    return true; // new signal
   }
 
   /**

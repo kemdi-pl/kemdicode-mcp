@@ -1,6 +1,6 @@
 {
   "name": "kemdicode-mcp",
-  "version": "4.7.1",
+  "version": "4.7.2",
   "description": "Model Context Protocol (MCP) server with 62 tools for AI cognition, thinking chains, multi-agent coordination, kanban task management, and Lorenz-inspired context compaction",
   "type": "module",
   "main": "dist/index.js",
