@@ -337,6 +337,14 @@ const RESULT_REGEX = /```result\s*([^`]*(?:`(?!``)[^`]*)*)\s*```/g;
 const SUB_AGENT_REGEX = /```sub-agent\s*([^`]*(?:`(?!``)[^`]*)*)\s*```/g;
 
 /**
+ * Alternative tool call formats emitted by models that don't support native function calling.
+ * Matches: [TOOL_CALL]...[/TOOL_CALL] and ```json {"tool":"name",...}``` patterns.
+ * Input is already truncated to MAX_PARSE_LENGTH before these are applied.
+ */
+const ALT_TOOL_CALL_REGEX = /\[TOOL_CALL\]\s*\{([^]*?)\}\s*\[\/TOOL_CALL\]/g;
+const ALT_JSON_TOOL_REGEX = /```(?:json)?\s*(\{[^`]*?"tool"\s*:\s*"[^`]*?\})\s*```/g;
+
+/**
  * All kemdicode-mcp tools are internal (read files, create kanban/thinking chains,
  * query code intelligence). No tool can overwrite user files or run shell commands.
  * Agents get access to all tools by default — use allowedTools/blockedTools to restrict.
@@ -395,27 +403,81 @@ export function parseToolCalls(response: string): ToolCall[] {
   }
 
   const calls: ToolCall[] = [];
-  let match: RegExpExecArray | null;
 
+  // Try standard ```tool-call format first
+  let match: RegExpExecArray | null;
   TOOL_CALL_REGEX.lastIndex = 0;
   while ((match = TOOL_CALL_REGEX.exec(response)) !== null) {
-    try {
-      const raw = JSON.parse(match[1]);
-      // Sanitize to prevent prototype pollution from AI-generated JSON
-      const parsed = sanitizeParsedJSON(raw) as Record<string, unknown>;
-      if (parsed.tool && typeof parsed.tool === 'string') {
-        calls.push({
-          tool: parsed.tool as string,
-          args: (parsed.args || {}) as Record<string, unknown>,
-          id: (parsed.id as string) || uuidv4(),
-        });
+    const parsed = tryParseToolJSON(match[1]);
+    if (parsed) calls.push(parsed);
+  }
+
+  // If no standard calls found, try alternative formats
+  if (calls.length === 0) {
+    // [TOOL_CALL]{...}[/TOOL_CALL] format (MiniMax, some custom models)
+    ALT_TOOL_CALL_REGEX.lastIndex = 0;
+    while ((match = ALT_TOOL_CALL_REGEX.exec(response)) !== null) {
+      const parsed = tryParseToolJSON(`{${match[1]}}`);
+      if (parsed) calls.push(parsed);
+    }
+  }
+
+  if (calls.length === 0) {
+    // ```json {"tool":"name",...}``` format
+    ALT_JSON_TOOL_REGEX.lastIndex = 0;
+    while ((match = ALT_JSON_TOOL_REGEX.exec(response)) !== null) {
+      const parsed = tryParseToolJSON(match[1]);
+      if (parsed) calls.push(parsed);
+    }
+  }
+
+  if (calls.length === 0) {
+    // Last resort: {tool => "name", args => {...}} format (MiniMax arrow syntax)
+    const arrowMatches = response.matchAll(/\{tool\s*=>\s*"([^"]+)",\s*args\s*=>\s*\{([^}]*)\}\}/g);
+    for (const m of arrowMatches) {
+      const toolName = m[1];
+      // Try to parse the args part as key-value pairs
+      const argsStr = m[2];
+      const args: Record<string, unknown> = {};
+      // Match patterns like: --query "value" or key "value"
+      const argMatches = argsStr.matchAll(/--?(\w+)\s+"([^"]*)"/g);
+      for (const am of argMatches) {
+        args[am[1]] = am[2];
       }
-    } catch {
-      Logger.warn(`agentic-loop: failed to parse tool-call block: ${match[1].slice(0, 100)}`);
+      if (toolName) {
+        calls.push({ tool: toolName, args, id: uuidv4() });
+      }
     }
   }
 
   return calls;
+}
+
+/** Helper: try to parse a JSON string as a tool call */
+function tryParseToolJSON(jsonStr: string): ToolCall | null {
+  try {
+    const raw = JSON.parse(jsonStr);
+    const parsed = sanitizeParsedJSON(raw) as Record<string, unknown>;
+    if (parsed.tool && typeof parsed.tool === 'string') {
+      return {
+        tool: parsed.tool as string,
+        args: (parsed.args || {}) as Record<string, unknown>,
+        id: (parsed.id as string) || uuidv4(),
+      };
+    }
+    // Alternative key names: name/function instead of tool
+    const name = (parsed.name || parsed.function) as string | undefined;
+    if (name && typeof name === 'string') {
+      return {
+        tool: name,
+        args: (parsed.args || parsed.arguments || parsed.parameters || {}) as Record<string, unknown>,
+        id: (parsed.id as string) || uuidv4(),
+      };
+    }
+  } catch {
+    Logger.warn(`agentic-loop: failed to parse tool-call block: ${jsonStr.slice(0, 100)}`);
+  }
+  return null;
 }
 
 /**
