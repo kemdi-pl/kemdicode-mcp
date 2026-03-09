@@ -1,4 +1,4 @@
-# KemdiCode MCP Server v4.6.0
+# KemdiCode MCP Server v4.7.0
 
 ## How to Use kemdiCode MCP
 
@@ -105,7 +105,7 @@ Model Context Protocol (MCP) server providing **62 tools** across 15 categories:
 
 **8 LLM providers**: OpenAI, Anthropic, Gemini, Groq, DeepSeek, Ollama, OpenRouter, Perplexity. Provider syntax: `provider:model:thinking` (e.g., `a:claude-sonnet-4-6:4k`, `p:sonar-pro`).
 
-**618 tests** across 33 test files.
+**741 tests** across 33 test files.
 
 ## Architecture
 

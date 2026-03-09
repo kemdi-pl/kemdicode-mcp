@@ -128,6 +128,12 @@ const schema = z.object({
     .array(z.string())
     .optional()
     .describe('Work partitioning: assign each cluster a focus area (e.g., ["security", "performance", "error-handling"]). Clusters without a focus get general analysis.'),
+  orchestrateMaxTokens: z
+    .number()
+    .min(256)
+    .max(128000)
+    .default(32000)
+    .describe('Max tokens per LLM call within the orchestration agentic loop (default: 32000 to prevent truncation)'),
 });
 
 export const clusterMagistraleTool: UnifiedTool<typeof schema> = {
@@ -248,6 +254,7 @@ export const clusterMagistraleTool: UnifiedTool<typeof schema> = {
           return {
             agent: args.orchestrateAgent,
             maxIterations: args.orchestrateMaxIterations,
+            maxTokens: args.orchestrateMaxTokens,
             allowedTools: effectiveTools,
             enableCognition: args.orchestrateEnableCognition,
             isMultiCluster: args.maxTargets > 1,

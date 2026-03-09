@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/kemdicode-mcp"><img src="https://img.shields.io/badge/npm-kemdicode--mcp-CB3837?style=flat-square&logo=npm&logoColor=white" alt="npm" /></a>
-  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-4.6.0-blue?style=flat-square" alt="Version" /></a>
+  <a href="https://github.com/kemdi-pl/kemdicode-mcp/releases"><img src="https://img.shields.io/badge/version-4.7.0-blue?style=flat-square" alt="Version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-green?style=flat-square" alt="License" /></a>
 </p>
 
@@ -28,7 +28,7 @@
 
 **[The Nine Minds](#the-nine-minds)** — nine specialized cognitive agents (Socratic, Ontologist, Seed Architect, Evaluator, Contrarian, Hacker, Simplifier, Researcher, Architect), each a different mode of thinking. Inspired by [Ouroboros](https://github.com/Q00/ouroboros) by Harry Munro. Loaded on-demand, never preloaded.
 
-618 tests across 33 test files. Works with Claude Code, Cursor, Windsurf, VS Code, Zed, and any MCP-compatible client.
+741 tests across 33 test files. Works with Claude Code, Cursor, Windsurf, VS Code, Zed, and any MCP-compatible client.
 
 ---
 
@@ -510,7 +510,7 @@ cluster-bus-magistrale \
 bun install                    # Install dependencies
 bun run build                  # Compile TypeScript
 bun run dev                    # Hot reload
-bun run test                   # Run 618 tests
+bun run test                   # Run 741 tests
 bun run typecheck              # Type check
 bun run lint                   # ESLint
 bun run format                 # Prettier

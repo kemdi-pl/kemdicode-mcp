@@ -69,10 +69,18 @@ export function buildCompletionResponse(response: ChatCompletion): CompletionRes
   // Some models (DeepSeek-V3.2, Kimi-K2, Qwen3-thinking) return content in reasoning_content
   // or in a non-standard response shape. Handle gracefully.
   const rawResponse = response as unknown as Record<string, unknown>;
-  const content = message?.content
+  let content = message?.content
     || message?.reasoning_content
     || (typeof rawResponse.content === 'string' ? rawResponse.content : '')
     || '';
+
+  // Strip <think> blocks from content — thinking models (MiniMax, DeepSeek) embed
+  // reasoning in <think>...</think> tags which consume tokens and bloat the response.
+  // Preserve the actual answer only.
+  const thinkMatch = content.match(/^<think>([\s\S]*?)<\/think>\s*([\s\S]*)$/);
+  if (thinkMatch) {
+    content = thinkMatch[2].trim() || content; // fallback to full content if answer is empty
+  }
 
   // Extract tool calls from response
   const rawToolCalls = choice?.message?.tool_calls as Array<{ id: string; type: string; function: { name: string; arguments: string } }> | undefined;

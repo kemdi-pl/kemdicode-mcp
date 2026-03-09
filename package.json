@@ -1,6 +1,6 @@
 {
   "name": "kemdicode-mcp",
-  "version": "4.6.0",
+  "version": "4.7.0",
   "description": "Model Context Protocol (MCP) server with 62 tools for AI cognition, thinking chains, multi-agent coordination, kanban task management, and Lorenz-inspired context compaction",
   "type": "module",
   "main": "dist/index.js",
@@ -35,7 +35,7 @@
     "build": "tsc",
     "start": "bun dist/index.js",
     "dev": "bun --hot src/index.ts",
-    "test": "bun vitest run",
+    "test": "bun test",
     "test:watch": "bun vitest",
     "test:coverage": "bun vitest run --coverage",
     "test:unit": "bun vitest run --dir __tests__/unit",

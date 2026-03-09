@@ -266,6 +266,7 @@ export async function initClusterBusSystem(): Promise<boolean> {
               sessionId,
               maxIterations: orchConfig.maxIterations ?? 10,
               maxSubAgentDepth: 0, // no sub-agent nesting within cluster
+              maxTokens: orchConfig.maxTokens ?? 32000, // generous default to prevent truncation
               allowedTools: orchConfig.allowedTools,
               blockedTools: orchConfig.blockedTools,
               enableCognition: orchConfig.enableCognition ?? false,

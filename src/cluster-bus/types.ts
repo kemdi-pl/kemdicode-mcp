@@ -333,6 +333,12 @@ export const LLMRequestPayload = z.object({
         .array(z.string())
         .optional()
         .describe('Focus areas for work partitioning (one per cluster)'),
+      maxTokens: z
+        .number()
+        .min(256)
+        .max(128000)
+        .optional()
+        .describe('Max tokens per LLM call within the agentic loop (default: agent-specific)'),
     })
     .optional()
     .describe('Full agentic orchestration — cluster spawns a supervisor that reasons + calls tools autonomously'),

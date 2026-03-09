@@ -88,6 +88,8 @@ export interface MagistraleConfig {
     clusterIndex?: number;
     /** Assigned focus area for this cluster (set by dispatcher from focusAreas) */
     clusterFocus?: string;
+    /** Max tokens per LLM call within the agentic loop (default: 32000) */
+    maxTokens?: number;
   };
   /** System prompt override for LLM calls */
   systemPrompt?: string;
