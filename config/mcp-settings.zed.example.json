@@ -1,0 +1,11 @@
+{
+  "context_servers": {
+    "kemdicode-mcp": {
+      "command": {
+        "path": "kemdicode-mcp",
+        "args": ["--stdio"]
+      },
+      "settings": {}
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "server": {
+    "port": 3100,
+    "host": "127.0.0.1",
+    "primaryModel": "o:gpt-4.1",
+    "fallbackModel": "g:gemini-2.5-flash"
+  },
+  "redis": {
+    "host": "127.0.0.1",
+    "port": 6379,
+    "db": 2,
+    "password": null
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-02-04T21:52:00Z",
+  "ciMulticast": {
+    "signalTypes": [
+      "ci:build",
+      "ci:test",
+      "ci:deploy",
+      "ci:result",
+      "ci:pipeline",
+      "ci:multicast",
+      "data:multicast"
+    ],
+    "aggregationModes": ["all", "first", "majority", "custom"],
+    "filesModified": [
+      "src/cluster-bus/types.ts",
+      "src/cluster-bus/bus.ts",
+      "src/cluster-bus/meta-router.ts",
+      "src/cluster-bus/fan-in-aggregator.ts"
+    ],
+    "testsCreated": ["__tests__/integration/ci-multicast.test.ts"]
+  },
+  "pendingTasks": [
+    {
+      "id": "7ec39af4-80c6-4e27-9228-a9e8e657b4cc",
+      "title": "Zintegrować z zewnętrznymi CI",
+      "status": "pending",
+      "description": "Zintegrować z istniejącymi narzędziami CI (GitHub Actions, GitLab CI)"
+    }
+  ]
+}

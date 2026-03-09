@@ -1,0 +1,132 @@
+{
+  "name": "kemdicode-mcp",
+  "version": "4.9.0",
+  "description": "Model Context Protocol (MCP) server with 63 tools for AI cognition, thinking chains, multi-agent coordination, kanban task management, and Lorenz-inspired context compaction",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "kemdicode-mcp": "dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./ai": {
+      "types": "./dist/ai/index.d.ts",
+      "import": "./dist/ai/index.js"
+    },
+    "./tools": {
+      "types": "./dist/tools/index.d.ts",
+      "import": "./dist/tools/index.js"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/config/index.js"
+    },
+    "./version": {
+      "types": "./dist/version.d.ts",
+      "import": "./dist/version.js"
+    }
+  },
+  "scripts": {
+    "prebuild": "bun scripts/add-license-headers.ts",
+    "build": "tsc",
+    "start": "bun dist/index.js",
+    "dev": "bun --hot src/index.ts",
+    "test": "bun test",
+    "test:watch": "bun vitest",
+    "test:coverage": "bun vitest run --coverage",
+    "test:unit": "bun vitest run --dir __tests__/unit",
+    "lint": "bun eslint src/",
+    "lint:fix": "bun eslint src/ --fix",
+    "format": "bun prettier --write \"src/**/*.ts\"",
+    "format:check": "bun prettier --check \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun run typecheck && bun run lint",
+    "add-license": "bun scripts/add-license-headers.ts"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "modelcontextprotocol",
+    "ai",
+    "llm",
+    "claude",
+    "openai",
+    "agent",
+    "multi-agent",
+    "cognition",
+    "lorenz-compaction",
+    "kanban",
+    "cli",
+    "tree-sitter",
+    "ast",
+    "redis",
+    "typescript"
+  ],
+  "author": "Kemdi Sp. z o.o. <dawid@kemdi.pl> (Dawid Irzyk)",
+  "license": "GPL-3.0",
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "files": [
+    "dist/",
+    "kemdi-code-mcp-logo.png",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "dist/tools/index.js"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.78.0",
+    "@google/genai": "1.44.0",
+    "@modelcontextprotocol/sdk": "1.27.1",
+    "@openai/agents": "^0.6.0",
+    "@vscode/vscode-languagedetection": "1.0.23",
+    "commander": "14.0.3",
+    "ioredis": "5.10.0",
+    "jsonrepair": "3.13.2",
+    "openai": "6.27.0",
+    "shamir-secret-sharing": "0.0.4",
+    "tree-sitter-wasms": "0.1.13",
+    "uuid": "13.0.0",
+    "web-tree-sitter": "0.26.6",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "25.3.5",
+    "@types/uuid": "11.0.0",
+    "@vitest/coverage-v8": "4.0.18",
+    "eslint": "10.0.3",
+    "ioredis-mock": "8.13.1",
+    "prettier": "3.8.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.56.1",
+    "vitest": "4.0.18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kemdi-pl/kemdicode-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kemdi-pl/kemdicode-mcp/issues"
+  },
+  "homepage": "https://github.com/kemdi-pl/kemdicode-mcp#readme"
+}

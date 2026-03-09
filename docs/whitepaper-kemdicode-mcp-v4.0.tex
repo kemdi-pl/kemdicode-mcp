@@ -1,0 +1,739 @@
+% KemdiCode MCP Server — Technical Paper v4.9.0
+% Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk)
+% Licensed under GNU GPL v3
+
+\documentclass[journal,10pt]{IEEEtran}
+
+% ── Packages ──────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{amsmath,amssymb}
+% graphicx removed — no figures in document
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{microtype}
+\usepackage{cite}
+\usepackage[ruled,linesnumbered,noend]{algorithm2e}
+\usepackage{url}
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=false,
+  pdfborder={0 0 0},
+  pdftitle={kemdiCode MCP: Lorenz Context Compaction, Cluster Bus and Multi-Mind Cognitive Architecture},
+  pdfauthor={Dawid Irzyk},
+}
+
+% ── B&W color definitions ────────────────────────────────────────
+\definecolor{darkgray}{gray}{0.25}
+\definecolor{medgray}{gray}{0.55}
+\definecolor{lightgray}{gray}{0.85}
+\definecolor{verylightgray}{gray}{0.93}
+\definecolor{codebg}{gray}{0.95}
+
+% ── Listings ─────────────────────────────────────────────────────
+\lstset{
+  basicstyle=\ttfamily\scriptsize,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{medgray},
+  breaklines=true,
+  tabsize=2,
+  columns=fullflexible,
+  xleftmargin=2mm,
+  framexleftmargin=2mm,
+  aboveskip=6pt,
+  belowskip=4pt,
+}
+
+% ── Helpers ──────────────────────────────────────────────────────
+\newcommand{\doi}[1]{\href{https://doi.org/#1}{\texttt{doi:#1}}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\layerthree}{L\textsubscript{3}}
+\newcommand{\layerone}{L\textsubscript{1}}
+
+% ── Theorem-like environments ────────────────────────────────────
+\newtheorem{definition}{Definition}
+\newtheorem{property}{Property}
+\newtheorem{invariant}{Invariant}
+\newtheorem{theorem}{Theorem}
+
+% ══════════════════════════════════════════════════════════════════
+\begin{document}
+
+\title{kemdiCode MCP: Lorenz Context Compaction, Cluster Bus and Multi-Mind Cognitive Architecture}
+
+\author{Dawid~Irzyk,~MSc~Eng~--~Kemdi Sp. z o.o., Poland~--~dawid@kemdi.pl}
+
+\markboth{kemdiCode MCP v4.0 -- Technical Paper}%
+{Irzyk: Lorenz Context Compaction, Cluster Bus and Multi-Mind Cognitive Architecture}
+
+\maketitle
+
+% ── Abstract ─────────────────────────────────────────────────────
+\begin{abstract}
+Large language models used as software engineering assistants must compress multi-step reasoning chains to fit fixed context windows. Naive compression discards structurally critical steps, causing subsequent reasoning to diverge. This paper presents three chaos-theory-based algorithms for information-theoretic context compaction: (i)~Poincar\'{e} section phase detection using Jensen-Shannon divergence to locate topic transitions with maximum mutual information, (ii)~Lorenz attractor orbit compression using TF-IDF cosine similarity matrices to detect and collapse repeating reasoning cycles, and (iii)~perturbation impact analysis measuring each item's contribution via leave-one-out JSD. We also introduce \emph{The Nine Minds}, a cognitive architecture of nine specialized reasoning agents (Socratic Interviewer, Ontologist, Seed Architect, Evaluator, Contrarian, Hacker, Simplifier, Researcher, Architect), loaded on-demand and composed dynamically for multi-perspective analysis. These components run within a distributed cognition system: a two-layer event bus with anti-amplification guarantees, eight persistent cognition stores with reactive cross-linking, and a multi-cluster LLM orchestration layer. The system is validated with 618~passing tests across 33~test files.
+\end{abstract}
+
+\begin{IEEEkeywords}
+context compaction, Lorenz attractor, Poincar\'{e} section, Jensen-Shannon divergence, chaos theory, cognitive architecture, large language models, multi-agent systems, distributed cognition, dialectical reasoning
+\end{IEEEkeywords}
+
+% ══════════════════════════════════════════════════════════════════
+\section{Introduction}
+\label{sec:intro}
+
+\IEEEPARstart{A}{I-assisted} software engineering tools built on large language models must balance reasoning depth against context capacity. As chains of thought grow through iterative debugging, architectural exploration, or multi-step refactoring, the fixed context window forces lossy compression. Selecting \emph{which} reasoning steps to retain maps directly to sensitivity to initial conditions in chaotic dynamical systems.
+
+In Lorenz's meteorological model~\cite{lorenz1963}, infinitesimal perturbations to initial conditions produce exponentially divergent trajectories. Context compaction is the inverse problem: given a trajectory (a chain of thoughts), find the minimal compression that preserves the system's qualitative behavior. Removing a structurally critical thought causes subsequent reasoning to diverge.
+
+We formalize this insight through three algorithms:
+
+\begin{enumerate}[nosep,label=(\roman*)]
+  \item \emph{Phase detection via Poincar\'{e} sections}~\cite{poincare1890}: Identify topic transitions in thinking chains using consecutive Jensen-Shannon divergence~\cite{lin1991}. Phase boundaries carry maximum mutual information and must survive compaction.
+  \item \emph{Orbit compression via attractor cycle detection}: Detect repeating reasoning patterns (analogous to orbits around the Lorenz attractor's lobes) using TF-IDF cosine similarity matrices, and collapse duplicate cycles while retaining the first occurrence.
+  \item \emph{Perturbation impact via leave-one-out analysis}: Measure each thought's structural contribution to the information landscape by computing JSD between the full context and the context with that item removed. High-impact items are causal anchors.
+\end{enumerate}
+
+The paper also presents \emph{The Nine Minds}, a cognitive architecture of nine specialized reasoning agents, and the supporting infrastructure: eight persistent cognition stores with reactive cross-linking, a two-layer event bus with anti-amplification guarantees, and the Magistrale multi-cluster LLM orchestration layer with four aggregation strategies and self-regulating multi-pass execution.
+
+Section~\ref{sec:related} surveys related work. Section~\ref{sec:lorenz} presents the compaction framework. Section~\ref{sec:minds} introduces The Nine Minds. Section~\ref{sec:cognition} describes the cognition subsystem. Section~\ref{sec:bus} details the event bus. Section~\ref{sec:magistrale} covers distributed LLM orchestration. Section~\ref{sec:agentic} describes the agentic execution model. Section~\ref{sec:security} covers security hardening. Section~\ref{sec:eval} presents the evaluation. Section~\ref{sec:conclusion} concludes.
+
+% ══════════════════════════════════════════════════════════════════
+\section{Related Work}
+\label{sec:related}
+
+\textbf{Context management.} Recursive summarization~\cite{wu2021recursively} compresses conversation history but discards structural information. Retrieval-augmented generation~\cite{lewis2020rag} sidesteps the problem via external vector stores but cannot preserve causal reasoning chains. Attention sinks~\cite{xiao2024efficient} maintain initial tokens as anchors, observing that removing them degrades perplexity. Our approach treats the thinking chain as a dynamical trajectory and applies chaos theory to identify structurally essential elements.
+
+\textbf{Multi-agent coordination.} AutoGen~\cite{wu2023autogen} enables multi-agent conversation through conversable agents. MetaGPT~\cite{hong2023metagpt} introduces role-based coordination with standardized operating procedures. CrewAI~\cite{crewai2024} provides task-oriented agent orchestration. Li~et~al.~\cite{li2024multiagent} survey workflow patterns. Guo~et~al.~\cite{guo2024ijcai} provide a taxonomy of architectures. Our system operates at the protocol level via the Model Context Protocol~\cite{mcp2024,mcpspec2025}, exposing coordination primitives as tools rather than implementing a fixed agent framework.
+
+\textbf{Chaos theory in machine learning.} Pascanu~et~al.~\cite{pascanu2013difficulty} demonstrated that vanishing and exploding gradients in recurrent networks are manifestations of Lyapunov exponents in the network's dynamical system. Vogt~et~al.~\cite{vogt2022lyapunov} used Lyapunov exponents to characterize transformer stability. Our contribution applies chaos-theoretic concepts not to model internals but to the \emph{reasoning output}, treating thinking chains as trajectories in a semantic phase space.
+
+\textbf{Cognitive architectures.} Munro's Ouroboros~\cite{munro_ouroboros} introduced a specification-first system with nine cognitive agent modes (Socratic Interviewer, Ontologist, Seed Architect, Evaluator, Contrarian, Hacker, Simplifier, Researcher, and Architect) composed within a self-improving loop driven by convergence detection and ambiguity scoring. Kahneman's dual-process theory~\cite{kahneman2011} distinguishes fast heuristic and slow analytical reasoning. De Bono's Six Thinking Hats~\cite{debono1985} introduced role-based thinking modes. Mellers et al.~\cite{mellers2001} showed that adversarial collaboration improves epistemic outcomes. Our Nine Minds build on Munro's taxonomy, adding persistent cognition integration, cluster-level composition via Magistrale, and Lorenz-aware context compaction.
+
+\textbf{Protocol foundations.} The Model Context Protocol~\cite{mcp2024} generalizes the Language Server Protocol~\cite{lsp2016} from language-specific operations to arbitrary tool invocations for AI assistants. Our system implements MCP with extensions for distributed cognition.
+
+% ══════════════════════════════════════════════════════════════════
+\section{Lorenz-Inspired Context Compaction}
+\label{sec:lorenz}
+
+\subsection{Theoretical Foundation}
+
+The Lorenz system~\cite{lorenz1963}:
+
+\begin{equation}
+\dot{x} = \sigma(y - x), \quad \dot{y} = x(\rho - z) - y, \quad \dot{z} = xy - \beta z
+\label{eq:lorenz}
+\end{equation}
+
+\noindent with canonical parameters $\sigma = 10$, $\rho = 28$, $\beta = 8/3$, exhibits three properties that map to context compaction:
+
+\begin{enumerate}[nosep]
+\item \textbf{Sensitivity to initial conditions.} The maximal Lyapunov exponent $\lambda_1 \approx 0.906$~\cite{sparrow1982lorenz} implies perturbation growth $\|\delta(t)\| \sim \|\delta_0\| e^{\lambda_1 t}$. Removing a critical thought (perturbing the initial cognitive state) causes exponential divergence in subsequent reasoning.
+
+\item \textbf{Strange attractor structure.} Trajectories orbit two lobes, tracing similar but non-identical paths. AI reasoning exhibits analogous behavior: revisiting the same conceptual territory from slightly different angles, producing compressible redundancy.
+
+\item \textbf{Lobe transitions.} Rapid transitions between attractor lobes correspond to topic switches in thinking chains. These transitions carry maximum information about the trajectory's qualitative structure.
+\end{enumerate}
+
+\subsection{Phase Detection via Poincar\'{e} Sections}
+\label{sec:phase}
+
+In dynamical systems, a Poincar\'{e} section is a codimension-one submanifold transverse to the flow, reducing continuous dynamics to a discrete return map~\cite{poincare1890,strogatz2015}. We apply this concept to thinking chains: the ``flow'' is the sequence of thoughts, and ``sections'' are points where the semantic content changes direction.
+
+\begin{definition}[Phase Boundary]
+\label{def:phase}
+Given a thinking chain $\mathcal{T} = (t_1, t_2, \ldots, t_n)$ where each $t_i$ has content $c_i$, a \emph{phase boundary} exists between $t_i$ and $t_{i+1}$ if:
+\begin{equation}
+\mathrm{JSD}\bigl(P(c_i) \| P(c_{i+1})\bigr) > \tau_{\mathrm{phase}}
+\label{eq:phase}
+\end{equation}
+where $P(c)$ is the token probability distribution of content $c$ and $\tau_{\mathrm{phase}} = 0.35$ is the detection threshold.
+\end{definition}
+
+The Jensen-Shannon divergence~\cite{lin1991} is the symmetrized, bounded variant of the Kullback-Leibler divergence~\cite{kullback1951}:
+
+\begin{equation}
+\mathrm{JSD}(P \| Q) = \frac{1}{2} D_{\mathrm{KL}}(P \| M) + \frac{1}{2} D_{\mathrm{KL}}(Q \| M)
+\label{eq:jsd}
+\end{equation}
+
+\noindent where $M = \frac{1}{2}(P + Q)$ and $\mathrm{JSD} \in [0, \ln 2]$. Unlike KL divergence, JSD is always finite and symmetric, making it suitable for comparing empirical token distributions which may have non-overlapping support.
+
+The token probability distribution $P(c)$ is computed by tokenizing content (lowercased, stop words removed, minimum 2~characters), computing term frequencies, and normalizing. This is equivalent to the unigram language model~\cite{manning2008introduction}.
+
+\begin{property}[Phase Boundary Information Maximum]
+\label{prop:boundary}
+At a phase boundary $b_k$, the mutual information between the content and the latent ``topic'' variable is locally maximal:
+\begin{equation}
+I(c_{b_k}; \mathrm{topic}) \geq I(c_j; \mathrm{topic}) \quad \forall j \in [b_{k-1}+1, b_{k+1}-1]
+\label{eq:mutual}
+\end{equation}
+This follows from the observation that high JSD between consecutive thoughts indicates maximally different token distributions, meaning the boundary thought carries the most discriminative information about the topic transition. The mutual information is approximated via:
+\begin{equation}
+I(X; Y) \approx H(X) + H(Y) - H(X, Y)
+\label{eq:mi}
+\end{equation}
+where $H$ is the Shannon entropy~\cite{shannon1948}: $H(P) = -\sum_{x} P(x) \log_2 P(x)$.
+\end{property}
+
+\subsubsection{Preservation Strategy}
+
+Phase detection identifies thoughts to \emph{preserve} during compaction:
+\begin{itemize}[nosep]
+\item Trajectory endpoints (first and last thoughts).
+\item All phase boundary thoughts (maximum information at transitions).
+\item The highest-confidence thought within each phase segment.
+\end{itemize}
+
+\subsection{Orbit Compression via Attractor Cycle Detection}
+\label{sec:orbit}
+
+In the Lorenz system, trajectories orbit around two attractor lobes, each orbit qualitatively similar to the previous. In AI reasoning, an \emph{orbit} is a repeating pattern where the model revisits the same conceptual territory.
+
+\begin{definition}[Orbital Cycle]
+\label{def:orbit}
+A subsequence $(t_{s}, t_{s+1}, \ldots, t_{s+L-1})$ of length $L$ is an \emph{orbital cycle} if there exists a subsequent subsequence $(t_{s+L}, \ldots, t_{s+2L-1})$ such that:
+\begin{equation}
+\frac{1}{L} \sum_{k=0}^{L-1} \mathrm{sim}(t_{s+k}, t_{s+L+k}) \geq \tau_{\mathrm{orbit}}
+\label{eq:orbit}
+\end{equation}
+where $\mathrm{sim}(t_i, t_j)$ is the TF-IDF cosine similarity~\cite{salton1988} and $\tau_{\mathrm{orbit}} = 0.5$.
+\end{definition}
+
+\subsubsection{Detection Algorithm}
+
+\begin{algorithm}[!t]
+\caption{Orbit Compression}\label{alg:orbit}
+\SetAlgoLined
+\SetKwInOut{Input}{Input}
+\SetKwInOut{Output}{Output}
+\Input{thoughts $\mathcal{T} = (t_1, \ldots, t_n)$, threshold $\tau$}
+\Output{keep indices $\mathcal{K}$, prune indices $\mathcal{P}$}
+$\mathbf{S} \leftarrow$ pairwise TF-IDF cosine similarity matrix\;
+$\mathrm{claimed} \leftarrow \emptyset$\;
+\For{$L \leftarrow \min(L_{\max}, \lfloor n/2 \rfloor)$ \KwTo $L_{\min}$}{
+  \For{$s \leftarrow 0$ \KwTo $n - L \cdot R_{\min}$}{
+    \If{$\exists k \in [s, s+L): k \in \mathrm{claimed}$}{\textbf{continue}}
+    $(r, \bar{S}) \leftarrow \mathrm{detectRepetitions}(\mathbf{S}, s, L, \tau)$\;
+    \If{$r \geq R_{\min}$}{
+      $\mathrm{claimed} \leftarrow \mathrm{claimed} \cup \{s, \ldots, s + r \cdot L - 1\}$\;
+      Keep first cycle $[s, s+L)$, prune copies\;
+    }
+  }
+}
+$\mathcal{P} \leftarrow$ all pruned indices\;
+$\mathcal{K} \leftarrow \{1, \ldots, n\} \setminus \mathcal{P}$\;
+\end{algorithm}
+
+The TF-IDF cosine similarity~\cite{salton1988} between thoughts $t_i$ and $t_j$ is:
+
+\begin{equation}
+\mathrm{sim}(t_i, t_j) = \frac{\mathbf{v}_i \cdot \mathbf{v}_j}{|\mathbf{v}_i| \cdot |\mathbf{v}_j|}
+\label{eq:cosine}
+\end{equation}
+
+\noindent where $\mathbf{v}_i$ is the TF-IDF vector with $\mathrm{TF}(w, t) = \mathrm{count}(w, t) / |t|$ and $\mathrm{IDF}(w) = \log(N / \mathrm{df}(w))$. Constants: $L_{\min} = 2$, $L_{\max} = 10$, $R_{\min} = 2$. The greedy search proceeds from longest to shortest cycles, preventing shorter cycles from fragmenting longer ones.
+
+\subsection{Perturbation Impact Analysis}
+\label{sec:perturbation}
+
+Drawing on the Lorenz system's sensitivity to initial conditions, we quantify each thought's structural importance via leave-one-out analysis:
+
+\begin{definition}[Perturbation Impact]
+\label{def:perturbation}
+For a context set $\mathcal{C} = \{t_1, \ldots, t_n\}$, the perturbation impact of item $t_k$ is:
+\begin{equation}
+\Pi(t_k) = \mathrm{JSD}\bigl(P(\mathcal{C}) \| P(\mathcal{C} \setminus \{t_k\})\bigr)
+\label{eq:perturbation}
+\end{equation}
+where $P(\mathcal{C})$ is the aggregate token distribution over all items.
+\end{definition}
+
+Items with high $\Pi$ are \emph{causal anchors}: their removal maximally perturbs the information landscape, analogous to critical initial conditions in the Lorenz system. Items with $\Pi \approx 0$ contribute content already represented by other items and can be safely evicted.
+
+\begin{property}[Perturbation Bounds]
+\label{prop:bounds}
+For uniform context (identical items), $\Pi(t_k) = 0$ for all $k$. For maximally diverse context, $\Pi$ correlates with information density:
+\begin{equation}
+\rho(t_k) = \frac{H(P(t_k))}{\log_2 |V(t_k)|}
+\label{eq:density}
+\end{equation}
+where $|V(t_k)|$ is the vocabulary size of item $t_k$.
+\end{property}
+
+\subsection{Integrated Compaction Pipeline}
+
+The three algorithms compose into a pipeline:
+\begin{enumerate}[nosep]
+\item \textbf{Phase detection}: Mark phase boundary thoughts as \emph{protected}.
+\item \textbf{Orbit compression}: Within each phase, detect and collapse orbital cycles.
+\item \textbf{Perturbation ranking}: Rank remaining unprotected thoughts by $\Pi$. Evict lowest-impact thoughts until the context budget is met.
+\end{enumerate}
+
+This composition guarantees that: phase boundaries (maximum-information transitions) are never evicted; redundant orbits are collapsed before perturbation ranking, preventing duplicate content from inflating impact scores; and the final eviction uses information-theoretic ranking rather than heuristic recency or frequency.
+
+\subsection{CTC-Inspired Extensions}
+\label{sec:ctc}
+
+The cognition module includes additional algorithms inspired by concepts from general relativity:
+
+\begin{description}[nosep,style=unboxed,leftmargin=0pt,font=\normalfont\itshape]
+\item[Fixed-point compaction.] Iteratively compacts a thinking chain until convergence:
+\begin{equation}
+|C_{i+1}| \geq |C_i| \cdot (1 - \epsilon), \quad \epsilon = 0.05
+\label{eq:fixedpoint}
+\end{equation}
+This mirrors the Novikov self-consistency principle~\cite{novikov1989}: the compacted result is a fixed point that regenerates itself under further compaction.
+
+\item[Gravitational TTL.] Time-to-live based on graph proximity to the active intent:
+\begin{equation}
+\mathrm{TTL}(t_k) = \mathrm{TTL}_{\mathrm{base}} \cdot \left(1 + \gamma \cdot \frac{1}{1 + d(t_k)}\right)
+\label{eq:gttl}
+\end{equation}
+where $d(t_k)$ is the graph distance to the active intent and $\gamma = 1.5$ is the coupling constant. Items close to the intent receive up to $2.5\times$ the base TTL, analogous to gravitational time dilation near massive objects.
+
+\item[Causal DAG analysis.] Constructs a directed acyclic graph of dependencies between cognition items and computes the causal core (the minimal set needed to reconstruct all others) via transitive reduction~\cite{aho1972transitive}.
+\end{description}
+
+% ══════════════════════════════════════════════════════════════════
+\section{The Nine Minds: Cognitive Architecture}
+\label{sec:minds}
+
+The compaction pipeline (Section~\ref{sec:lorenz}) addresses \emph{what to remember}; The Nine Minds address \emph{how to think}. Each Mind is a specialized reasoning agent with a distinct epistemological mode, loaded on-demand and composed dynamically as problems evolve.
+
+The Nine Minds architecture is inspired by \emph{Ouroboros}~\cite{munro_ouroboros}, a specification-first AI development system by Harry Munro that introduced nine cognitive agent modes with Socratic methodology and ontological analysis. Our implementation adapts these concepts within a persistent cognition subsystem, adding on-demand loading, cluster-level composition patterns, and integration with the Lorenz compaction pipeline.
+
+\subsection{Theoretical Foundations}
+
+The design draws on four intellectual traditions:
+
+\begin{enumerate}[nosep]
+\item \textbf{Ouroboros specification-first methodology}~\cite{munro_ouroboros}: Munro's system pioneered nine specialized cognitive agents (from Socratic Interviewer through Ontologist to Seed Architect) within a self-improving loop where evaluation feeds back as input. Our Nine Minds adapt this taxonomy for persistent distributed cognition.
+
+\item \textbf{Socratic dialectic}~\cite{plato_meno}: Knowledge emerges through systematic questioning, not assertion. The Socratic Interviewer Mind embodies this: it produces only questions, never solutions.
+
+\item \textbf{Dual-process theory}~\cite{kahneman2011}: Human cognition alternates between fast heuristic (System~1) and slow analytical (System~2) modes. The Nine Minds extend this to nine distinct cognitive modes, selectable based on problem characteristics.
+
+\item \textbf{Adversarial collaboration}~\cite{mellers2001}: Intellectual progress requires structured disagreement. The Contrarian Mind formalizes this by always arguing the opposite position, steelmanning~\cite{aikin2017} the counter-argument.
+\end{enumerate}
+
+\subsection{Mind Taxonomy}
+
+\begin{table}[!t]
+\caption{The Nine Minds: Cognitive Modes}
+\label{tab:minds}
+\centering
+\scriptsize
+\begin{tabularx}{\columnwidth}{@{}l l X@{}}
+\toprule
+\textbf{Mind} & \textbf{Mode} & \textbf{Core Question} \\
+\midrule
+Socratic & Interrogative & ``What are you assuming?'' \\
+Ontologist & Classificatory & ``What IS this, really?'' \\
+Seed Architect & Crystallizing & ``Is this complete and unambiguous?'' \\
+Evaluator & Verificatory & ``Did we build the right thing?'' \\
+Contrarian & Adversarial & ``What if the opposite were true?'' \\
+Hacker & Lateral & ``What constraints are actually real?'' \\
+Simplifier & Reductive & ``What's the simplest thing that could work?'' \\
+Researcher & Evidential & ``What evidence do we actually have?'' \\
+Architect & Structural & ``If we started over, would we build it this way?'' \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Each Mind operates under strict behavioral constraints encoded in its system prompt. The Socratic Interviewer produces only questions, never code or solutions. The Evaluator follows a mandatory 3-stage protocol (correctness, completeness, fitness). The Researcher classifies every claim as \textsc{evidence}, \textsc{opinion}, or \textsc{hearsay}. These constraints are invariants enforced by the system prompt architecture, not guidelines.
+
+\subsection{On-Demand Loading}
+
+Minds are \emph{lazy-loaded}: no Mind is instantiated until explicitly invoked. This follows the principle of cognitive economy~\cite{rosch1978}: categories (here, reasoning modes) are activated only when needed, minimizing baseline resource consumption. The loading mechanism mirrors the lazy tool registration pattern used throughout the system (\code{registerLazyTool()}).
+
+\begin{definition}[Mind Invocation]
+\label{def:mind}
+A Mind $M_i$ is invoked by specifying its type as the \code{agent} parameter in any AI-calling tool (\code{ask-ai}, \code{agent-orchestrate}, \code{multi-prompt}, \code{consensus-prompt}, \code{mind-chain}). The Mind's system prompt, temperature, and token budget override the base agent defaults.
+\end{definition}
+
+\subsection{Composition Patterns}
+
+The Nine Minds are designed for sequential composition, invoking multiple Minds on the same problem for multi-perspective analysis:
+
+\begin{description}[nosep,style=unboxed,leftmargin=0pt,font=\normalfont\itshape]
+\item[Dialectical Progression.] Socratic $\to$ Ontologist $\to$ Seed Architect. Question assumptions, identify essence, then crystallize specifications. This mirrors the Hegelian dialectic~\cite{hegel1807}: thesis (question), antithesis (essence), synthesis (specification).
+
+\item[Adversarial Review.] Architect $\to$ Contrarian $\to$ Evaluator. Propose structure, challenge it adversarially, then verify the survivor. This implements a form of red-team/blue-team methodology applied to design~\cite{zenko2015redteam}.
+
+\item[Evidence-Based Design.] Researcher $\to$ Hacker $\to$ Simplifier. Gather evidence, find unconventional paths, then simplify. This follows the lean startup principle of measure $\to$ experiment $\to$ build~\cite{ries2011lean}.
+\end{description}
+
+These compositions are automated by the \code{mind-chain} tool, which executes a sequence of Minds where each receives the accumulated output from all previous Minds. Predefined chains (\emph{dialectical}, \emph{adversarial}, \emph{evidence}, \emph{full-review}) can be invoked in a single call, with an optional synthesis step that combines all perspectives into a unified recommendation.
+
+\subsection{Integration with Cognition Subsystem}
+
+Each Mind invocation generates cognition artifacts that persist across sessions:
+
+\begin{itemize}[nosep]
+\item Socratic questions feed the \emph{Decision Journal} as decision preconditions.
+\item Ontologist classifications create nodes in the \emph{Knowledge Graph}.
+\item Evaluator verdicts update \emph{Confidence Tracker} scores.
+\item Contrarian counter-arguments are recorded as \emph{Decision Journal} alternatives.
+\item Researcher findings populate \emph{Error Pattern} and \emph{Mental Model} stores.
+\end{itemize}
+
+Mind outputs are not ephemeral; they enrich the persistent cognition layer (Section~\ref{sec:cognition}) and become inputs for future reasoning across sessions.
+
+% ══════════════════════════════════════════════════════════════════
+\section{Persistent Cognition Subsystem}
+\label{sec:cognition}
+
+The cognition layer provides persistent AI self-awareness through eight stores interconnected by a cross-linking mechanism. All stores use Redis~\cite{redis} for persistence with configurable TTL.
+
+\begin{table}[!t]
+\caption{Eight cognition stores interconnected via CognitionCrossLinker. All links are bidirectional and Redis-backed.}
+\label{tab:cognition}
+\centering\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Store} & \textbf{Persistence} & \textbf{Cross-Links To} \\
+\midrule
+Decision Journal    & Redis sorted set  & Confidence, Intent, Self-Critique \\
+Confidence Tracker  & Redis hash        & Decision, Error Patterns \\
+Intent Tracker      & Redis hash        & Decision, Self-Critique \\
+Error Patterns      & Redis sorted set  & Confidence, Mental Model \\
+Self-Critique       & Redis list        & Decision, Intent \\
+Mental Model        & Redis hash        & Error Patterns, Decision \\
+Handoff Store       & Redis hash        & Intent, Decision \\
+Context Budget      & In-memory + Redis & All stores (read-only) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Store Descriptions}
+
+\begin{description}[nosep,style=unboxed,leftmargin=0pt,font=\normalfont\itshape]
+\item[Decision Journal.] Records structured decisions with options, reasoning, chosen path, and deferred outcome tracking. Supports retrospective analysis of decision quality.
+
+\item[Confidence Tracker.] Maintains calibrated confidence scores per domain with Expected Calibration Error (ECE)~\cite{guo2017calibration} monitoring. Tracks trends to detect systematic over- or under-confidence.
+
+\item[Intent Tracker.] Hierarchical goal management with drift detection using TF-IDF bigram similarity. When current work diverges from stated goals, triggers automatic self-critique.
+
+\item[Error Pattern Database.] Cross-session error database with symptom matching, root cause tracking, and fix suggestions. Uses sorted sets for temporal ordering and merge-on-collision for duplicate patterns.
+
+\item[Self-Critique Store.] Post-task reflection with structured lessons. Lessons are cross-linked to error patterns for reinforcement.
+
+\item[Mental Model Store.] Component-relationship architecture maps with invariant checking, dependency chain analysis, and impact analysis for proposed changes.
+
+\item[Handoff Store.] Auto-enriched session snapshots capturing active tasks, pending decisions, mental models, and error patterns for session recovery after context compaction.
+
+\item[Context Budget Manager.] Token estimation with perturbation-based relevance scoring. Items with high $\Pi$ (from Section~\ref{sec:perturbation}) are flagged as eviction-resistant anchors.
+\end{description}
+
+\subsection{Reactive Cross-Linking}
+
+The CognitionCrossLinker creates bidirectional Redis links between stores. Nine reactive event handlers create autonomous feedback loops:
+
+\begin{itemize}[nosep]
+\item \code{decision:recorded} $\to$ auto-creates confidence record
+\item \code{confidence:low} $\to$ triggers intent drift detection
+\item \code{error:recorded} $\to$ scans recent decisions for root cause
+\item \code{critique:lesson} $\to$ cross-links to matching error patterns
+\item \code{intent:drifted} $\to$ triggers self-critique
+\item \code{handoff:created} $\to$ links active mental models
+\item \code{model:stale} $\to$ flags dependent decisions and intents
+\end{itemize}
+
+\subsection{Agent Ranking}
+
+Agent performance is tracked using a composite score with five tiers (bronze through diamond):
+
+\begin{equation}
+\mathrm{Score} = 0.4 \cdot S_r + 0.3 \cdot C_t + 0.2 \cdot A_s + 0.1 \cdot C_o
+\label{eq:rank}
+\end{equation}
+
+\noindent with exponential temporal decay $\mathrm{Score}(t) = \mathrm{Score}_0 \cdot 0.95^{\Delta t / \tau}$ preventing stale scores from persisting indefinitely.
+
+% ══════════════════════════════════════════════════════════════════
+\section{Two-Layer Event Bus Architecture}
+\label{sec:bus}
+
+The communication infrastructure has two layers connected by anti-amplification bridges.
+
+\subsection{\layerthree: ClusterBus}
+\label{sec:l3}
+
+Inter-cluster communication via Redis Pub/Sub~\cite{redis} with 18~signal types, four send modes (unicast, broadcast, routed via MetaRouter, multicast), and three subsystems:
+
+\subsubsection{SignalFlowController}
+
+Governs throughput through per-signal-type rate limiting, a circuit breaker~\cite{nygard2007} implementing the closed $\to$ open $\to$ half-open automaton, priority-based filtering, and backpressure with configurable buffering.
+
+\subsubsection{Dual-Layer Deduplication}
+
+A bounded set of 2{,}000 recent signal IDs provides exact deduplication. Overflow is handled by a Bloom filter~\cite{bloom1970} configured for 20{,}000~items at 0.1\% false-positive rate:
+
+\begin{equation}
+m = -\frac{n \ln p}{(\ln 2)^2}, \quad k = \frac{m}{n} \ln 2
+\label{eq:bloom}
+\end{equation}
+
+\subsubsection{MetaRouter}
+
+Tag-based signal routing supporting four match modes (exact, wildcard, prefix, regex) with AND/OR boolean logic, priority ordering, and terminal rules. Regex patterns are capped at 200~characters for ReDoS prevention.
+
+\subsection{\layerone: GlobalEventBus}
+\label{sec:l1}
+
+In-process event emitter with namespaced events (\code{module:category:action}), async dispatch via \code{queueMicrotask}, chain depth limit of~8, and Redis bridge for cross-session propagation with retry (max 2~retries, 200ms exponential backoff).
+
+\subsection{Anti-Amplification Guarantees}
+
+\begin{invariant}[Signal Termination]
+\label{inv:termination}
+For any signal $s$, the total copies across all layers is bounded by:
+\begin{equation}
+|C(s)| \leq H_{\max} \cdot D_{\max} = 5 \times 8 = 40
+\label{eq:termination}
+\end{equation}
+where $H_{\max} = 5$ is the maximum bridge hops and $D_{\max} = 8$ is the maximum event chain depth. In practice, source prefix guards and deduplication reduce this to $|C(s)| \leq 3$.
+\end{invariant}
+
+Four mechanisms enforce termination: hop counter (max~5) on bridged signals, source prefix filtering to prevent echo, per-bridge deduplication set, and chain depth limiting in the GlobalEventBus.
+
+% ══════════════════════════════════════════════════════════════════
+\section{LLM Magistrale}
+\label{sec:magistrale}
+
+The Magistrale dispatches prompts across multiple cluster nodes with four aggregation strategies and self-regulating multi-pass execution.
+
+\subsection{Aggregation Strategies}
+
+\begin{description}[nosep,style=unboxed,leftmargin=0pt,font=\normalfont\itshape]
+\item[First-wins.] Returns the first successful response, canceling others. Optimized for latency.
+\item[Best-of-$n$.] Dispatches to $n$ clusters, scores responses using:
+\begin{equation}
+S = 0.45 \cdot Q + 0.25 \cdot D + 0.15 \cdot T - 0.15 \cdot L
+\label{eq:score}
+\end{equation}
+where $Q$ is quality (from pass report), $D$ is content depth ($\log_{10}$-scaled length), $T$ is token efficiency (completion/prompt ratio), and $L$ is normalized latency penalty.
+\item[Consensus.] Requires agreement between responses using weighted TF-IDF cosine similarity (Section~\ref{sec:orbit}) with threshold 0.3. Each response's vote weight is proportional to its quality score squared, amplifying high-quality contributions. Applicable to architecture decisions where correctness outweighs speed.
+\item[Fallback-chain.] Sequential execution with priority ordering. First successful response terminates the chain. Optimized for availability.
+\end{description}
+
+\subsection{Lorenz Prompt Compression}
+
+Before dispatching to remote clusters, the Magistrale applies orbit compression (Section~\ref{sec:orbit}) to the prompt. Prompts exceeding 3{,}000~characters are split into paragraph-sized blocks, analyzed for repeating patterns via the TF-IDF cosine similarity matrix, and redundant cycles are removed. This reduces token cost on resource-constrained cluster nodes without losing semantic content.
+
+\subsection{PassController}
+
+Three strategies govern multi-pass execution:
+\begin{itemize}[nosep]
+\item \emph{min-passes}: The LLM self-assesses task complexity and declares minimum passes, capped to a budget parameter.
+\item \emph{quality-target}: Iterates until quality $Q_i \geq Q_{\mathrm{target}}$ or budget exhausted.
+\item \emph{fixed}: Executes exactly $N$ passes without assessment.
+\end{itemize}
+
+\subsection{Cluster-Internal Orchestration}
+
+When a cluster receives an \code{llm:request} signal with an \code{orchestrate} payload, it spawns a full agentic loop (Section~\ref{sec:agentic}) \emph{inside} the cluster node rather than forwarding a simple LLM call. The orchestration supervisor has access to all kemdiCode tools and iterates autonomously:
+
+\begin{enumerate}[nosep]
+\item The Magistrale dispatches an \code{llm:request} with \code{orchestrate.\{agent, maxIterations, allowedTools, enableCognition\}}.
+\item The receiving cluster's \code{llm:request} handler detects the \code{orchestrate} field and calls \code{executeAgenticLoop()} with the specified agent persona (\code{plan}, \code{build}, \code{explore}, or \code{general}).
+\item The agent reasons over the prompt, calls tools (e.g.\ \code{find-definition}, \code{semantic-search}, \code{thinking-chain}), and iterates up to \code{maxIterations} cycles.
+\item Upon completion, the cluster sends an \code{llm:response} signal containing the agent's final answer, iteration count, and total tool calls.
+\end{enumerate}
+
+This enables distributed autonomous analysis: a hub cluster can dispatch ``find race conditions in module X'' to three worker clusters, each of which independently explores the codebase, calls code intelligence tools, and returns a reasoned answer --- all without the hub needing to coordinate individual tool calls.
+
+Timeout is calculated as $\min(\texttt{maxIterations}, 30) \times 15\,\text{s}$ to prevent unbounded execution. Tool access can be restricted via \code{allowedTools}/\code{blockedTools} whitelists, and cognition tools (decision journal, confidence tracker, etc.) are optionally enabled via \code{enableCognition}.
+
+% ══════════════════════════════════════════════════════════════════
+\section{Agentic Execution Model}
+\label{sec:agentic}
+
+The agentic loop implements autonomous tool execution with full orchestration traceability. Resource constraints:
+
+\begin{itemize}[nosep]
+\item \textbf{Tool access}: All kemdiCode tools are available to agents by default (read-only operations, kanban, thinking chains). Access can be customized per-agent via \code{allowedTools}/\code{blockedTools} parameters.
+\item \textbf{Sub-agent spawning}: Maximum depth 2 (configurable), global budget of 10 concurrent sub-agents. Slot acquisition is synchronous (no TOCTOU races in single-threaded execution).
+\item \textbf{Time budget}: Hard deadline of 10~minutes per orchestration (configurable via \code{MCP\_ORCH\_TIMEOUT} or \code{timeoutMs} parameter). Checked at each iteration boundary before starting new AI calls.
+\item \textbf{Parallel execution}: 2--10 agents execute concurrently via \code{Promise.allSettled}. Each receives a unique \code{orchestrationId}; sub-agents reference their parent via \code{parentOrchestrationId}.
+\item \textbf{Lorenz-aware context management}: In function-calling mode, conversation history is pruned using perturbation impact ranking (Section~\ref{sec:perturbation}) instead of FIFO eviction — high-information messages are preserved even if old. In text-based mode, accumulated tool results are periodically compressed via orbit detection (Section~\ref{sec:orbit}), removing repeating result patterns mid-loop.
+\item \textbf{Live monitoring}: Orchestration status (iteration, tool calls, last result) is tracked in an in-memory cache with asynchronous Redis persistence, queryable via \code{GET /orchestrations} HTTP endpoint.
+\item \textbf{Cognition integration}: All cognition records (decisions, confidence, intents, errors, critiques, handoffs) carry \code{orchestrationId} for end-to-end traceability across nested agent hierarchies.
+\item \textbf{File context}: \code{@path} syntax injects file contents into prompts.
+\item \textbf{Session isolation}: Per-session state via \code{AsyncLocalStorage}~\cite{nodejs_als}, propagating through async chains to sub-agents.
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════════
+\section{Security Hardening}
+\label{sec:security}
+
+\begin{itemize}[nosep]
+\item HMAC-SHA256 authentication on ClusterBus signals with constant-time comparison.
+\item Bloom filter deduplication (20K items, 0.1\% FPR) prevents signal replay.
+\item Prototype pollution protection in all Redis JSON deserialization paths.
+\item Zod schema validation on all tool inputs, preventing injection.
+\item Path traversal protection via \code{validatePathSafe()}.
+\item ReDoS prevention: regex pattern length capped at 200 characters.
+\item Client timeout guards: 30s on \code{client-sampling} and \code{client-elicit}.
+\item Thinking chain depth limit: 500 steps maximum.
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════════
+\section{Evaluation}
+\label{sec:eval}
+
+The system is validated through 741~tests across 33~test files: unit tests (cognition stores, Lorenz compaction algorithms, bus components, security hardening), integration tests (multi-agent communication, session sharing, tool chains), performance benchmarks (signal throughput, concurrent operations, scalability), and resilience tests (Redis degradation, edge cases, error handling).
+
+Key results:
+\begin{itemize}[nosep]
+\item SignalFlowController: $>$50{,}000 signals/sec without policies, $>$20{,}000 with rate limiting.
+\item Circuit breaker: $>$100{,}000 ops/sec.
+\item Bloom filter: zero false negatives across all test scenarios.
+\item Lorenz compaction: phase detection correctly identifies topic transitions in multi-phase debugging chains; orbit compression detects and prunes repeated analysis patterns; CTC fixed-point converges within 3 iterations on realistic data.
+\end{itemize}
+
+Client compatibility is verified with Claude Code (primary), Cursor, KiroCode, and RooCode.
+
+% ══════════════════════════════════════════════════════════════════
+\section{Conclusion}
+\label{sec:conclusion}
+
+Chaos theory and dynamical systems provide a rigorous framework for AI context compaction. Poincar\'{e} section phase detection identifies information-dense topic transitions; Lorenz attractor orbit compression eliminates redundant reasoning cycles; perturbation impact analysis quantifies each thought's structural importance. These algorithms replace heuristic recency-based eviction with information-theoretic compression grounded in established mathematics.
+
+The Nine Minds cognitive architecture provides specialized reasoning modes (Socratic questioning, adversarial challenge, structural analysis, among others) that compose dynamically for multi-perspective engineering analysis. Each Mind integrates with the persistent cognition subsystem, so insights accumulate across sessions.
+
+The distributed cognition infrastructure (eight reactive stores with cross-linking, a two-layer event bus with formal termination guarantees, and multi-cluster LLM orchestration) supports persistent AI self-awareness across session boundaries.
+
+Future work: embedding-based similarity replacing TF-IDF for higher-fidelity orbit detection, automatic Mind selection based on problem characteristics, cross-project knowledge graph learning, and adaptive compaction thresholds tuned by downstream task performance.
+
+\smallskip\noindent\textit{This work is licensed under the GNU General Public License v3.0. Source code: \url{https://github.com/kemdi-pl/kemdicode-mcp}.}
+
+% ══════════════════════════════════════════════════════════════════
+\begin{thebibliography}{36}
+
+\bibitem{lorenz1963}
+E.~N.~Lorenz, ``Deterministic nonperiodic flow,'' \emph{J.\ Atmospheric Sci.}, vol.~20, no.~2, pp.~130--141, Mar.\ 1963. \doi{10.1175/1520-0469(1963)020<0130:DNF>2.0.CO;2}
+
+\bibitem{poincare1890}
+H.~Poincar\'{e}, ``Sur le probl\`{e}me des trois corps et les \'{e}quations de la dynamique,'' \emph{Acta Math.}, vol.~13, pp.~1--270, 1890.
+
+\bibitem{strogatz2015}
+S.~H.~Strogatz, \emph{Nonlinear Dynamics and Chaos}, 2nd~ed.\hskip 1em plus 0.5em minus 0.4em Boulder, CO: Westview Press, 2015.
+
+\bibitem{sparrow1982lorenz}
+C.~Sparrow, \emph{The Lorenz Equations: Bifurcations, Chaos, and Strange Attractors}.\hskip 1em plus 0.5em minus 0.4em New York: Springer-Verlag, 1982. \doi{10.1007/978-1-4612-5767-7}
+
+\bibitem{shannon1948}
+C.~E.~Shannon, ``A mathematical theory of communication,'' \emph{Bell Syst.\ Tech.\ J.}, vol.~27, no.~3, pp.~379--423, Jul.\ 1948. \doi{10.1002/j.1538-7305.1948.tb01338.x}
+
+\bibitem{lin1991}
+J.~Lin, ``Divergence measures based on the Shannon entropy,'' \emph{IEEE Trans.\ Inform.\ Theory}, vol.~37, no.~1, pp.~145--151, Jan.\ 1991. \doi{10.1109/18.61115}
+
+\bibitem{kullback1951}
+S.~Kullback and R.~A.~Leibler, ``On information and sufficiency,'' \emph{Ann.\ Math.\ Statist.}, vol.~22, no.~1, pp.~79--86, 1951. \doi{10.1214/aoms/1177729694}
+
+\bibitem{salton1988}
+G.~Salton and C.~Buckley, ``Term-weighting approaches in automatic text retrieval,'' \emph{Inform.\ Process.\ Manage.}, vol.~24, no.~5, pp.~513--523, 1988. \doi{10.1016/0306-4573(88)90021-0}
+
+\bibitem{manning2008introduction}
+C.~D.~Manning, P.~Raghavan, and H.~Sch\"{u}tze, \emph{Introduction to Information Retrieval}.\hskip 1em plus 0.5em minus 0.4em Cambridge: Cambridge Univ.\ Press, 2008.
+
+\bibitem{novikov1989}
+I.~D.~Novikov, ``An analysis of the operation of a time machine,'' \emph{Sov.\ Phys.\ JETP}, vol.~68, no.~3, pp.~439--443, 1989.
+
+\bibitem{aho1972transitive}
+A.~V.~Aho, M.~R.~Garey, and J.~D.~Ullman, ``The transitive reduction of a directed graph,'' \emph{SIAM J.\ Comput.}, vol.~1, no.~2, pp.~131--137, 1972. \doi{10.1137/0201008}
+
+\bibitem{mcp2024}
+Anthropic, ``Introducing the Model Context Protocol,'' Anthropic Blog, Nov.\ 2024. [Online]. Available: \url{https://www.anthropic.com/news/model-context-protocol}
+
+\bibitem{mcpspec2025}
+Model Context Protocol Authors, ``Model Context Protocol Specification, version 2025-11-25,'' 2025. [Online]. Available: \url{https://modelcontextprotocol.io/specification/2025-11-25}
+
+\bibitem{lsp2016}
+Microsoft, Red Hat, and Codenvy, ``Language Server Protocol Specification,'' 2016. [Online]. Available: \url{https://microsoft.github.io/language-server-protocol/}
+
+\bibitem{redis}
+S.~Sanfilippo, ``Redis: An in-memory data structure store,'' 2009--2026. [Online]. Available: \url{https://redis.io/}
+
+\bibitem{bloom1970}
+B.~H.~Bloom, ``Space/time trade-offs in hash coding with allowable errors,'' \emph{Commun.\ ACM}, vol.~13, no.~7, pp.~422--426, Jul.\ 1970. \doi{10.1145/362686.362692}
+
+\bibitem{nygard2007}
+M.~T.~Nygard, \emph{Release It! Design and Deploy Production-Ready Software}.\hskip 1em plus 0.5em minus 0.4em Raleigh, NC: Pragmatic Bookshelf, 2007.
+
+\bibitem{guo2017calibration}
+C.~Guo, G.~Pleiss, Y.~Sun, and K.~Q.~Weinberger, ``On calibration of modern neural networks,'' in \emph{Proc.\ ICML}, 2017.
+
+\bibitem{wu2021recursively}
+J.~Wu \emph{et al.}, ``Recursively summarizing books with human feedback,'' \emph{arXiv:2109.10862}, 2021.
+
+\bibitem{lewis2020rag}
+P.~Lewis \emph{et al.}, ``Retrieval-augmented generation for knowledge-intensive NLP tasks,'' \emph{Advances in Neural Inform.\ Process.\ Syst.}, vol.~33, pp.~9459--9474, 2020.
+
+\bibitem{xiao2024efficient}
+G.~Xiao \emph{et al.}, ``Efficient streaming language models with attention sinks,'' in \emph{Proc.\ ICLR}, 2024.
+
+\bibitem{pascanu2013difficulty}
+R.~Pascanu, T.~Mikolov, and Y.~Bengio, ``On the difficulty of training recurrent neural networks,'' in \emph{Proc.\ ICML}, 2013.
+
+\bibitem{vogt2022lyapunov}
+R.~Vogt, M.~Puelma~Touzel, E.~Shlizerman, and G.~Lajoie, ``On Lyapunov exponents for RNNs: Understanding information propagation using dynamical systems tools,'' \emph{Front.\ Appl.\ Math.\ Statist.}, vol.~8, Art.~no.~818799, 2022. \doi{10.3389/fams.2022.818799}
+
+\bibitem{wu2023autogen}
+Q.~Wu, G.~Bansal \emph{et al.}, ``AutoGen: Enabling next-gen LLM applications via multi-agent conversation,'' \emph{arXiv:2308.08155}, 2023.
+
+\bibitem{hong2023metagpt}
+S.~Hong, X.~Zhuge \emph{et al.}, ``MetaGPT: Meta programming for multi-agent collaborative framework,'' \emph{arXiv:2308.00352}, 2023.
+
+\bibitem{crewai2024}
+J.~Moura, ``CrewAI: Framework for orchestrating role-playing autonomous AI agents,'' 2024. [Online]. Available: \url{https://github.com/crewAIInc/crewAI}
+
+\bibitem{li2024multiagent}
+X.~Li, S.~Wang, S.~Zeng, Y.~Wu, and Y.~Yang, ``A survey on LLM-based multi-agent systems: Workflow, infrastructure, and challenges,'' \emph{Vicinagearth}, vol.~1, no.~1, Art.~no.~9, Oct.\ 2024. \doi{10.1007/s44336-024-00009-2}
+
+\bibitem{guo2024ijcai}
+T.~Guo, X.~Chen \emph{et al.}, ``Large language model based multi-agents: A survey of progress and challenges,'' in \emph{Proc.\ 33rd IJCAI}, 2024.
+
+\bibitem{nodejs_als}
+Node.js Contributors, ``AsyncLocalStorage,'' Node.js Documentation, 2020--2026. [Online]. Available: \url{https://nodejs.org/api/async_context.html}
+
+\bibitem{plato_meno}
+Plato, \emph{Meno}, ca.\ 385~BCE. Trans.\ G.~M.~A.~Grube, Indianapolis: Hackett, 1976.
+
+\bibitem{kahneman2011}
+D.~Kahneman, \emph{Thinking, Fast and Slow}.\hskip 1em plus 0.5em minus 0.4em New York: Farrar, Straus and Giroux, 2011.
+
+\bibitem{debono1985}
+E.~de~Bono, \emph{Six Thinking Hats}.\hskip 1em plus 0.5em minus 0.4em Boston: Little, Brown and Company, 1985.
+
+\bibitem{mellers2001}
+B.~Mellers, R.~Hertwig, and D.~Kahneman, ``Do frequency representations eliminate conjunction effects? An exercise in adversarial collaboration,'' \emph{Psychol.\ Sci.}, vol.~12, no.~4, pp.~269--275, 2001. \doi{10.1111/1467-9280.00350}
+
+\bibitem{aikin2017}
+S.~F.~Aikin, ``Straw man, weak man, hollow man,'' in \emph{Bad Arguments}, R.~Arp \emph{et al.}, Eds.\hskip 1em plus 0.5em minus 0.4em Chichester: Wiley, 2017, pp.~44--48.
+
+\bibitem{rosch1978}
+E.~Rosch, ``Principles of categorization,'' in \emph{Cognition and Categorization}, E.~Rosch and B.~B.~Lloyd, Eds.\hskip 1em plus 0.5em minus 0.4em Hillsdale, NJ: Erlbaum, 1978, pp.~27--48.
+
+\bibitem{hegel1807}
+G.~W.~F.~Hegel, \emph{Ph\"{a}nomenologie des Geistes}.\hskip 1em plus 0.5em minus 0.4em Bamberg: Goebhardt, 1807. Trans.\ A.~V.~Miller, \emph{Phenomenology of Spirit}, Oxford Univ.\ Press, 1977.
+
+\bibitem{zenko2015redteam}
+M.~Zenko, \emph{Red Team: How to Succeed by Thinking Like the Enemy}.\hskip 1em plus 0.5em minus 0.4em New York: Basic Books, 2015.
+
+\bibitem{ries2011lean}
+E.~Ries, \emph{The Lean Startup}.\hskip 1em plus 0.5em minus 0.4em New York: Crown Business, 2011.
+
+\bibitem{munro_ouroboros}
+H.~Munro, ``Ouroboros: A Specification-First AI Development System,'' 2026. [Online]. Available: \url{https://github.com/Q00/ouroboros}
+
+\end{thebibliography}
+
+\end{document}

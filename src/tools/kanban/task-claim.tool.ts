@@ -1,0 +1,116 @@
+/**
+ * KemdiCode MCP Server
+ * Copyright (C) 2025-2026 Kemdi Sp. z o.o. (Dawid Irzyk <dawid@kemdi.pl>)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/**
+ * Task Claim Tool
+ *
+ * Allows an agent to claim and start working on a task.
+ *
+ * @module tools/kanban/task-claim
+ */
+
+import { z } from 'zod';
+import { UnifiedTool } from '../registry.js';
+import { Logger } from '../../utils/logger.js';
+import { executeWithGuard } from '../tool-shared.js';
+import { claimTask, getAvailableTasks, resolveSessionId } from '../../kanban/index.js';
+import { isSilent } from '../../config/silent.js';
+
+const schema = z.object({
+  taskId: z
+    .string()
+    .optional()
+    .describe('Task ID to claim (claims next available if omitted)'),
+  agentId: z.string().min(1).describe('Claiming agent ID'),
+  sessionId: z.string().optional().describe('Session ID (auto-detected from connection if omitted; needed if no taskId)'),
+});
+
+type TaskClaimArgs = z.infer<typeof schema>;
+
+export const taskClaimTool: UnifiedTool = {
+  name: 'task-claim',
+  description: 'Claim task to start working on it',
+  zodSchema: schema,
+
+  metadata: {
+    category: 'kanban',
+    tags: ['task', 'claim', 'worker'],
+    examples: [
+      { args: { agentId: 'agent-1' }, description: 'Claim the next available task' },
+      { args: { taskId: 'task-abc123', agentId: 'agent-1' }, description: 'Claim a specific task by ID' },
+    ],
+    relatedTools: ['task-list', 'task-assign'],
+  },
+
+  execute: async (args): Promise<string> => {
+    const input = args as TaskClaimArgs;
+
+    return executeWithGuard('task-claim', 'kanban-operations', async () => {
+      let taskId = input.taskId;
+
+      // If no specific task, get next available
+      if (!taskId) {
+        const sessionId = resolveSessionId(input.sessionId);
+
+        const available = await getAvailableTasks(sessionId);
+        if (available.length === 0) {
+          return JSON.stringify({
+            success: false,
+            error: 'No available tasks to claim',
+            code: 'NO_TASKS',
+          });
+        }
+
+        taskId = available[0].id;
+      }
+
+      const task = await claimTask(taskId, input.agentId);
+
+      if (!task) {
+        return JSON.stringify({
+          success: false,
+          error: 'Task not found',
+          code: 'TASK_NOT_FOUND',
+        });
+      }
+
+      Logger.debug(`task-claim: agent ${input.agentId} claimed task ${task.id}: ${task.title}`);
+
+      // Silent mode: return task ID and title only
+      if (isSilent()) {
+        return JSON.stringify({ id: task.id, title: task.title });
+      }
+
+      return JSON.stringify({
+        success: true,
+        task: {
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          status: task.status,
+          priority: task.priority,
+          assignee: task.assignee,
+          blockedBy: task.blockedBy,
+          relatedFiles: task.relatedFiles,
+          labels: task.labels,
+          estimatedMinutes: task.estimatedMinutes,
+        },
+      });
+    });
+  },
+};
