@@ -1394,6 +1394,35 @@ async function executeWithFunctionCalling(
     }
   }
 
+  // If loop ended without a clean completion (max_iterations, timeout, etc.),
+  // ask the model for a final synthesis of all findings so far.
+  if (stopReason !== 'completed' && stopReason !== 'error' && log.length > 0) {
+    const toolResults = log
+      .flatMap((iter) => iter.toolCalls.map((tc) => `[${tc.tool}]: ${tc.result.slice(0, 500)}`))
+      .join('\n');
+    if (toolResults.length > 0) {
+      try {
+        const synthesisPrompt = `You have run out of iterations. Based on ALL the tool results you gathered, provide your COMPLETE final answer now. Do not call any more tools. Summarize all findings clearly.\n\nTool results collected:\n${toolResults.slice(0, 8000)}`;
+        messages.push({ role: 'user', content: synthesisPrompt });
+        const synthesis = await completeWithTools({
+          messages,
+          agent: config.agent,
+          model: config.model,
+          tools: undefined, // no tools — force text response
+          maxTokens: config.maxTokens ?? getAgentMaxTokens(config.agent),
+        });
+        if (synthesis.content && synthesis.content.length > lastAnswer.length) {
+          lastAnswer = synthesis.content;
+          stopReason = 'completed';
+          progress('Synthesized final answer from accumulated tool results');
+        }
+      } catch {
+        // Synthesis failed — keep existing lastAnswer
+        progress('Synthesis call failed — returning partial answer');
+      }
+    }
+  }
+
   return {
     orchestrationId: loopId || '',
     answer: lastAnswer,
